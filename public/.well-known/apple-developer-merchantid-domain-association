@@ -1,0 +1,10 @@
+PLACEHOLDER — Apple Pay domain association.
+
+Substitua TODO o conteúdo deste arquivo pelo que o Mercado Pago gerar ao
+registrar o domínio jurandir.app.br na seção Apple Pay do painel do MP.
+
+Depois de subir (push + redeploy), confira acessando:
+https://jurandir.app.br/.well-known/apple-developer-merchantid-domain-association
+
+O arquivo NÃO tem extensão e o nome deve ser exatamente:
+apple-developer-merchantid-domain-association
