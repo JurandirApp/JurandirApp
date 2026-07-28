@@ -36,6 +36,32 @@ export type CheckoutPreference = {
   checkoutUrl: string; // init_point (ou sandbox_init_point em teste)
 };
 
+/** Dados que o Payment Brick (onSubmit.formData) devolve pra cobrar o cartão. */
+export type CardBrickData = {
+  token?: string;
+  payment_method_id: string;
+  issuer_id?: string;
+  installments?: number;
+  payment_type_id?: string;
+  payer?: { email?: string; identification?: { type?: string; number?: string } };
+};
+
+/** Cobrança de cartão via token (checkout transparente / Payment Brick). */
+export type CardPaymentInput = {
+  est: Establishment;
+  reference: string; // order.code — external_reference
+  total: number;
+  platformFee: number;
+  description: string;
+  brick: CardBrickData;
+};
+
+export type CardPaymentResult = {
+  chargeId: string;
+  status: ChargeStatus;
+  statusDetail?: string; // status_detail do MP (ex.: cc_rejected_insufficient_amount)
+};
+
 /** Pagamento aprovado localizado por referência externa (Checkout Pro não devolve o id na criação). */
 export type FoundPayment = { paymentId: string; status: ChargeStatus };
 
@@ -45,6 +71,8 @@ export interface PaymentProvider {
   getChargeStatus(est: Establishment, chargeId: string): Promise<ChargeStatus>;
   /** Cria a preferência do checkout hospedado e devolve a URL de redirecionamento. */
   createCheckoutPreference?(input: CheckoutPreferenceInput): Promise<CheckoutPreference>;
+  /** Cobra um cartão via token (checkout transparente / Payment Brick) — sem redirect. */
+  createCardPayment?(input: CardPaymentInput): Promise<CardPaymentResult>;
   /** Busca um pagamento aprovado pela referência externa (order.code). */
   findApprovedPayment?(est: Establishment, reference: string): Promise<FoundPayment | null>;
 }

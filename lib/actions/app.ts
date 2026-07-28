@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import type { PaymentMethod } from "@prisma/client";
 import { createOrder, payShare, getOrdersByIds } from "@/lib/db/orders";
-import { createCardCheckout, reconcileOrder } from "@/lib/db/payments";
+import { createCardCheckout, reconcileOrder, payOrderWithCard } from "@/lib/db/payments";
 import { orderCreateSchema, type OrderCreateInput } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
 import type { ClientOrder } from "@/lib/app/helpers";
+import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
 
 // Public (anonymous QR customer) — no session required.
 export async function createOrderAction(
@@ -28,6 +29,29 @@ export async function createOrderAction(
     return { ok: true, order: toClientOrder(created), checkoutUrl };
   } catch {
     return { ok: false, error: "failed" };
+  }
+}
+
+/** Checkout transparente (Payment Brick): cria o pedido de cartão (AWAITING) e
+ *  cobra na hora com o token do Brick. Aprovado → pedido já volta "producao". */
+export async function payCardAction(
+  input: OrderCreateInput,
+  brick: CardBrickData,
+): Promise<{ ok: boolean; status: ChargeStatus; order?: ClientOrder; detail?: string }> {
+  const parsed = orderCreateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, status: "failed" };
+  try {
+    const created = await createOrder(parsed.data); // nasce AWAITING_PAYMENT (cartão)
+    const res = await payOrderWithCard(created.id, brick);
+    const [fresh] = await getOrdersByIds([created.id]);
+    return {
+      ok: res.status !== "failed",
+      status: res.status,
+      order: fresh ? toClientOrder(fresh) : undefined,
+      detail: res.statusDetail,
+    };
+  } catch {
+    return { ok: false, status: "failed" };
   }
 }
 

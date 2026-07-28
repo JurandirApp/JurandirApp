@@ -11,6 +11,7 @@ import {
   updateFeeAction,
 } from "@/lib/actions/admin";
 import { Link } from "@/i18n/navigation";
+import { Icon } from "@/components/ui/Icon";
 import { AdminContext, type AdminTabId, type AdminValue } from "./context";
 import { AdminSidebar } from "./AdminSidebar";
 import { PeriodBar } from "./PeriodBar";
@@ -45,6 +46,7 @@ export function AdminApp({
   const t = useTranslations("admin");
   const [, startTransition] = useTransition();
   const [tab, setTab] = useState<AdminTabId>("dashboard");
+  const [navOpen, setNavOpen] = useState(false); // sidebar mobile (hambúrguer)
   const [period, setPeriod] = useState("mes");
   const [month, setMonth] = useState(() => currentMonth(now));
   const [estabScope, setEstabScope] = useState("");
@@ -134,26 +136,42 @@ export function AdminApp({
   return (
     <AdminContext.Provider value={value}>
       <div className="min-h-screen bg-page">
-        <header className="sticky top-0 z-40 flex h-[84px] items-center bg-ink">
-          <div className="box-border w-[248px] flex-shrink-0 p-3">
+        <header className="sticky top-0 z-40 flex h-[84px] items-center gap-1 bg-ink pl-2 lg:gap-0 lg:pl-0">
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label={t("menuOpen")}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-sand lg:hidden"
+          >
+            <Icon name="menu" size={26} />
+          </button>
+          <div className="box-border flex-shrink-0 p-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/jurandir-logo-horizontal.svg"
               alt="Jurandir"
-              className="block w-full rounded-[10px]"
+              className="block h-11 w-auto max-w-full rounded-[10px] lg:h-[52px]"
             />
           </div>
           <Link
             href="/painel"
-            className="ml-auto flex items-center gap-1.5 pr-6 text-sm text-sand/80"
+            className="ml-auto flex items-center gap-1.5 pr-4 text-sm text-sand/80 lg:pr-6"
           >
             <span className="ms text-[17px]">storefront</span>
-            {t("estPanel")}
+            <span className="hidden sm:inline">{t("estPanel")}</span>
           </Link>
         </header>
 
         <div className="flex min-h-[calc(100vh-84px)] items-stretch">
-          <AdminSidebar />
+          {navOpen && (
+            <button
+              type="button"
+              aria-label={t("menuClose")}
+              onClick={() => setNavOpen(false)}
+              className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            />
+          )}
+          <AdminSidebar open={navOpen} onClose={() => setNavOpen(false)} />
           <main className="box-border min-w-0 flex-1 p-6 md:px-7 md:py-6">
             {(tab === "dashboard" || tab === "faturamento") && <PeriodBar />}
             {tab === "dashboard" && <DashboardSection />}

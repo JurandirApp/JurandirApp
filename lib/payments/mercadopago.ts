@@ -9,6 +9,8 @@ import type {
   ChargeStatus,
   CheckoutPreferenceInput,
   CheckoutPreference,
+  CardPaymentInput,
+  CardPaymentResult,
   FoundPayment,
 } from "./types";
 
@@ -174,6 +176,32 @@ export const mercadoPagoProvider: PaymentProvider = {
       preferenceId: r.id,
       checkoutUrl: isTest ? r.sandbox_init_point : r.init_point,
     };
+  },
+  async createCardPayment(input: CardPaymentInput): Promise<CardPaymentResult> {
+    const { est, reference, total, platformFee, description, brick } = input;
+    // Marketplace: cobra na conta do vendedor (OAuth) com application_fee (split).
+    const marketplace = Boolean(est.mpAccessToken);
+    const body = {
+      transaction_amount: total,
+      description,
+      external_reference: reference,
+      installments: brick.installments ?? 1,
+      payment_method_id: brick.payment_method_id,
+      ...(brick.token ? { token: brick.token } : {}),
+      ...(brick.issuer_id ? { issuer_id: brick.issuer_id } : {}),
+      ...(marketplace ? { application_fee: platformFee } : {}),
+      payer: {
+        email: brick.payer?.email || "comprador@jurandir.app.br",
+        ...(brick.payer?.identification ? { identification: brick.payer.identification } : {}),
+      },
+    };
+    const doCall = (token: string) =>
+      call<{ id: number; status: string; status_detail?: string }>("/v1/payments", token, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    const r = marketplace ? await withToken(est, doCall) : await doCall(testToken());
+    return { chargeId: String(r.id), status: mapStatus(r.status), statusDetail: r.status_detail };
   },
   async findApprovedPayment(est: Establishment, reference: string): Promise<FoundPayment | null> {
     const doCall = (token: string) =>

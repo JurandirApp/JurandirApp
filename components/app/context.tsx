@@ -74,6 +74,8 @@ export interface AppValue {
   // Submission
   paying: boolean;
   finish: (fullyPaidOrShares: null | { m: PayId | null; amount: number }[]) => void;
+  /** Cartão (crédito/débito) → abre o Payment Brick (checkout transparente) em vez de redirect. */
+  openCardPay: () => void;
 
   // Post-order
   myOrders: ClientOrder[];

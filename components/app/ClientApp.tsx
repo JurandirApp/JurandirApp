@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CATS, type AppEstablishment, type PayId } from "@/lib/data/app";
 import type { MenuItem } from "@/lib/data/panel";
-import type { CartLine, ClientOrder, Share } from "@/lib/app/helpers";
+import { cartTotal, fees, type CartLine, type ClientOrder, type Share } from "@/lib/app/helpers";
 import { appToEnum } from "@/lib/app/adapters";
-import { createOrderAction, getMyOrdersAction, payShareAction } from "@/lib/actions/app";
+import { createOrderAction, getMyOrdersAction, payCardAction, payShareAction } from "@/lib/actions/app";
+import type { OrderCreateInput } from "@/lib/validation";
 import { AppContext, type AppValue, type PayMode, type Step } from "./context";
 import { QrScreen } from "./screens/QrScreen";
 import { MenuScreen } from "./screens/MenuScreen";
@@ -14,6 +15,7 @@ import { CheckoutScreen } from "./screens/CheckoutScreen";
 import { DoneScreen } from "./screens/DoneScreen";
 import { MyOrdersScreen } from "./screens/MyOrdersScreen";
 import { CartDrawer } from "./CartDrawer";
+import { CardPaymentModal } from "./CardPaymentModal";
 import { ClientToast } from "./ClientToast";
 
 const CAT0 = "Combos & Combinações";
@@ -77,6 +79,7 @@ export function ClientApp({
   const [paying, setPaying] = useState(false);
   const [myOrders, setMyOrders] = useState<ClientOrder[]>([]);
   const [lastOrder, setLastOrder] = useState<ClientOrder | null>(null);
+  const [cardPay, setCardPay] = useState<{ input: OrderCreateInput; amount: number } | null>(null);
   const [exp, setExp] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -273,6 +276,24 @@ export function ClientApp({
       })();
     };
 
+    const openCardPay = () => {
+      const items = cart.map((c) => {
+        const m = menu.find((x) => x.id === c.id)!;
+        return { name: m.name, qty: c.qty, unitPrice: m.price };
+      });
+      const input: OrderCreateInput = {
+        establishmentId: est.id,
+        locationLabel: loc,
+        posto: beach ? est.posto : undefined,
+        customerName: custName.trim() || undefined,
+        note: note.trim() || undefined,
+        items,
+        payment: { kind: "full", method: appToEnum(selPay!), installments: 1 },
+      };
+      const { grand } = fees(cartTotal(cart, menu), est.platformFeePct, est.serviceFeePct);
+      setCardPay({ input, amount: grand });
+    };
+
     return {
       est,
       beach,
@@ -370,6 +391,7 @@ export function ClientApp({
 
       paying,
       finish,
+      openCardPay,
 
       myOrders,
       lastOrder,
@@ -414,6 +436,36 @@ export function ClientApp({
           {step === "done" && lastOrder && <DoneScreen />}
           {step === "myorders" && <MyOrdersScreen />}
           {cartOpen && <CartDrawer />}
+          {cardPay && (
+            <CardPaymentModal
+              amount={cardPay.amount}
+              onPay={(brick) => payCardAction(cardPay.input, brick)}
+              onApproved={(order) => {
+                setMyOrders((prev) => [order, ...prev]);
+                setLastOrder(order);
+                try {
+                  const ids: string[] = JSON.parse(
+                    localStorage.getItem(storageKey) ?? "[]",
+                  );
+                  if (order.dbId && !ids.includes(order.dbId)) {
+                    localStorage.setItem(storageKey, JSON.stringify([order.dbId, ...ids]));
+                  }
+                } catch {
+                  /* localStorage unavailable */
+                }
+                setCart([]);
+                setSelPay(null);
+                setParc(1);
+                setMode("full");
+                setPeople(2);
+                setPaid([null, null]);
+                setNote("");
+                setCardPay(null);
+                setStep("done");
+              }}
+              onClose={() => setCardPay(null)}
+            />
+          )}
           <ClientToast />
         </div>
       </div>

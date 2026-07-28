@@ -1,6 +1,7 @@
 import { OrderStatus } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getProvider } from "@/lib/payments";
+import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
 
 /** Flip idempotente do pedido para IN_PRODUCTION quando a cobrança foi paga. */
@@ -63,6 +64,38 @@ export async function reconcileOrder(orderId: string): Promise<void> {
     });
     await confirmChargePaid(found.paymentId);
   }
+}
+
+/** Cobra o cartão do pedido via token (checkout transparente / Payment Brick).
+ *  Aprovado → confirma e vai pra produção. Devolve o status pra UI reagir. */
+export async function payOrderWithCard(
+  orderId: string,
+  brick: CardBrickData,
+): Promise<{ status: ChargeStatus; statusDetail?: string }> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { establishment: true, payment: true },
+  });
+  if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) {
+    return { status: "failed" };
+  }
+  const provider = getProvider();
+  if (!provider.createCardPayment) return { status: "failed" };
+  const res = await provider.createCardPayment({
+    est: order.establishment,
+    reference: order.code,
+    total: Number(order.total),
+    platformFee: Number(order.platformFee),
+    description: `Pedido ${order.code}`,
+    brick,
+  });
+  // Guarda o id do pagamento (permite reconciliar pending depois, se for o caso).
+  await prisma.payment.update({
+    where: { id: order.payment.id },
+    data: { gatewayChargeId: res.chargeId },
+  });
+  if (res.status === "paid") await confirmChargePaid(res.chargeId);
+  return { status: res.status, statusDetail: res.statusDetail };
 }
 
 /** Cria a preferência de Checkout Pro para um pedido de cartão e devolve a URL de

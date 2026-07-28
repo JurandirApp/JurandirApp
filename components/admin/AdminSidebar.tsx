@@ -6,14 +6,28 @@ import { Icon } from "@/components/ui/Icon";
 import { Link } from "@/i18n/navigation";
 import { useAdmin, ADMIN_TABS } from "./context";
 
-export function AdminSidebar() {
+export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { tab, setTab, scopedScaled } = useAdmin();
   const t = useTranslations("admin");
   const locale = useLocale();
   const ativos = scopedScaled.filter((e) => e.status === "ativo").length;
 
   return (
-    <aside className="sticky top-[84px] box-border flex h-[calc(100vh-84px)] w-[248px] flex-shrink-0 flex-col self-start overflow-y-auto bg-ink px-[14px] py-5">
+    <aside
+      className={`fixed left-0 top-0 z-50 box-border flex h-screen w-[248px] flex-shrink-0 flex-col overflow-y-auto bg-ink px-[14px] pb-5 pt-14 transition-transform duration-200 lg:sticky lg:top-[84px] lg:z-auto lg:h-[calc(100vh-84px)] lg:translate-x-0 lg:self-start lg:pt-5 ${
+        open ? "translate-x-0" : "-translate-x-full"
+      }`}
+    >
+      {/* Fechar (só no mobile — no desktop a sidebar é fixa) */}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label={t("menuClose")}
+        className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-lg text-sand/70 lg:hidden"
+      >
+        <Icon name="close" size={22} />
+      </button>
+
       <div className="mb-2 flex items-center justify-between gap-2 border-b border-sand/[0.12] px-2.5 pb-3 pt-0.5">
         <span className="text-[11px] font-bold uppercase tracking-[.12em] text-sand/50">
           {t("sidebarTitle")}
@@ -31,7 +45,10 @@ export function AdminSidebar() {
             <button
               key={id}
               type="button"
-              onClick={() => setTab(id)}
+              onClick={() => {
+                setTab(id);
+                onClose();
+              }}
               className="flex w-full items-center gap-3 rounded-xl px-3.5 py-[11px] text-left text-sm font-semibold transition-colors"
               style={{
                 background: active ? "#EDD8A3" : "transparent",
