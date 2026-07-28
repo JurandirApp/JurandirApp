@@ -1,0 +1,506 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
+import {
+  type MenuItem,
+  type Order,
+  type PanelPrintJob,
+  type ProfileForm,
+  type Qr,
+} from "@/lib/data/panel";
+import type { MonthlyStatLite } from "@/lib/admin/scale";
+import { padId } from "@/lib/panel/helpers";
+import {
+  addQrSpotAction,
+  changePasswordAction,
+  deleteMenuItemAction,
+  deleteQrSpotAction,
+  deliverOrderAction,
+  disconnectMpAction,
+  generatePrintTokenAction,
+  getMpConnectUrlForMeAction,
+  printOrderAction,
+  refreshOrdersAction,
+  refreshPrintJobsAction,
+  savePrinterConfigAction,
+  saveProfileAction,
+  testPrintAction,
+  upsertMenuItemAction,
+} from "@/lib/actions/panel";
+import {
+  PanelContext,
+  type AuditFilters,
+  type PanelValue,
+  type PrinterForm,
+  type PwForm,
+  type TabId,
+  type Toggles,
+} from "./context";
+import { Sidebar } from "./Sidebar";
+import { NotificationBell } from "./NotificationBell";
+import { RealtimeNotif } from "./RealtimeNotif";
+import { Toast } from "./Toast";
+import { PedidosSection } from "./sections/PedidosSection";
+import { CardapioSection } from "./sections/CardapioSection";
+import { QrSection } from "./sections/QrSection";
+import { KpisSection } from "./sections/KpisSection";
+import { AuditoriaSection } from "./sections/AuditoriaSection";
+import { PerfilSection } from "./sections/PerfilSection";
+import { ConfigSection } from "./sections/ConfigSection";
+import { ItemEditorModal } from "./modals/ItemEditorModal";
+import { ConfirmDialog } from "./modals/ConfirmDialog";
+import { QrZoomModal } from "./modals/QrZoomModal";
+
+const EMPTY_AUD: AuditFilters = { from: "", to: "", mesa: "", method: "" };
+const EMPTY_PW: PwForm = { cur: "", nova: "", conf: "" };
+
+export function PanelApp({
+  now,
+  profile: profile0,
+  orders: orders0,
+  menu: menu0,
+  qrs: qrs0,
+  stats,
+  printJobs: printJobs0,
+  printer: printer0,
+  mpConnected: mpConnected0,
+  mpResult = null,
+}: {
+  now: number;
+  profile: ProfileForm;
+  orders: Order[];
+  menu: MenuItem[];
+  qrs: Qr[];
+  stats: MonthlyStatLite[];
+  printJobs: PanelPrintJob[];
+  printer: { ip: string; enabled: boolean; hasToken: boolean };
+  mpConnected: boolean;
+  mpResult?: "ok" | "error" | null;
+}) {
+  const t = useTranslations("panel");
+  const beach = true; // Quiosque do Mar (mock)
+  const [, startTransition] = useTransition();
+
+  const [orders, setOrders] = useState<Order[]>(orders0);
+  const [menu, setMenu] = useState<MenuItem[]>(menu0);
+  const [qrs, setQrs] = useState<Qr[]>(qrs0);
+  const [printJobs, setPrintJobs] = useState<PanelPrintJob[]>(printJobs0);
+
+  const [tab, setTab] = useState<TabId>("pedidos");
+  const [orderFilter, setOrderFilter] = useState("todos");
+  const [period, setPeriod] = useState("hoje");
+  const [openPay, setOpenPay] = useState<string | null>(null);
+  const [menuCat, setMenuCat] = useState("Todos");
+  const [itemCat, setItemCat] = useState("Todos");
+  const [qrLabel, setQrLabel] = useState("");
+  const [aud, setAudState] = useState<AuditFilters>(EMPTY_AUD);
+  const [audPage, setAudPage] = useState(1);
+
+  const [profile, setProfileState] = useState<ProfileForm>(profile0);
+  const [profSaved, setProfSaved] = useState(false);
+  const [pw, setPwState] = useState<PwForm>(EMPTY_PW);
+  const [pwMsg, setPwMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  const [printer, setPrinterState] = useState<PrinterForm>({
+    conn: "rede",
+    ip: printer0.ip,
+    port: "9100",
+    model: "Epson TM-T20",
+  });
+  const [printEnabled, setPrintEnabledState] = useState(printer0.enabled);
+  const [hasPrintToken, setHasPrintToken] = useState(printer0.hasToken);
+  const [printToken, setPrintToken] = useState<string | null>(null);
+  const [mpConnected, setMpConnected] = useState(mpConnected0);
+  const [prMsg, setPrMsg] = useState<string | null>(null);
+  const [toggles, setToggles] = useState<Toggles>({ auto: true, wa: true, em: true });
+
+  const [toastText, setToastText] = useState<string | null>(null);
+  const [notif, setNotif] = useState<Order | null>(null);
+
+  // Modals held locally (sections trigger them via actions).
+  const [editing, setEditing] = useState<{ item: MenuItem | null } | null>(null);
+  const [delItem, setDelItem] = useState<MenuItem | null>(null);
+  const [delQr, setDelQr] = useState<Qr | null>(null);
+  const [qrZoom, setQrZoom] = useState<Qr | null>(null);
+
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Order dbIds already known to this session — new ones (from later polls) ring the bell.
+  const seenOrders = useRef<Set<string>>(
+    new Set(orders0.map((o) => o.dbId).filter((x): x is string => Boolean(x))),
+  );
+
+  const toast = (msg: string) => {
+    setToastText(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastText(null), 2400);
+  };
+
+  // Poll the establishment's real orders every 15s. New orders (created by
+  // customers in the app) ring the bell + join the list; statuses stay in sync
+  // with the DB. Fase 6 swaps polling for push (Supabase Realtime / Pusher).
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const fresh = await refreshOrdersAction();
+        const newOnes = fresh.filter((o) => o.dbId && !seenOrders.current.has(o.dbId));
+        fresh.forEach((o) => o.dbId && seenOrders.current.add(o.dbId));
+        setOrders(fresh);
+        if (newOnes.length > 0) {
+          setNotif(newOnes[0]);
+          try {
+            navigator.vibrate?.(80);
+          } catch {}
+          if (notifTimer.current) clearTimeout(notifTimer.current);
+          notifTimer.current = setTimeout(() => setNotif(null), 6500);
+        }
+      } catch {
+        /* transient — the next tick retries */
+      }
+    };
+    const id = setInterval(poll, 15000);
+    return () => {
+      clearInterval(id);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (notifTimer.current) clearTimeout(notifTimer.current);
+    };
+  }, []);
+
+  const value = useMemo<PanelValue>(() => {
+    return {
+      beach,
+      restName: profile.name,
+      now,
+      orders,
+      menu,
+      qrs,
+      stats,
+      tab,
+      setTab: (t) => {
+        setTab(t);
+        setOpenPay(null);
+      },
+      toast,
+
+      orderFilter,
+      setOrderFilter,
+      deliverOrder: (id) => {
+        const o = orders.find((x) => x.id === id);
+        setOrders((prev) =>
+          prev.map((x) => (x.id === id ? { ...x, st: "entregue" } : x)),
+        );
+        toast(t("toasts.orderDelivered", { id: padId(id) }));
+        if (o?.dbId) startTransition(() => deliverOrderAction(o.dbId!));
+      },
+      printOrder: (id) => {
+        const o = orders.find((x) => x.id === id);
+        if (!o?.dbId) return;
+        startTransition(async () => {
+          try {
+            const r = await printOrderAction(o.dbId!);
+            toast(
+              r.ok
+                ? t("toasts.printOrder", { id: padId(id) })
+                : t("toasts.printError"),
+            );
+          } catch {
+            toast(t("toasts.printError"));
+          }
+          refreshPrintJobsAction().then(setPrintJobs).catch(() => {});
+        });
+      },
+
+      menuCat,
+      setMenuCat,
+      openEditor: (item) => setEditing({ item }),
+      askDeleteItem: (item) => setDelItem(item),
+      csvModel: () => toast(t("toasts.csvModel")),
+      csvImport: () => toast(t("toasts.csvImport")),
+
+      qrLabel,
+      setQrLabel,
+      addQr: () => {
+        const lbl = qrLabel.trim();
+        if (!lbl) return;
+        if (qrs.some((q) => q.label.toLowerCase() === lbl.toLowerCase())) {
+          setQrLabel("");
+          return;
+        }
+        startTransition(async () => {
+          const r = await addQrSpotAction(lbl);
+          if (r.ok && r.qr) setQrs((prev) => [...prev, r.qr!]);
+          else toast(t("toasts.qrError"));
+        });
+        setQrLabel("");
+      },
+      openZoom: (q) => setQrZoom(q),
+      askDeleteQr: (q) => setDelQr(q),
+
+      period,
+      setPeriod: (p) => {
+        setPeriod(p);
+        setOpenPay(null);
+        setItemCat("Todos");
+      },
+      openPay,
+      setOpenPay,
+      itemCat,
+      setItemCat,
+
+      aud,
+      setAud: (k, v) => {
+        setAudState((prev) => ({ ...prev, [k]: v }));
+        setAudPage(1);
+      },
+      clearAud: () => {
+        setAudState(EMPTY_AUD);
+        setAudPage(1);
+      },
+      audPage,
+      setAudPage,
+
+      profile,
+      setProfile: (k, v) => {
+        setProfileState((prev) => ({ ...prev, [k]: v }));
+        setProfSaved(false);
+      },
+      profSaved,
+      saveProfile: () => {
+        startTransition(async () => {
+          try {
+            const r = await saveProfileAction({
+              name: profile.name,
+              tagline: profile.tagline,
+              desc: profile.desc,
+              address: profile.address,
+              hours: profile.hours,
+              serviceFee: Number(profile.serviceFee) || 0,
+              radius: profile.radius,
+              phone: profile.phone,
+              email: profile.email,
+              website: profile.website,
+              whatsapp: profile.whatsapp,
+              instagram: profile.instagram,
+            });
+            if (r.ok) {
+              setProfSaved(true);
+              toast(t("toasts.profileSaved"));
+            } else {
+              toast(t("toasts.profileError"));
+            }
+          } catch {
+            toast(t("toasts.profileError"));
+          }
+        });
+      },
+      demoPhoto: () => toast(t("toasts.demoPhoto")),
+
+      pw,
+      setPw: (k, v) => setPwState((prev) => ({ ...prev, [k]: v })),
+      savePw: () => {
+        if (!pw.cur || !pw.nova || !pw.conf)
+          return setPwMsg({ ok: false, t: t("config.pwFillAll") });
+        if (pw.nova.length < 6)
+          return setPwMsg({ ok: false, t: t("config.pwTooShort") });
+        if (pw.nova !== pw.conf)
+          return setPwMsg({ ok: false, t: t("config.pwMismatch") });
+        startTransition(async () => {
+          const r = await changePasswordAction(pw.cur, pw.nova);
+          if (!r.ok) {
+            setPwMsg({
+              ok: false,
+              t: t(
+                `config.${r.error === "pwWrongCurrent" ? "pwWrongCurrent" : "pwTooShort"}`,
+              ),
+            });
+            return;
+          }
+          setPwMsg({ ok: true, t: t("config.pwSuccess") });
+          setPwState(EMPTY_PW);
+        });
+      },
+      pwMsg,
+      toggles,
+      flipToggle: (k) => setToggles((prev) => ({ ...prev, [k]: !prev[k] })),
+      printer,
+      setPrinter: (k, v) => setPrinterState((prev) => ({ ...prev, [k]: v })),
+      savePrinter: () => {
+        startTransition(async () => {
+          await savePrinterConfigAction(printer.ip, printEnabled);
+          setPrMsg(t("config.printerSaved"));
+        });
+      },
+      testPrint: () => {
+        startTransition(async () => {
+          const r = await testPrintAction();
+          setPrMsg(
+            r.hasToken
+              ? t("config.testQueued")
+              : t("config.testQueuedNoToken"),
+          );
+          refreshPrintJobsAction().then(setPrintJobs).catch(() => {});
+        });
+      },
+      prMsg,
+      printEnabled,
+      setPrintEnabled: (v) => {
+        setPrintEnabledState(v);
+        startTransition(async () => {
+          await savePrinterConfigAction(printer.ip, v);
+        });
+      },
+      hasPrintToken,
+      printToken,
+      generatePrintToken: () => {
+        startTransition(async () => {
+          const r = await generatePrintTokenAction();
+          if (r.ok) {
+            setPrintToken(r.token);
+            setHasPrintToken(true);
+          }
+        });
+      },
+      mpConnected,
+      mpResult,
+      connectMp: () => {
+        getMpConnectUrlForMeAction()
+          .then((r) => {
+            if (r.ok && r.url) window.location.href = r.url;
+          })
+          .catch(() => {});
+      },
+      disconnectMp: () => {
+        startTransition(async () => {
+          await disconnectMpAction();
+          setMpConnected(false);
+        });
+      },
+      printJobs,
+      refreshPrintJobs: () => {
+        refreshPrintJobsAction()
+          .then(setPrintJobs)
+          .catch(() => {});
+      },
+    };
+  }, [
+    t, beach, now, orders, menu, qrs, stats, tab, orderFilter, period, openPay, menuCat,
+    itemCat, qrLabel, aud, audPage, profile, profSaved, pw, pwMsg,
+    printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
+    mpConnected, mpResult,
+  ]);
+
+  const saveItem = (clean: MenuItem) => {
+    startTransition(async () => {
+      const r = await upsertMenuItemAction({
+        id: clean.dbId,
+        name: clean.name,
+        description: clean.desc,
+        price: clean.price,
+        oldPrice: clean.old,
+        photo: clean.photo,
+        measure: clean.measure,
+        unit: clean.unit,
+        category: clean.cat,
+        subcategory: clean.sub,
+        active: true,
+      });
+      if (r.ok && r.item) {
+        setMenu((prev) =>
+          prev.some((x) => x.dbId === r.item!.dbId)
+            ? prev.map((x) => (x.dbId === r.item!.dbId ? r.item! : x))
+            : [...prev, r.item!],
+        );
+        setEditing(null);
+        toast(t("toasts.itemSaved"));
+      } else {
+        toast(t("toasts.itemError"));
+      }
+    });
+  };
+
+  return (
+    <PanelContext.Provider value={value}>
+      <div className="min-h-screen bg-page">
+        <header className="sticky top-0 z-40 flex h-[84px] items-center bg-ink">
+          <div className="box-border w-[248px] flex-shrink-0 p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/jurandir-logo-horizontal.svg"
+              alt="Jurandir"
+              className="block w-full rounded-[10px]"
+            />
+          </div>
+        </header>
+
+        <NotificationBell />
+
+        <div className="flex min-h-[calc(100vh-84px)] items-stretch">
+          <Sidebar />
+          <main className="box-border min-w-0 flex-1 p-6 md:px-7 md:py-6">
+            {tab === "pedidos" && <PedidosSection />}
+            {tab === "cardapio" && <CardapioSection />}
+            {tab === "qrcodes" && <QrSection />}
+            {tab === "kpis" && <KpisSection />}
+            {tab === "auditoria" && <AuditoriaSection />}
+            {tab === "perfil" && <PerfilSection />}
+            {tab === "config" && <ConfigSection />}
+          </main>
+        </div>
+
+        {editing && (
+          <ItemEditorModal
+            item={editing.item}
+            onClose={() => setEditing(null)}
+            onSave={saveItem}
+            onToast={toast}
+          />
+        )}
+        {delItem && (
+          <ConfirmDialog
+            icon="delete"
+            title={t("confirm.deleteItemTitle")}
+            body={t.rich("confirm.deleteItemBody", {
+              name: delItem.name,
+              b: (c) => <b>{c}</b>,
+            })}
+            confirmLabel={t("confirm.delete")}
+            onCancel={() => setDelItem(null)}
+            onConfirm={() => {
+              setMenu((prev) => prev.filter((x) => x.dbId !== delItem.dbId));
+              if (delItem.dbId) startTransition(() => deleteMenuItemAction(delItem.dbId!));
+              setDelItem(null);
+            }}
+          />
+        )}
+        {delQr && (
+          <ConfirmDialog
+            icon="delete"
+            title={t("confirm.deleteQrTitle")}
+            body={t.rich("confirm.deleteQrBody", {
+              label: delQr.label,
+              b: (c) => <b>{c}</b>,
+            })}
+            confirmLabel={t("confirm.delete")}
+            onCancel={() => setDelQr(null)}
+            onConfirm={() => {
+              setQrs((prev) => prev.filter((x) => x.id !== delQr.id));
+              startTransition(() => deleteQrSpotAction(delQr.id));
+              setDelQr(null);
+            }}
+          />
+        )}
+        {qrZoom && (
+          <QrZoomModal
+            qr={qrZoom}
+            restName={profile.name}
+            onClose={() => setQrZoom(null)}
+            onPrint={() => toast(t("toasts.qrPrint"))}
+          />
+        )}
+
+        <RealtimeNotif notif={notif} onDismiss={() => setNotif(null)} />
+        <Toast text={toastText} />
+      </div>
+    </PanelContext.Provider>
+  );
+}
