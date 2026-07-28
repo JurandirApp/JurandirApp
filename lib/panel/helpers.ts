@@ -45,9 +45,9 @@ export function ymd(ts: number): string {
 
 const SLUG = "quiosque-do-mar";
 
-/** URL a QR encodes — points at the (future) client app for this spot. */
+/** URL a QR encodes — points at the production client app for this spot. */
 export function qrUrl(label: string): string {
-  return `https://jurandir.app/${SLUG}?local=${encodeURIComponent(label)}`;
+  return `https://jurandir.app.br/${SLUG}?local=${encodeURIComponent(label)}`;
 }
 
 export function qrImg(label: string, size: number): string {

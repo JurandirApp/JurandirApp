@@ -30,7 +30,7 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "metadata" });
   return {
-    metadataBase: new URL("https://jurandir.app"),
+    metadataBase: new URL("https://jurandir.app.br"),
     title: { default: t("title"), template: "%s · Jurandir" },
     description: t("description"),
     icons: {

@@ -25,20 +25,18 @@ Cole cada uma. **Os valores secretos você copia do seu `.env` local** — não 
 | `CLOUDINARY_CLOUD_NAME` | copie do `.env` |
 | `CLOUDINARY_API_KEY` | copie do `.env` |
 | `CLOUDINARY_API_SECRET` | copie do `.env` |
-| **`APP_BASE_URL`** | **a URL do deploy** — ex.: `https://SEU-PROJETO.vercel.app` |
-| **`MP_REDIRECT_URI`** | **a URL do deploy** + `/api/payments/mercadopago/callback` |
+| **`APP_BASE_URL`** | **`https://jurandir.app.br`** (domínio de produção) |
+| **`MP_REDIRECT_URI`** | **`https://jurandir.app.br/api/payments/mercadopago/callback`** |
 
 > **Opcionais** (não precisa em produção): `MP_TEST_PUBLIC_KEY`, `MP_TEST_ACCESS_TOKEN` (só sandbox) e todas as `ASAAS_*` (Asaas não é mais usado — MP é o gateway fixo).
 
-### Sobre as 2 últimas (a URL do deploy)
-A URL do Vercel é previsível: `https://<nome-do-projeto>.vercel.app`. Você pode:
-- **Já colocar** `APP_BASE_URL` e `MP_REDIRECT_URI` com esse endereço antes do 1º deploy, **ou**
-- Subir uma vez, pegar a URL real que o Vercel deu, ajustar as duas e **Redeploy**.
+### Sobre as 2 últimas (a URL de produção)
+O domínio de produção é **`https://jurandir.app.br`** (apontado pro Vercel via DNS). Use ele nas duas — é pra lá que o cliente volta depois de pagar (back_urls) e é o callback do OAuth do marketplace.
 
 ## 4. Registrar o Redirect URI no Mercado Pago
 No painel do MP → app **JurandirDev** → **Configurações da aplicação** → **Redirect URIs**, adicione **exatamente** o mesmo valor do `MP_REDIRECT_URI`:
 ```
-https://SEU-PROJETO.vercel.app/api/payments/mercadopago/callback
+https://jurandir.app.br/api/payments/mercadopago/callback
 ```
 (Tem que bater caractere por caractere, incluindo o `https://`.)
 

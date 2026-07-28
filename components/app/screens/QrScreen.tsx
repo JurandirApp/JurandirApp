@@ -15,7 +15,7 @@ export function QrScreen() {
   // na chegada. Com QR (?local=), o lugar é fixo e não há modal.
   const [spotModal, setSpotModal] = useState(!spotFromQr);
 
-  const qrData = `https://jurandir.app/${est.slug}?local=${loc}`;
+  const qrData = `https://jurandir.app.br/${est.slug}?local=${loc}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=${encodeURIComponent(
     qrData,
   )}`;

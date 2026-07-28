@@ -107,7 +107,7 @@ export const mercadoPagoProvider: PaymentProvider = {
         .toISOString()
         .replace("Z", "+00:00"),
       ...(marketplace ? { application_fee: platformFee } : {}),
-      payer: { email: "comprador@jurandir.app", first_name: customerName || "Cliente" },
+      payer: { email: "comprador@jurandir.app.br", first_name: customerName || "Cliente" },
     };
     const doCall = (token: string) =>
       call<MpPayment>("/v1/payments", token, {
