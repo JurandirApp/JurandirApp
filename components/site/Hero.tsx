@@ -125,11 +125,11 @@ export function Hero({ cities }: { cities: string[] }) {
           </button>
 
           <dl
-            className="mt-10 grid max-w-[512px] animate-fade-up grid-cols-4 gap-x-4"
+            className="mt-10 grid max-w-[512px] animate-fade-up grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 sm:gap-x-4"
             style={{ animationDelay: ".36s" }}
           >
             {stats.map((s) => (
-              <div key={s.label}>
+              <div key={s.label} className="min-w-0">
                 <dt className="font-display text-4xl font-extrabold">{s.n}</dt>
                 <dd className="mt-0.5 text-xs font-medium leading-[1.3] text-ink/55">
                   {s.label}

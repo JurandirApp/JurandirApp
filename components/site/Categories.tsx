@@ -8,6 +8,26 @@ const MENU_HREF = "#mais-hypados";
 
 export function Categories() {
   const t = useTranslations("categories");
+
+  const circle = (c: (typeof categories)[number], key: string) => {
+    const label = t(`items.${c.key}`);
+    return (
+      <a
+        key={key}
+        href={MENU_HREF}
+        className="mr-4 flex w-24 flex-shrink-0 flex-col items-center gap-2.5 text-ink"
+      >
+        <span
+          className="block h-24 w-24 rounded-full border-[3px] border-white bg-[#e2e8f0] bg-cover bg-center shadow-float"
+          style={{ backgroundImage: `url("${c.img}")` }}
+          role="img"
+          aria-label={label}
+        />
+        <span className="text-center text-sm font-semibold">{label}</span>
+      </a>
+    );
+  };
+
   return (
     <section className="mx-auto max-w-[1152px] px-6 py-14">
       <Reveal className="flex items-end justify-between gap-4">
@@ -23,28 +43,21 @@ export function Categories() {
         </a>
       </Reveal>
 
+      {/* Mobile: carrossel que passa sozinho (todos os itens levam ao mesmo
+          destino, então o movimento não atrapalha o toque). Track duplicado →
+          o translate de -50% dá o loop contínuo. Pausa no toque/hover. */}
+      <div className="mt-6 overflow-hidden md:hidden">
+        <div className="flex w-max animate-marquee pb-1 hover:[animation-play-state:paused] active:[animation-play-state:paused] motion-reduce:animate-none">
+          {[...categories, ...categories].map((c, i) => circle(c, `${c.key}-${i}`))}
+        </div>
+      </div>
+
+      {/* Desktop: fila estática (os 9 cabem na largura). */}
       <Reveal
         delay={0.06}
-        className="no-scrollbar mt-6 flex gap-4 overflow-x-auto pb-3"
+        className="no-scrollbar mt-6 hidden overflow-x-auto pb-3 md:flex"
       >
-        {categories.map((c) => {
-          const label = t(`items.${c.key}`);
-          return (
-            <a
-              key={c.key}
-              href={MENU_HREF}
-              className="flex w-24 flex-shrink-0 flex-col items-center gap-2.5 text-ink"
-            >
-              <span
-                className="block h-24 w-24 rounded-full border-[3px] border-white bg-[#e2e8f0] bg-cover bg-center shadow-float"
-                style={{ backgroundImage: `url("${c.img}")` }}
-                role="img"
-                aria-label={label}
-              />
-              <span className="text-center text-sm font-semibold">{label}</span>
-            </a>
-          );
-        })}
+        {categories.map((c) => circle(c, c.key))}
       </Reveal>
     </section>
   );

@@ -11,11 +11,19 @@
     background: #edd8a3;
   }
 
+  html {
+    /* Reserva a calha da barra de rolagem SEMPRE, pra abrir um dropdown (que faz
+       a barra vertical aparecer) não empurrar lateralmente o toggle PT/EN fixo. */
+    scrollbar-gutter: stable;
+  }
+
   body {
     font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
     color: #141821;
     -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
+    /* `clip` (não `hidden`): impede overflow horizontal sem criar um container de
+       scroll — assim a barra vertical fica no <html> e o scrollbar-gutter atua. */
+    overflow-x: clip;
   }
 
   a {

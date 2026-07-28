@@ -58,6 +58,19 @@ export function Dropdown({
   const toggle = () => setOpen((o) => !o);
   const close = () => setOpen(false);
 
+  // Mantém o painel dentro da viewport: se ele passar da borda direita (comum no
+  // mobile, quando o gatilho está à direita), desloca pra esquerda o necessário.
+  // Roda no commit (ref callback), antes do paint — sem "pulo" visível — e evita
+  // overflow horizontal que empurraria o toggle PT/EN fixo.
+  const clampIntoView = (el: HTMLDivElement | null) => {
+    if (!el) return;
+    el.style.transform = "";
+    const rect = el.getBoundingClientRect();
+    const margin = 8;
+    const overRight = rect.right - (window.innerWidth - margin);
+    if (overRight > 0) el.style.transform = `translateX(${-overRight}px)`;
+  };
+
   return (
     <div className={cn("relative", className)}>
       {renderTrigger({ open, toggle, id })}
@@ -71,10 +84,11 @@ export function Dropdown({
             className="fixed inset-0 z-20 cursor-default"
           />
           <div
+            ref={clampIntoView}
             role="listbox"
             id={id}
             className={cn(
-              "absolute top-[calc(100%+6px)] z-30 rounded-2xl border-2 border-ink/10 bg-white p-1.5 shadow-dropdown",
+              "absolute top-[calc(100%+6px)] z-30 max-w-[calc(100vw-1rem)] rounded-2xl border-2 border-ink/10 bg-white p-1.5 shadow-dropdown",
               align === "stretch" ? "left-0 right-0" : "left-0",
               panelClassName,
             )}
