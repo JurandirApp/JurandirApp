@@ -4,7 +4,7 @@
 export const categories = [
   { key: "beers", id: "photo-1608270586620-248524c67de9" },
   { key: "caipirinhas", id: "photo-1551538827-9c037cb4f32a" },
-  { key: "coconut", id: "photo-1520950237264-3e10a6d27dd5" },
+  { key: "coconut", id: "photo-1617611140379-0e0ec17cc45f" },
   { key: "snacks", id: "photo-1625938145312-c971e35e51f3" },
   { key: "portions", id: "photo-1573080496219-bb080dd4f877" },
   { key: "skewers", id: "photo-1555939594-58d7cb561ad1" },

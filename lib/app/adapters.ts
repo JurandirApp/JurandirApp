@@ -1,4 +1,5 @@
 import type { PaymentMethod } from "@prisma/client";
+import { isPixExpired } from "@/lib/domain/pricing";
 import type { AppEstablishment, PayId } from "@/lib/data/app";
 import { COVER_IMG } from "@/lib/data/panel";
 import type { MenuItem } from "@/lib/data/panel";
@@ -88,6 +89,12 @@ export function toClientOrder(o: DbOrder): ClientOrder {
     note: o.note ?? "",
     name: o.customerName ?? "",
     status: STATUS[o.status] ?? "aguardando",
+    expired: isPixExpired({
+      status: o.status,
+      method: o.payment?.method ?? null,
+      hasSplit: o.splitShares.length > 0,
+      createdAtMs: o.createdAt.getTime(),
+    }),
     pixPayload: o.payment?.pixPayload ?? undefined,
     pixQrImage: o.payment?.pixQrImage ?? undefined,
     pay: o.payment ? { id: ENUM_TO_APP[o.payment.method], parc: o.payment.installments } : null,

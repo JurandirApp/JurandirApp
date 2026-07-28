@@ -10,6 +10,23 @@ export const GATEWAY_FEE_PCT: Record<PaymentMethod, number> = {
 
 export const round2 = (v: number): number => Math.round(v * 100) / 100;
 
+/** Janela de pagamento do Pix (min). Passado isso, a cobrança expira no Mercado
+ *  Pago e o pedido sai das listas ativas (não "superlota" o painel do bar). */
+export const PIX_EXPIRES_MIN = 15;
+
+/** Deriva (na leitura, sem escrita/cron) se um pedido Pix CHEIO aguardando
+ *  pagamento já passou da janela. Conta dividida (split) e cartão não expiram por
+ *  aqui — só o Pix direto, que é o que tem `date_of_expiration` no gateway. */
+export function isPixExpired(o: {
+  status: string;
+  method: string | null;
+  hasSplit: boolean;
+  createdAtMs: number;
+}): boolean {
+  if (o.status !== "AWAITING_PAYMENT" || o.method !== "PIX" || o.hasSplit) return false;
+  return Date.now() - o.createdAtMs > PIX_EXPIRES_MIN * 60_000;
+}
+
 /** Valor que vai ao estabelecimento no split de marketplace (Jurandir retém a platformFee). */
 export function splitToEstablishment(total: number, platformFee: number): number {
   return round2(total - platformFee);

@@ -25,6 +25,8 @@ export type ClientOrder = {
   note: string;
   name: string;
   status: "aguardando" | "producao" | "entregue";
+  /** Pix cheio aguardando que passou da janela de pagamento (QR morto no MP). */
+  expired?: boolean;
   /** Pix (cobrança real): copia-e-cola + QR base64, presentes enquanto aguarda pagamento. */
   pixPayload?: string;
   pixQrImage?: string;

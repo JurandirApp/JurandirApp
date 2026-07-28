@@ -178,11 +178,19 @@ export function ClientApp({
       }
       if (!ids.length) return;
       const known = myOrdersRef.current;
-      const allDelivered =
-        known.length >= ids.length && known.every((o) => o.status === "entregue");
-      if (allDelivered) return;
+      const allDone =
+        known.length >= ids.length &&
+        known.every((o) => o.status === "entregue" || o.expired);
+      if (allDone) return;
       try {
-        setMyOrders(await getMyOrdersAction(ids));
+        const fresh = await getMyOrdersAction(ids);
+        setMyOrders(fresh);
+        // Mantém a tela final (lastOrder) viva: se o pedido exibido nela avançou
+        // (ex.: Pix confirmado no gateway), reflete o novo status na hora — senão
+        // a tela "Aguardando pagamento" nunca sairia do lugar depois de pagar.
+        setLastOrder((prev) =>
+          prev?.dbId ? (fresh.find((o) => o.dbId === prev.dbId) ?? prev) : prev,
+        );
       } catch {
         /* transient — the next tick retries */
       }

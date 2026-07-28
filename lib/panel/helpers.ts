@@ -71,6 +71,7 @@ export function padId(id: number, len = 3): string {
 
 /** Order status → badge [bg, fg]. Label is translated (panel.status.<st>). */
 export function statusColors(o: Order): [string, string] {
+  if (o.expired) return ["#f1f5f9", "#64748b"];
   if (o.st === "aguardando") return ["#ffe4e6", "#be123c"];
   if (o.st === "producao") return ["#fef3c7", "#b45309"];
   return ["#d1fae5", "#047857"];

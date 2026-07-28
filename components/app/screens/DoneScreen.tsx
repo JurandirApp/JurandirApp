@@ -12,18 +12,33 @@ export function DoneScreen() {
   const tPay = useTranslations("app.pay");
   const L = lastOrder!;
 
-  const inc = L.status === "aguardando";
+  // Pix cheio que passou dos 15 min: QR morto no MP → estado "expirado".
+  const expired = Boolean(L.expired);
+  const inc = L.status === "aguardando" && !expired;
+  // Conta dividida (splits) vs pagamento cheio (Pix aguardando): a cópia muda —
+  // "parcial / assim que todos pagarem" só faz sentido pra conta dividida.
+  const isSplit = Boolean(L.splits);
   // Modelo comissão: o cliente paga subtotal + taxa de serviço (a comissão da
   // plataforma NÃO entra no valor pago — sai do que vai pro bar).
   const grand = L.total + L.est;
   const lPaid = L.splits ? paidAmount(L.splits) : 0;
 
-  const title = inc
-    ? t("doneTitlePartial")
-    : L.name
-      ? t("doneTitleNamed", { name: L.name })
-      : t("doneTitle");
-  const sub = inc ? t("doneSubPartial") : t("doneSub");
+  const title = expired
+    ? t("doneTitleExpired")
+    : !inc
+      ? L.name
+        ? t("doneTitleNamed", { name: L.name })
+        : t("doneTitle")
+      : isSplit
+        ? t("doneTitlePartial")
+        : t("doneTitleAwaiting");
+  const sub = expired
+    ? t("doneSubExpired")
+    : !inc
+      ? t("doneSub")
+      : isSplit
+        ? t("doneSubPartial")
+        : t("doneSubAwaiting");
   const time = new Date(L.ts).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -34,11 +49,11 @@ export function DoneScreen() {
       <div
         className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full text-white"
         style={{
-          background: inc ? "#f59e0b" : "#10b981",
+          background: expired ? "#ef4444" : inc ? "#f59e0b" : "#10b981",
           boxShadow: "0 10px 30px -10px rgba(0,0,0,.3)",
         }}
       >
-        <Icon name={inc ? "schedule" : "check"} size={44} />
+        <Icon name={expired ? "block" : inc ? "schedule" : "check"} size={44} />
       </div>
       <h1 className="m-0 font-display text-[28px] font-extrabold uppercase tracking-[-0.02em]">
         {title}
@@ -101,9 +116,17 @@ export function DoneScreen() {
           </div>
         )}
         <div className="mt-3 flex justify-between border-t border-[#f1f5f9] pt-3 font-bold">
-          <span>{inc ? t("paidSoFar") : t("paidVia", { label: payLabelOf(L, t, tPay) })}</span>
-          <span style={{ color: inc ? "#d97706" : "#059669" }}>
-            {inc ? money(lPaid) : money(grand)}
+          <span>
+            {expired
+              ? t("toPay")
+              : !inc
+                ? t("paidVia", { label: payLabelOf(L, t, tPay) })
+                : isSplit
+                  ? t("paidSoFar")
+                  : t("toPay")}
+          </span>
+          <span style={{ color: expired ? "#94a3b8" : inc ? "#d97706" : "#059669" }}>
+            {inc && isSplit ? money(lPaid) : money(grand)}
           </span>
         </div>
       </div>
@@ -141,7 +164,7 @@ export function DoneScreen() {
         onClick={goMyOrders}
         className="mt-5 w-full rounded-xl bg-coral py-3.5 text-[15px] font-bold text-white"
       >
-        {inc ? t("doneBtnComplete") : t("doneBtnOrders")}
+        {inc && isSplit ? t("doneBtnComplete") : t("doneBtnOrders")}
       </button>
       <button
         type="button"

@@ -1,6 +1,7 @@
 import { createHmac } from "crypto";
 import type { Establishment } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { PIX_EXPIRES_MIN } from "@/lib/domain/pricing";
 import type {
   PaymentProvider,
   PixCharge,
@@ -100,6 +101,11 @@ export const mercadoPagoProvider: PaymentProvider = {
       description,
       payment_method_id: "pix",
       external_reference: reference,
+      // Expira em PIX_EXPIRES_MIN → o QR morre no MP e o pedido sai das listas.
+      // MP exige offset numérico explícito (rejeita o "Z" do toISOString).
+      date_of_expiration: new Date(Date.now() + PIX_EXPIRES_MIN * 60_000)
+        .toISOString()
+        .replace("Z", "+00:00"),
       ...(marketplace ? { application_fee: platformFee } : {}),
       payer: { email: "comprador@jurandir.app", first_name: customerName || "Cliente" },
     };

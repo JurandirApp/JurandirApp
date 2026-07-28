@@ -1,3 +1,4 @@
+import { isPixExpired } from "@/lib/domain/pricing";
 import type { MonthlyStatLite } from "@/lib/admin/scale";
 import type {
   MenuItem,
@@ -68,6 +69,12 @@ export function toPanelOrder(o: DbOrder): Order {
     dbId: o.id,
     code: o.code,
     st: STATUS[o.status] ?? "aguardando",
+    expired: isPixExpired({
+      status: o.status,
+      method: o.payment?.method ?? null,
+      hasSplit,
+      createdAtMs: o.createdAt.getTime(),
+    }),
     pay,
     loc: o.locationLabel,
     posto: o.posto ?? undefined,

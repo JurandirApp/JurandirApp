@@ -53,12 +53,14 @@ export function MyOrdersScreen() {
 
       <div className="flex flex-col gap-3">
         {myOrders.map((o) => {
-          const inc = o.status === "aguardando";
-          const meta = inc
-            ? { key: "statusPending", bg: "#ffe4e6", fg: "#be123c" }
-            : o.status === "producao"
-              ? { key: "statusPaid", bg: "#fef3c7", fg: "#b45309" }
-              : { key: "statusDelivered", bg: "#d1fae5", fg: "#047857" };
+          const inc = o.status === "aguardando" && !o.expired;
+          const meta = o.expired
+            ? { key: "statusExpired", bg: "#f1f5f9", fg: "#64748b" }
+            : inc
+              ? { key: "statusPending", bg: "#ffe4e6", fg: "#be123c" }
+              : o.status === "producao"
+                ? { key: "statusPaid", bg: "#fef3c7", fg: "#b45309" }
+                : { key: "statusDelivered", bg: "#d1fae5", fg: "#047857" };
           const incomplete = inc && !!o.splits;
           const grand = o.total + o.fee + o.est;
           const nPaid = o.splits ? paidCount(o.splits) : 0;
@@ -193,6 +195,12 @@ export function MyOrdersScreen() {
                 <p className="m-0 mt-2 flex items-center gap-1 text-xs text-[#059669]">
                   <Icon name="check" size={13} />
                   {t("delivered")}
+                </p>
+              )}
+              {o.expired && (
+                <p className="m-0 mt-2 flex items-center gap-1 text-xs text-[#94a3b8]">
+                  <Icon name="block" size={13} />
+                  {t("moExpired")}
                 </p>
               )}
             </div>

@@ -21,15 +21,20 @@ export function PedidosSection() {
   const { orders, orderFilter, setOrderFilter } = usePanel();
   const t = useTranslations("panel.pedidos");
 
-  const agu = orders.filter((o) => o.st === "aguardando");
+  // Pix expirado sai do "aguardando" (QR morto no MP) → não superlota a lista.
+  const agu = orders.filter((o) => o.st === "aguardando" && !o.expired);
   const prod = orders.filter((o) => o.st === "producao");
   const ent = orders.filter((o) => o.st === "entregue");
+  const exp = orders.filter((o) => o.expired);
 
   const filters: [string, string, number][] = [
     ["todos", t("filterTodos"), orders.length],
     ["aguardando", t("filterAguardando"), agu.length],
     ["producao", t("filterProducao"), prod.length],
     ["entregue", t("filterEntregue"), ent.length],
+    ...(exp.length
+      ? [["expirado", t("filterExpirado"), exp.length] as [string, string, number]]
+      : []),
   ];
 
   const groups: {
@@ -47,6 +52,8 @@ export function PedidosSection() {
     groups.push({ key: "prod", title: t("groupProduction"), color: "rgba(20,24,33,.6)", dot: "#fbbf24", opacity: 1, cards: prod });
   if ((F === "todos" || F === "entregue") && ent.length)
     groups.push({ key: "ent", title: t("groupDelivered"), color: "rgba(20,24,33,.6)", dot: null, opacity: 0.7, cards: ent });
+  if ((F === "todos" || F === "expirado") && exp.length)
+    groups.push({ key: "exp", title: t("groupExpired"), color: "rgba(20,24,33,.45)", dot: null, opacity: 0.6, cards: exp });
 
   return (
     <div>
@@ -107,7 +114,7 @@ function OrderCard({ order: o }: { order: Order }) {
   const ts = useTranslations("panel.status");
   const tp = useTranslations("panel.pay");
   const total = orderTotal(o);
-  const inc = o.st === "aguardando";
+  const inc = o.st === "aguardando" && !o.expired;
   const [badgeBg, badgeFg] = statusColors(o);
   const methodLabel = o.splits ? t("splitPayment") : tp(o.pay);
 
@@ -132,7 +139,7 @@ function OrderCard({ order: o }: { order: Order }) {
           className="whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium"
           style={{ background: badgeBg, color: badgeFg }}
         >
-          {ts(o.st)}
+          {o.expired ? ts("expirado") : ts(o.st)}
         </span>
       </div>
 
@@ -210,25 +217,34 @@ function OrderCard({ order: o }: { order: Order }) {
 
       <div className="flex items-center justify-between gap-2 border-t border-ink/10 pt-3">
         <div>
-          <span
-            className="font-bold"
-            style={{ color: inc ? "#e11d48" : "#141821" }}
-          >
-            {money(inc ? (o.splits ? o.splits.paidAmt : 0) : total)}
-          </span>
-          <span className="ml-2 text-xs text-ink/50">
-            {inc
-              ? t("received", { method: methodLabel })
-              : t("via", { method: methodLabel })}
-          </span>
-          {o.card && (
-            <div className="mt-1 flex items-center gap-1 text-xs text-ink/60">
-              <Icon name="credit_card" size={13} className="text-ink/40" />
-              {o.card}
-            </div>
+          {o.expired ? (
+            <span className="flex items-center gap-1 text-xs font-medium text-ink/50">
+              <Icon name="block" size={14} />
+              {t("expiredNote")}
+            </span>
+          ) : (
+            <>
+              <span
+                className="font-bold"
+                style={{ color: inc ? "#e11d48" : "#141821" }}
+              >
+                {money(inc ? (o.splits ? o.splits.paidAmt : 0) : total)}
+              </span>
+              <span className="ml-2 text-xs text-ink/50">
+                {inc
+                  ? t("received", { method: methodLabel })
+                  : t("via", { method: methodLabel })}
+              </span>
+              {o.card && (
+                <div className="mt-1 flex items-center gap-1 text-xs text-ink/60">
+                  <Icon name="credit_card" size={13} className="text-ink/40" />
+                  {o.card}
+                </div>
+              )}
+            </>
           )}
         </div>
-        {!inc && (
+        {!inc && !o.expired && (
           <div className="flex flex-shrink-0 gap-2">
             <button
               type="button"

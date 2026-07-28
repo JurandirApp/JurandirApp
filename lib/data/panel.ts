@@ -44,6 +44,8 @@ export type Order = {
   dbId?: string;
   code: string;
   st: OrderStatus;
+  /** Pix cheio aguardando que passou da janela de pagamento (QR morto no MP). */
+  expired?: boolean;
   pay: PayMethod;
   loc: string;
   posto?: string;
