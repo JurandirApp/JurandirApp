@@ -8,7 +8,8 @@
   "switcher": {
     "label": "Language",
     "pt": "PT",
-    "en": "EN"
+    "en": "EN",
+    "accessPanel": "Access Panel"
   },
   "hero": {
     "eyebrow": "No lines · no waiting around",
