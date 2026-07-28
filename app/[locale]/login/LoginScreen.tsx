@@ -17,9 +17,8 @@ export function LoginScreen() {
   const tAuth = useTranslations("auth");
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
-  // Demo credentials pre-filled (from the prototype) to ease testing — remove for prod.
-  const [email, setEmail] = useState("contato@quiosquedomar.com.br");
-  const [pass, setPass] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
   const [pwVisible, setPwVisible] = useState(false);
   const [remembered, setRemembered] = useState(true);
   const [error, setError] = useState<string | null>(null);
