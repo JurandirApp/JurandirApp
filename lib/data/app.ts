@@ -53,6 +53,7 @@ export type AppEstablishment = {
   name: string;
   tagline: string;
   cover: string;
+  logo: string | null;
   address: string;
   hours: string;
   platformFeePct: number;
@@ -71,6 +72,7 @@ export const APP_EST: AppEstablishment = {
   tagline: "Drinks autorais, frutos do mar e pé na areia",
   cover:
     "https://images.unsplash.com/photo-1559827260-dc66d52bef19?auto=format&fit=crop&w=900&q=70",
+  logo: null,
   address: "Av. Beira-Mar, 1200 — Praia Brava, Itajaí/SC",
   hours: "Todos os dias · 09h às 20h",
   platformFeePct: 8,

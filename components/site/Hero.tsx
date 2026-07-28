@@ -42,7 +42,7 @@ export function Hero({ cities }: { cities: string[] }) {
       {/* Giant background wordmark */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-[-24px] z-0 -translate-x-1/2 select-none whitespace-nowrap font-display text-[22vw] font-extrabold uppercase leading-none tracking-[-0.05em] text-ink/[0.055]"
+        className="pointer-events-none absolute left-1/2 top-[-24px] z-0 -translate-x-1/2 select-none whitespace-nowrap font-display text-[22vw] font-extrabold uppercase leading-none tracking-[-0.05em] text-ink/[0.055] lg:text-[25vw] xl:text-[27vw]"
       >
         Jurandir
       </span>
@@ -83,29 +83,38 @@ export function Hero({ cities }: { cities: string[] }) {
             options={cityOptions}
             panelClassName="rounded-[20px] p-2"
             renderTrigger={({ open, toggle }) => (
-              <div className="flex items-center gap-2 rounded-full bg-white py-2 pl-5 pr-2 shadow-float">
-                <span className="flex flex-shrink-0 items-center gap-2 text-sm font-semibold text-ink/60">
-                  <Icon name="location_on" size={18} className="text-coral" />
-                  {t("finderLabel")}
-                </span>
+              <div className="flex flex-col gap-2 rounded-[26px] bg-white p-2 shadow-float sm:flex-row sm:items-center sm:gap-1 sm:rounded-full sm:py-1.5 sm:pl-5 sm:pr-1.5">
+                {/* Campo cidade (label + valor empilhados) */}
                 <button
                   type="button"
                   onClick={toggle}
-                  className="flex flex-1 items-center justify-between gap-2 bg-transparent py-3 pl-4 pr-2 text-left text-sm font-semibold"
-                  style={{ color: city ? "#141821" : "rgba(20,24,33,.45)" }}
+                  aria-label={t("finderLabel")}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[18px] bg-[#f5f6f8] px-4 py-2.5 text-left sm:rounded-none sm:bg-transparent sm:px-0 sm:py-1.5"
                 >
-                  {city || t("finderPlaceholder")}
+                  <Icon name="location_on" size={18} className="flex-shrink-0 text-coral" />
+                  <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                    <span className="text-[11px] font-semibold text-ink/45">
+                      {t("finderLabel")}
+                    </span>
+                    <span
+                      className="truncate text-sm font-semibold"
+                      style={{ color: city ? "#141821" : "rgba(20,24,33,.5)" }}
+                    >
+                      {city || t("finderPlaceholder")}
+                    </span>
+                  </span>
                   <Icon
                     name="expand_more"
                     size={18}
-                    className="text-ink/40 transition-transform duration-150"
+                    className="flex-shrink-0 text-ink/40 transition-transform duration-150"
                     style={{ transform: open ? "rotate(180deg)" : "none" }}
                   />
                 </button>
+                {/* Buscar — largura total no mobile, à direita no desktop */}
                 <button
                   type="button"
                   onClick={goToRanking}
-                  className="flex flex-shrink-0 items-center gap-1.5 rounded-full bg-ink px-4 py-2.5 text-sm font-bold text-sand"
+                  className="flex flex-shrink-0 items-center justify-center gap-1.5 rounded-full bg-ink px-5 py-3 text-sm font-bold text-sand sm:py-2.5"
                 >
                   {t("search")}
                   <Icon name="arrow_forward" size={15} />
@@ -125,7 +134,7 @@ export function Hero({ cities }: { cities: string[] }) {
           </button>
 
           <dl
-            className="mt-10 grid max-w-[512px] animate-fade-up grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 sm:gap-x-4"
+            className="mx-auto mt-10 grid w-fit animate-fade-up grid-cols-2 gap-x-10 gap-y-6 text-center sm:mx-0 sm:w-auto sm:max-w-[512px] sm:grid-cols-4 sm:gap-x-4 sm:text-left"
             style={{ animationDelay: ".36s" }}
           >
             {stats.map((s) => (

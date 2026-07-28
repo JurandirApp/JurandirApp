@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import type { AdminEst, AdminOrder, SearchEvent } from "@/lib/data/admin";
-import { scaleFromStats, type MonthlyStatLite } from "@/lib/admin/scale";
+import { scaleFromOrders, type MonthlyStatLite } from "@/lib/admin/scale";
 import {
   createEstablishmentAction,
   deleteEstablishmentAction,
@@ -31,13 +31,14 @@ function currentMonth(now: number): string {
 export function AdminApp({
   now,
   ests,
-  stats,
   orders,
   events,
 }: {
   now: number;
   ests: AdminEst[];
-  stats: MonthlyStatLite[];
+  /** Rollup mensal — ainda recebido do server; os dashboards agora agregam dos
+   *  pedidos reais (`orders`), então não é mais usado aqui. */
+  stats?: MonthlyStatLite[];
   orders: AdminOrder[];
   events: SearchEvent[];
 }) {
@@ -53,8 +54,8 @@ export function AdminApp({
   const [regError, setRegError] = useState<string | null>(null);
 
   const allScaled = useMemo(
-    () => scaleFromStats(ests, stats, period, month),
-    [ests, stats, period, month],
+    () => scaleFromOrders(ests, orders, period, month, now),
+    [ests, orders, period, month, now],
   );
   const scopedScaled = useMemo(
     () => (estabScope ? allScaled.filter((e) => e.id === estabScope) : allScaled),

@@ -83,6 +83,7 @@ export async function createCardCheckout(orderId: string): Promise<string | null
     platformFee: Number(order.platformFee),
     items: [{ title: `Pedido ${order.code}`, quantity: 1, unitPrice: Number(order.total) }],
     description: `Pedido ${order.code}`,
+    method: order.payment.method as "CREDIT" | "DEBIT",
   });
   return pref.checkoutUrl;
 }

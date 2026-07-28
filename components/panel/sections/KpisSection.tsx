@@ -12,7 +12,7 @@ import {
   type PayMethod,
 } from "@/lib/data/panel";
 import { fmtDateTime, money, orderTotal, padId } from "@/lib/panel/helpers";
-import { categoryShares, scaleEstStats, topItems } from "@/lib/panel/adapters";
+import { categoryShares, topItems } from "@/lib/panel/adapters";
 import { usePanel } from "../context";
 
 const CN = Object.keys(CATS);
@@ -26,7 +26,6 @@ export function KpisSection() {
   const {
     orders,
     menu,
-    stats,
     now,
     period,
     setPeriod,
@@ -54,10 +53,18 @@ export function KpisSection() {
           : period === "30d"
             ? now - 30 * 864e5
             : 0;
+    // Pedidos PAGOS do período (producao + entregue; "aguardando" e expirados
+    // — que também ficam "aguardando" — não contam como venda).
     const data = orders.filter((o) => o.ts >= minTs && o.st !== "aguardando");
 
-    // Rollup headline (establishment-wide, scaled to the selected period).
-    const { revenue, orders: rollupOrders, byPay } = scaleEstStats(stats, period, now);
+    // Faturamento / nº de pedidos / total por método → dos PEDIDOS REAIS pagos,
+    // não de um rollup mensal (que não era atualizado a cada pagamento).
+    const revenue = data.reduce((s, o) => s + orderTotal(o), 0);
+    const ordersCount = data.length;
+    const byPay: Record<PayMethod, number> = { credito: 0, debito: 0, pix: 0, usdc: 0 };
+    data.forEach((o) => {
+      byPay[o.pay] += orderTotal(o);
+    });
 
     // Category donut — fractions from real items, but values + center scaled
     // to the rollup revenue so the donut total matches the headline.
@@ -108,15 +115,15 @@ export function KpisSection() {
     const rankQty = mk([...entries].sort((a, b) => b[1].qty - a[1].qty), "qty", maxQty);
     const rankRev = mk([...entries].sort((a, b) => b[1].rev - a[1].rev), "rev", maxRev);
 
-    return { data, revenue, rollupOrders, catSegs, payTotals, maxPay, grand, rankQty, rankRev };
-  }, [orders, stats, catOf, now, period, itemCat]);
+    return { data, revenue, ordersCount, catSegs, payTotals, maxPay, grand, rankQty, rankRev };
+  }, [orders, catOf, now, period, itemCat]);
 
-  const { data, revenue, rollupOrders, catSegs, payTotals, maxPay, grand, rankQty, rankRev } = view;
+  const { data, revenue, ordersCount, catSegs, payTotals, maxPay, grand, rankQty, rankRev } = view;
 
   const statCards = [
     { label: tr("kpis.revenue"), value: money(revenue), color: "#EF5130" },
-    { label: tr("kpis.orders"), value: String(rollupOrders), color: "#141821" },
-    { label: tr("kpis.avgTicket"), value: money(rollupOrders ? revenue / rollupOrders : 0), color: "#0C6A70" },
+    { label: tr("kpis.orders"), value: String(ordersCount), color: "#141821" },
+    { label: tr("kpis.avgTicket"), value: money(ordersCount ? revenue / ordersCount : 0), color: "#0C6A70" },
     { label: tr("kpis.inProduction"), value: String(data.filter((o) => o.st === "producao").length), color: "#f59e0b" },
   ];
   const catCenter =

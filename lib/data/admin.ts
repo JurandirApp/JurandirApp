@@ -119,6 +119,8 @@ export type AdminOrder = {
   total: number;
   items: string;
   cust: string;
+  /** Pago (IN_PRODUCTION/DELIVERED) → conta como venda/GMV. */
+  paid: boolean;
 };
 
 // [id, code, estId, minutesAgo, method, card, total, items, cust]
@@ -151,6 +153,7 @@ export const SEED_ORDERS: OrderSeed[] = oRows.map((a) => ({
   total: a[6],
   items: a[7],
   cust: a[8],
+  paid: true,
 }));
 
 // ---- Search events (landing analytics) ---------------------------------

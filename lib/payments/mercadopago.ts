@@ -130,7 +130,7 @@ export const mercadoPagoProvider: PaymentProvider = {
     return mapStatus(r.status);
   },
   async createCheckoutPreference(input: CheckoutPreferenceInput): Promise<CheckoutPreference> {
-    const { est, reference, platformFee, items } = input;
+    const { est, reference, platformFee, items, method } = input;
     // Marketplace: preferência na conta do vendedor (OAuth) com marketplace_fee (split).
     // Sem token de vendedor: conta-única de teste (MP_TEST_ACCESS_TOKEN), sem split.
     const marketplace = Boolean(est.mpAccessToken);
@@ -138,6 +138,11 @@ export const mercadoPagoProvider: PaymentProvider = {
     // MP só aceita auto_return com back_url HTTPS — em localhost (dev) fica sem
     // (o cliente volta pelo botão do MP; o polling reconcilia de qualquer forma).
     const httpsBase = appBase().startsWith("https://");
+    // Restringe o tipo de cartão conforme a escolha do app (nunca boleto). Débito
+    // → exclui crédito; crédito → exclui débito + trava em 1x (à vista).
+    const excluded: { id: string }[] = [{ id: "ticket" }];
+    if (method === "DEBIT") excluded.push({ id: "credit_card" });
+    if (method === "CREDIT") excluded.push({ id: "debit_card" });
     const body = {
       items: items.map((i) => ({
         title: i.title,
@@ -149,7 +154,10 @@ export const mercadoPagoProvider: PaymentProvider = {
       back_urls: { success: back, failure: back, pending: back },
       ...(httpsBase ? { auto_return: "approved" } : {}),
       notification_url: `${appBase()}/api/webhooks/mercadopago`,
-      payment_methods: { excluded_payment_types: [{ id: "ticket" }] },
+      payment_methods: {
+        excluded_payment_types: excluded,
+        ...(method === "CREDIT" ? { installments: 1, default_installments: 1 } : {}),
+      },
       ...(marketplace ? { marketplace_fee: platformFee } : {}),
     };
     const doCall = (token: string) =>

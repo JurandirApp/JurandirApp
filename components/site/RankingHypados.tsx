@@ -237,24 +237,38 @@ export function RankingHypados({ establishments }: { establishments: Establishme
               key={e.id}
               className="flex items-center gap-3 rounded-2xl border-2 border-ink/10 bg-white p-3"
             >
-              <div
-                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl font-display text-lg font-extrabold"
-                style={{
-                  background: top3 ? "#FFC24B" : "rgba(20,24,33,.05)",
-                  color: top3 ? "#141821" : "rgba(20,24,33,.5)",
-                }}
-              >
-                {idx + 1}º
+              {/* Logo com a posição sobreposta no canto (sem logo → só o número). */}
+              <div className="relative flex-shrink-0">
+                {e.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={e.logo}
+                    alt=""
+                    className="h-14 w-14 rounded-xl border border-ink/10 object-cover"
+                  />
+                ) : (
+                  <div
+                    className="flex h-14 w-14 items-center justify-center rounded-xl font-display text-lg font-extrabold"
+                    style={{
+                      background: top3 ? "#FFC24B" : "rgba(20,24,33,.05)",
+                      color: top3 ? "#141821" : "rgba(20,24,33,.5)",
+                    }}
+                  >
+                    {idx + 1}º
+                  </div>
+                )}
+                {e.logo && (
+                  <span
+                    className="absolute -left-2 -top-2 flex h-6 min-w-[24px] items-center justify-center rounded-full border-2 border-white px-1 font-display text-[11px] font-extrabold shadow-[0_2px_6px_-1px_rgba(0,0,0,.3)]"
+                    style={{
+                      background: top3 ? "#FFC24B" : "#141821",
+                      color: top3 ? "#141821" : "#fff",
+                    }}
+                  >
+                    {idx + 1}º
+                  </span>
+                )}
               </div>
-
-              {e.logo && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={e.logo}
-                  alt=""
-                  className="h-11 w-11 flex-shrink-0 rounded-lg border border-ink/10 object-cover"
-                />
-              )}
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

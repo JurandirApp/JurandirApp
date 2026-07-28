@@ -53,6 +53,33 @@ export async function signItemPhotoUploadAction(): Promise<SignedUpload | null> 
   return signUpload(`jurandir/menu/${s.establishmentId}`, timestamp);
 }
 
+/** Assinatura para o navegador enviar a capa (cover) ou a logo do estabelecimento
+ *  direto pra Cloudinary. Retorna null se o Cloudinary não estiver configurado. */
+export async function signEstablishmentImageUploadAction(
+  kind: "cover" | "logo",
+): Promise<SignedUpload | null> {
+  const s = await requireEst();
+  if (!cloudinaryConfigured()) return null;
+  const timestamp = Math.floor(Date.now() / 1000);
+  const dir = kind === "logo" ? "logos" : "covers";
+  return signUpload(`jurandir/${dir}/${s.establishmentId}`, timestamp);
+}
+
+/** Salva a URL (Cloudinary) da capa ou da logo no estabelecimento da sessão. */
+export async function saveEstablishmentImageAction(
+  kind: "cover" | "logo",
+  url: string,
+): Promise<{ ok: boolean }> {
+  const s = await requireEst();
+  if (typeof url !== "string" || !url.startsWith("https://")) return { ok: false };
+  await prisma.establishment.update({
+    where: { id: s.establishmentId! },
+    data: kind === "logo" ? { logoImg: url } : { coverImg: url },
+  });
+  revalidatePath("/painel");
+  return { ok: true };
+}
+
 export async function deliverOrderAction(dbOrderId: string): Promise<void> {
   const s = await requireEst();
   const o = await prisma.order.findUnique({ where: { id: dbOrderId }, select: { establishmentId: true } });

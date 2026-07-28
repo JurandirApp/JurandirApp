@@ -4,18 +4,13 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { money } from "@/lib/panel/helpers";
 import { PAY_IDS, PM, type PayId } from "@/lib/data/app";
-import {
-  cartTotal,
-  fees,
-  maxInstallments,
-  shares as splitShares,
-} from "@/lib/app/helpers";
+import { cartTotal, fees, shares as splitShares } from "@/lib/app/helpers";
 import { useApp } from "../context";
 
 export function CheckoutScreen() {
   const {
     est, loc, menu, cart, addItem, decItem, removeItem, goMenu,
-    note, setNote, mode, setMode, selPay, pickPay, parc, setParc,
+    note, setNote, mode, setMode, selPay, pickPay,
     people, pplPlus, pplMinus, paid, setShare, undoShare, paying, finish,
   } = useApp();
   const t = useTranslations("app");
@@ -34,7 +29,6 @@ export function CheckoutScreen() {
     .filter((m) => m.cat === "Sobremesas" && !cartIds.includes(m.id))
     .slice(0, 4);
 
-  const maxParc = maxInstallments(grand);
   const shareArr = splitShares(grand, people);
   const nPaid = paid.filter(Boolean).length;
   const allPaid = nPaid === people;
@@ -49,9 +43,7 @@ export function CheckoutScreen() {
     const can = Boolean(selPay) && !paying;
     payLabel = paying
       ? t("payProcessing")
-      : selPay === "credito" && parc > 1
-        ? t("payFullCredit", { parc, per: money(grand / parc) })
-        : t("payFull", { amount: money(grand) });
+      : t("payFull", { amount: money(grand) });
     payBg = can ? "#FF6B4A" : "#cbd5e1";
     if (can) onPay = () => finish(null);
   } else {
@@ -263,40 +255,6 @@ export function CheckoutScreen() {
             })}
           </div>
 
-          {selPay === "credito" && (
-            <div
-              className="mt-3 rounded-2xl bg-white p-4"
-              style={{ boxShadow: "0 4px 12px -6px rgba(12,67,71,.15)" }}
-            >
-              <h3 className="m-0 mb-2 text-sm font-semibold text-ink/70">
-                {t("howManyTimes")}
-              </h3>
-              <div className="grid grid-cols-3 gap-2">
-                {Array.from({ length: maxParc }, (_, i) => i + 1).map((n) => {
-                  const sel = parc === n;
-                  return (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setParc(n)}
-                      className="flex flex-col items-center rounded-xl border-2 py-2"
-                      style={{
-                        borderColor: sel ? "#FF6B4A" : "#e2e8f0",
-                        background: sel ? "#fff5f2" : "#fff",
-                      }}
-                    >
-                      <span className="text-sm font-bold">{n}x</span>
-                      <span className="text-xs text-ink/70">{money(grand / n)}</span>
-                      <span className="text-[10px] font-medium text-[#059669]">
-                        {n === 1 ? t("installmentUpfront") : t("noInterest")}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="m-0 mt-2 text-[11px] text-[#94a3b8]">{t("installmentNote")}</p>
-            </div>
-          )}
         </>
       ) : (
         <div

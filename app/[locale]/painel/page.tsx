@@ -69,6 +69,7 @@ export default async function PainelPage({
     <PanelApp
       now={now}
       profile={toProfileForm(est)}
+      images={{ cover: est.coverImg, logo: est.logoImg }}
       orders={dbOrders.map(toPanelOrder)}
       menu={dbMenu.map(toPanelMenuItem)}
       qrs={dbQrs.map(toPanelQr)}

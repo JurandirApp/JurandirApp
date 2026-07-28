@@ -71,7 +71,12 @@ export interface PanelValue {
   setProfile: (k: keyof ProfileForm, v: string) => void;
   profSaved: boolean;
   saveProfile: () => void;
-  demoPhoto: () => void;
+  /** Capa e logo atuais (Cloudinary) — refletem no preview do cardápio. */
+  coverImg: string | null;
+  logoImg: string | null;
+  /** Qual imagem está subindo agora (para o estado de carregando nos botões). */
+  uploadingImg: "cover" | "logo" | null;
+  uploadImage: (kind: "cover" | "logo", file: File) => void;
 
   // Config
   pw: PwForm;

@@ -44,10 +44,12 @@ export function Categories() {
       </Reveal>
 
       {/* Mobile: carrossel que passa sozinho (todos os itens levam ao mesmo
-          destino, então o movimento não atrapalha o toque). Track duplicado →
-          o translate de -50% dá o loop contínuo. Pausa no toque/hover. */}
+          destino, então o movimento não atrapalha o toque). Track duplicado → o
+          translate de -50% dá o loop contínuo. `reverse` faz andar pra DIREITA —
+          sentido contrário ao marquee do hero (que anda pra esquerda), pra
+          diferenciar. Pausa no hover/toque; respeita "reduzir movimento". */}
       <div className="mt-6 overflow-hidden md:hidden">
-        <div className="flex w-max animate-marquee pb-1 hover:[animation-play-state:paused] active:[animation-play-state:paused] motion-reduce:animate-none">
+        <div className="flex w-max animate-marquee pb-1 [animation-direction:reverse] hover:[animation-play-state:paused] active:[animation-play-state:paused] motion-reduce:animate-none">
           {[...categories, ...categories].map((c, i) => circle(c, `${c.key}-${i}`))}
         </div>
       </div>

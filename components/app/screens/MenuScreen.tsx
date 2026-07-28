@@ -66,6 +66,14 @@ export function MenuScreen() {
               "linear-gradient(to top,rgba(0,0,0,.8),rgba(0,0,0,.25) 50%,transparent)",
           }}
         />
+        {est.logo && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={est.logo}
+            alt=""
+            className="absolute left-5 top-5 h-14 w-14 rounded-2xl border-2 border-white/85 object-cover shadow-lg"
+          />
+        )}
         <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
           <h1 className="m-0 font-display text-2xl font-extrabold leading-[1.2]">
             {est.name}

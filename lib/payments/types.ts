@@ -26,6 +26,9 @@ export type CheckoutPreferenceInput = {
   platformFee: number;
   items: { title: string; quantity: number; unitPrice: number }[];
   description: string;
+  /** Restringe o checkout ao tipo escolhido no app: DEBIT → só débito, CREDIT →
+   *  só crédito (e à vista, 1x). Ausente = qualquer meio (menos boleto). */
+  method?: "CREDIT" | "DEBIT";
 };
 
 export type CheckoutPreference = {

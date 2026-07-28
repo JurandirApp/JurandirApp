@@ -88,7 +88,9 @@ export function Dropdown({
             role="listbox"
             id={id}
             className={cn(
-              "absolute top-[calc(100%+6px)] z-30 max-w-[calc(100vw-1rem)] rounded-2xl border-2 border-ink/10 bg-white p-1.5 shadow-dropdown",
+              // Teto de altura + rolagem por padrão → com muitas opções (ex.: 100
+              // cidades) o painel não toma a tela toda. panelClassName pode sobrepor.
+              "absolute top-[calc(100%+6px)] z-30 max-h-[min(20rem,60vh)] max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-2xl border-2 border-ink/10 bg-white p-1.5 shadow-dropdown",
               align === "stretch" ? "left-0 right-0" : "left-0",
               panelClassName,
             )}

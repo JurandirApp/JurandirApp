@@ -1,4 +1,4 @@
-import { SEASON, type AdminEst, type PayKey } from "@/lib/data/admin";
+import { SEASON, type AdminEst, type AdminOrder, type PayKey } from "@/lib/data/admin";
 
 export type ScaledEst = AdminEst & {
   pOrders: number;
@@ -93,6 +93,50 @@ export function scaleFromStats(
         usdc: (s?.byUsdc ?? 0) * frac,
       },
     };
+  });
+}
+
+/**
+ * Agrega os PEDIDOS REAIS pagos por estabelecimento na janela do período/mês —
+ * fonte de verdade dos dashboards do admin (substitui o rollup `scaleFromStats`,
+ * que não era atualizado a cada pagamento). Janela: "mes" = o mês selecionado
+ * inteiro; "dia"/"semana"/"quinzena" = os últimos 1/7/15 dias desse mês até agora.
+ */
+export function scaleFromOrders(
+  ests: AdminEst[],
+  orders: AdminOrder[],
+  period: string,
+  month: string,
+  now: number,
+): ScaledEst[] {
+  const [y, m] = month.split("-").map(Number);
+  const monthStart = new Date(y, m - 1, 1).getTime();
+  const monthEnd = new Date(y, m, 1).getTime(); // início do mês seguinte (exclusivo)
+  const refEnd = Math.min(now, monthEnd);
+  const days = period === "dia" ? 1 : period === "semana" ? 7 : period === "quinzena" ? 15 : null;
+  const minTs = days == null ? monthStart : Math.max(monthStart, refEnd - days * 864e5);
+  const maxTs = period === "mes" ? monthEnd : refEnd;
+
+  type Agg = { orders: number; revenue: number; byPay: Record<PayKey, number> };
+  const zero = (): Agg => ({
+    orders: 0,
+    revenue: 0,
+    byPay: { credito: 0, debito: 0, pix: 0, usdc: 0 },
+  });
+  const agg = new Map<string, Agg>();
+  for (const o of orders) {
+    if (!o.paid || o.ts < minTs || o.ts >= maxTs) continue;
+    const a = agg.get(o.est) ?? zero();
+    a.orders += 1;
+    a.revenue += o.total;
+    if (o.m === "credito" || o.m === "debito" || o.m === "pix" || o.m === "usdc") {
+      a.byPay[o.m] += o.total;
+    }
+    agg.set(o.est, a);
+  }
+  return ests.map((e) => {
+    const a = agg.get(e.id) ?? zero();
+    return { ...e, pOrders: a.orders, pRevenue: a.revenue, pByPay: a.byPay };
   });
 }
 

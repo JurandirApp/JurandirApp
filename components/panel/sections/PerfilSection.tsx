@@ -8,9 +8,24 @@ import { COVER_IMG, type ProfileForm } from "@/lib/data/panel";
 import { usePanel } from "../context";
 
 export function PerfilSection() {
-  const { profile, setProfile, profSaved, saveProfile, demoPhoto, beach } =
-    usePanel();
+  const {
+    profile,
+    setProfile,
+    profSaved,
+    saveProfile,
+    coverImg,
+    logoImg,
+    uploadingImg,
+    uploadImage,
+    beach,
+  } = usePanel();
   const t = useTranslations("panel.perfil");
+
+  const pick = (kind: "cover" | "logo") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadImage(kind, file);
+    e.target.value = ""; // permite reenviar o mesmo arquivo
+  };
 
   const bind = (k: keyof ProfileForm) => ({
     value: profile[k],
@@ -19,8 +34,8 @@ export function PerfilSection() {
   });
 
   return (
-    <div className="flex max-w-[640px] flex-col gap-4">
-      {/* Preview */}
+    <div className="mx-auto flex max-w-[820px] flex-col gap-4">
+      {/* Preview de como o cliente vê o cardápio */}
       <div className="rounded-2xl border-2 border-ink bg-white p-4 shadow-hard">
         <h2 className="m-0 mb-3 font-display text-[15px] font-semibold text-ink/70">
           {t("previewTitle")}
@@ -28,11 +43,19 @@ export function PerfilSection() {
         <div className="relative h-40 overflow-hidden rounded-2xl bg-gradient-to-br from-ocean to-ocean-900">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={COVER_IMG}
+            src={coverImg || COVER_IMG}
             alt=""
             className="block h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+          {logoImg && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoImg}
+              alt=""
+              className="absolute left-4 top-4 h-12 w-12 rounded-xl border-2 border-white/80 object-cover shadow-hard"
+            />
+          )}
           <div className="absolute inset-x-0 bottom-0 p-4 text-white">
             <h3 className="m-0 font-display text-xl font-extrabold">
               {profile.name}
@@ -49,78 +72,98 @@ export function PerfilSection() {
           </div>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={demoPhoto}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-dune-50 p-2.5 text-sm font-medium text-ink/70"
+          <label
+            className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-dune-50 p-2.5 text-sm font-medium text-ink/70 ${
+              uploadingImg ? "pointer-events-none opacity-60" : ""
+            }`}
           >
-            <Icon name="photo_camera" size={16} />
-            {t("photo")}
-          </button>
-          <button
-            type="button"
-            onClick={demoPhoto}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-dune-50 p-2.5 text-sm font-medium text-ink/70"
+            <Icon
+              name={uploadingImg === "cover" ? "hourglass_empty" : "photo_camera"}
+              size={16}
+            />
+            {uploadingImg === "cover" ? t("uploading") : t("photo")}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={pick("cover")}
+              disabled={Boolean(uploadingImg)}
+            />
+          </label>
+          <label
+            className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-dune-50 p-2.5 text-sm font-medium text-ink/70 ${
+              uploadingImg ? "pointer-events-none opacity-60" : ""
+            }`}
           >
-            <Icon name="storefront" size={16} />
-            {t("logo")}
-          </button>
+            <Icon
+              name={uploadingImg === "logo" ? "hourglass_empty" : "storefront"}
+              size={16}
+            />
+            {uploadingImg === "logo" ? t("uploading") : t("logo")}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={pick("logo")}
+              disabled={Boolean(uploadingImg)}
+            />
+          </label>
         </div>
       </div>
 
-      {/* Form */}
-      <div className="flex flex-col gap-3 rounded-2xl border-2 border-ink bg-white p-4 shadow-hard">
-        <Field label={t("name")}>
-          <Input {...bind("name")} />
-        </Field>
-        <Field label={t("tagline")}>
-          <Input {...bind("tagline")} />
-        </Field>
-        <Field label={t("desc")}>
-          <Textarea rows={3} {...bind("desc")} />
-        </Field>
-        <Field label={t("address")}>
-          <Input {...bind("address")} />
-        </Field>
-        <Field label={t("hours")}>
-          <Input {...bind("hours")} />
-        </Field>
-
-        <Field
-          label={
-            <span className="flex items-center gap-1">
-              <Icon name="percent" size={13} className="text-coral" />
-              {t("serviceFee")}
-            </span>
-          }
-          hint={t("serviceFeeHint")}
-        >
-          <Suffix suffix="%">
-            <Input {...bind("serviceFee")} placeholder="10" className="pr-10" />
-          </Suffix>
-        </Field>
-
-        {beach && (
+      {/* Formulário — campos em 2 colunas no desktop */}
+      <div className="rounded-2xl border-2 border-ink bg-white p-4 shadow-hard sm:p-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field className="sm:col-span-2" label={t("name")}>
+            <Input {...bind("name")} />
+          </Field>
+          <Field className="sm:col-span-2" label={t("tagline")}>
+            <Input {...bind("tagline")} />
+          </Field>
+          <Field className="sm:col-span-2" label={t("desc")}>
+            <Textarea rows={3} {...bind("desc")} />
+          </Field>
+          <Field label={t("address")}>
+            <Input {...bind("address")} />
+          </Field>
+          <Field label={t("hours")}>
+            <Input {...bind("hours")} />
+          </Field>
           <Field
             label={
               <span className="flex items-center gap-1">
-                <Icon name="near_me" size={13} className="text-coral" />
-                {t("radius")}
+                <Icon name="percent" size={13} className="text-coral" />
+                {t("serviceFee")}
               </span>
             }
-            hint={t("radiusHint")}
+            hint={t("serviceFeeHint")}
           >
-            <Suffix suffix={t("meters")}>
-              <Input {...bind("radius")} placeholder="Ex: 500" className="pr-16" />
+            <Suffix suffix="%">
+              <Input {...bind("serviceFee")} placeholder="10" className="pr-10" />
             </Suffix>
           </Field>
-        )}
+          {beach && (
+            <Field
+              label={
+                <span className="flex items-center gap-1">
+                  <Icon name="near_me" size={13} className="text-coral" />
+                  {t("radius")}
+                </span>
+              }
+              hint={t("radiusHint")}
+            >
+              <Suffix suffix={t("meters")}>
+                <Input {...bind("radius")} placeholder="Ex: 500" className="pr-16" />
+              </Suffix>
+            </Field>
+          )}
+        </div>
 
-        <div className="border-t border-ink/10 pt-2">
+        <div className="mt-4 border-t border-ink/10 pt-3">
           <p className="m-0 mb-2 text-xs font-semibold uppercase tracking-wide text-ink/50">
             {t("contact")}
           </p>
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field
               label={
                 <span className="flex items-center gap-1">
@@ -144,16 +187,6 @@ export function PerfilSection() {
             <Field
               label={
                 <span className="flex items-center gap-1">
-                  <Icon name="language" size={13} className="text-ocean-700" />
-                  {t("website")}
-                </span>
-              }
-            >
-              <Input {...bind("website")} />
-            </Field>
-            <Field
-              label={
-                <span className="flex items-center gap-1">
                   <Icon name="chat" size={13} className="text-[#059669]" />
                   {t("whatsapp")}
                 </span>
@@ -171,13 +204,24 @@ export function PerfilSection() {
             >
               <Input {...bind("instagram")} />
             </Field>
+            <Field
+              className="sm:col-span-2"
+              label={
+                <span className="flex items-center gap-1">
+                  <Icon name="language" size={13} className="text-ocean-700" />
+                  {t("website")}
+                </span>
+              }
+            >
+              <Input {...bind("website")} />
+            </Field>
           </div>
         </div>
 
         <button
           type="button"
           onClick={saveProfile}
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl p-3 text-[15px] font-semibold"
+          className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl p-3 text-[15px] font-semibold"
           style={{
             background: profSaved ? "#10b981" : "#141821",
             color: profSaved ? "#fff" : "#EDD8A3",
@@ -192,7 +236,7 @@ export function PerfilSection() {
             t("save")
           )}
         </button>
-        <p className="m-0 text-center text-xs text-ink/40">{t("hint")}</p>
+        <p className="m-0 mt-2 text-center text-xs text-ink/40">{t("hint")}</p>
       </div>
     </div>
   );
@@ -202,13 +246,15 @@ function Field({
   label,
   hint,
   children,
+  className,
 }: {
   label: ReactNode;
   hint?: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <label className="block">
+    <label className={`block ${className ?? ""}`}>
       <span className="text-xs font-medium text-ink/60">{label}</span>
       <div className="mt-1">{children}</div>
       {hint && <p className="m-0 mt-1 text-[11px] text-ink/40">{hint}</p>}

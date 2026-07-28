@@ -76,7 +76,7 @@ export function toMonthlyStatLite(s: DbStat): MonthlyStatLite {
 }
 
 type DbOrder = {
-  id: string; code: string; establishmentId: string; createdAt: Date; total: unknown;
+  id: string; code: string; establishmentId: string; status: string; createdAt: Date; total: unknown;
   customerName: string | null;
   items: { qty: number; name: string }[];
   payment: { method: string; cardMask: string | null } | null;
@@ -94,6 +94,9 @@ export function toAdminOrder(o: DbOrder, index: number): AdminOrder {
     total: num(o.total),
     items: o.items.map((i) => `${i.qty}× ${i.name}`).join(", "),
     cust: o.customerName ?? "",
+    // Só pedidos pagos (em produção/entregue) contam como venda. Aguardando e
+    // expirados (que ficam AWAITING_PAYMENT) não entram no GMV.
+    paid: o.status === "IN_PRODUCTION" || o.status === "DELIVERED",
   };
 }
 

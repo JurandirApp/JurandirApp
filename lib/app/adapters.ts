@@ -19,7 +19,7 @@ const ENUM_TO_APP: Record<string, PayId> = {
 };
 
 type DbEst = {
-  id: string; slug: string; name: string; tagline: string | null; coverImg: string | null;
+  id: string; slug: string; name: string; tagline: string | null; coverImg: string | null; logoImg: string | null;
   address: string | null; hours: string | null; posto: string | null;
   platformFeePct: number; serviceFeePct: number;
   whatsapp: string | null; instagram: string | null; phone: string | null; website: string | null;
@@ -31,6 +31,7 @@ export function toAppEstablishment(e: DbEst): AppEstablishment {
     name: e.name,
     tagline: e.tagline ?? "",
     cover: e.coverImg || COVER_IMG,
+    logo: e.logoImg ?? null,
     address: e.address ?? "",
     hours: e.hours ?? "",
     platformFeePct: e.platformFeePct,

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import { Icon } from "@/components/ui/Icon";
 import {
   type MenuItem,
   type Order,
@@ -23,8 +24,10 @@ import {
   printOrderAction,
   refreshOrdersAction,
   refreshPrintJobsAction,
+  saveEstablishmentImageAction,
   savePrinterConfigAction,
   saveProfileAction,
+  signEstablishmentImageUploadAction,
   testPrintAction,
   upsertMenuItemAction,
 } from "@/lib/actions/panel";
@@ -58,6 +61,7 @@ const EMPTY_PW: PwForm = { cur: "", nova: "", conf: "" };
 export function PanelApp({
   now,
   profile: profile0,
+  images,
   orders: orders0,
   menu: menu0,
   qrs: qrs0,
@@ -69,6 +73,7 @@ export function PanelApp({
 }: {
   now: number;
   profile: ProfileForm;
+  images: { cover: string | null; logo: string | null };
   orders: Order[];
   menu: MenuItem[];
   qrs: Qr[];
@@ -88,6 +93,7 @@ export function PanelApp({
   const [printJobs, setPrintJobs] = useState<PanelPrintJob[]>(printJobs0);
 
   const [tab, setTab] = useState<TabId>("pedidos");
+  const [navOpen, setNavOpen] = useState(false); // sidebar mobile (hambúrguer)
   const [orderFilter, setOrderFilter] = useState("todos");
   const [period, setPeriod] = useState("hoje");
   const [openPay, setOpenPay] = useState<string | null>(null);
@@ -99,6 +105,9 @@ export function PanelApp({
 
   const [profile, setProfileState] = useState<ProfileForm>(profile0);
   const [profSaved, setProfSaved] = useState(false);
+  const [coverImg, setCoverImg] = useState<string | null>(images.cover);
+  const [logoImg, setLogoImg] = useState<string | null>(images.logo);
+  const [uploadingImg, setUploadingImg] = useState<"cover" | "logo" | null>(null);
   const [pw, setPwState] = useState<PwForm>(EMPTY_PW);
   const [pwMsg, setPwMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [printer, setPrinterState] = useState<PrinterForm>({
@@ -293,7 +302,43 @@ export function PanelApp({
           }
         });
       },
-      demoPhoto: () => toast(t("toasts.demoPhoto")),
+      coverImg,
+      logoImg,
+      uploadingImg,
+      uploadImage: (kind, file) => {
+        setUploadingImg(kind);
+        (async () => {
+          try {
+            const signed = await signEstablishmentImageUploadAction(kind);
+            if (!signed) {
+              toast(t("toasts.imgNotConfigured"));
+              return;
+            }
+            const body = new FormData();
+            body.append("file", file);
+            body.append("api_key", signed.apiKey);
+            body.append("timestamp", String(signed.timestamp));
+            body.append("folder", signed.folder);
+            body.append("signature", signed.signature);
+            const res = await fetch(
+              `https://api.cloudinary.com/v1_1/${signed.cloudName}/image/upload`,
+              { method: "POST", body },
+            );
+            if (!res.ok) throw new Error("upload-failed");
+            const data = (await res.json()) as { secure_url?: string };
+            if (!data.secure_url) throw new Error("no-url");
+            const saved = await saveEstablishmentImageAction(kind, data.secure_url);
+            if (!saved.ok) throw new Error("save-failed");
+            if (kind === "cover") setCoverImg(data.secure_url);
+            else setLogoImg(data.secure_url);
+            toast(t("toasts.imgSaved"));
+          } catch {
+            toast(t("toasts.imgError"));
+          } finally {
+            setUploadingImg(null);
+          }
+        })();
+      },
 
       pw,
       setPw: (k, v) => setPwState((prev) => ({ ...prev, [k]: v })),
@@ -386,7 +431,7 @@ export function PanelApp({
     t, beach, now, orders, menu, qrs, stats, tab, orderFilter, period, openPay, menuCat,
     itemCat, qrLabel, aud, audPage, profile, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
-    mpConnected, mpResult,
+    mpConnected, mpResult, coverImg, logoImg, uploadingImg,
   ]);
 
   const saveItem = (clean: MenuItem) => {
@@ -421,13 +466,23 @@ export function PanelApp({
   return (
     <PanelContext.Provider value={value}>
       <div className="min-h-screen bg-page">
-        <header className="sticky top-0 z-40 flex h-[84px] items-center bg-ink">
-          <div className="box-border w-[248px] flex-shrink-0 p-3">
+        <header className="sticky top-0 z-40 flex h-[84px] items-center gap-1 bg-ink pl-2 lg:gap-0 lg:pl-0">
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label={t("sidebar.open")}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-sand lg:hidden"
+          >
+            <Icon name="menu" size={26} />
+          </button>
+          <div className="box-border flex-shrink-0 p-3">
+            {/* Altura fixa + largura automática → o logo nunca "estoura" para o
+                tamanho natural do SVG, mesmo se a classe de largura do box faltar. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/jurandir-logo-horizontal.svg"
               alt="Jurandir"
-              className="block w-full rounded-[10px]"
+              className="block h-11 w-auto max-w-full rounded-[10px] lg:h-[52px]"
             />
           </div>
         </header>
@@ -435,7 +490,16 @@ export function PanelApp({
         <NotificationBell />
 
         <div className="flex min-h-[calc(100vh-84px)] items-stretch">
-          <Sidebar />
+          {navOpen && (
+            // Backdrop (só mobile) — clicar fecha a sidebar.
+            <button
+              type="button"
+              aria-label={t("sidebar.close")}
+              onClick={() => setNavOpen(false)}
+              className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            />
+          )}
+          <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
           <main className="box-border min-w-0 flex-1 p-6 md:px-7 md:py-6">
             {tab === "pedidos" && <PedidosSection />}
             {tab === "cardapio" && <CardapioSection />}
