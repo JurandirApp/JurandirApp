@@ -66,6 +66,22 @@ export async function reconcileOrder(orderId: string): Promise<void> {
   }
 }
 
+/** Extrai um motivo legível de um erro do MP (ex.: 400 na criação do pagamento). */
+function mpErrorDetail(e: unknown): string {
+  if (!(e instanceof Error)) return "erro";
+  const m = e.message.match(/MP \d+: ([\s\S]+)$/); // MpError = `MP <status>: <body>`
+  if (!m) return e.message.slice(0, 140);
+  try {
+    const j = JSON.parse(m[1]) as {
+      message?: string;
+      cause?: { description?: string; code?: string }[];
+    };
+    return j.cause?.[0]?.description || j.message || m[1].slice(0, 140);
+  } catch {
+    return m[1].slice(0, 140);
+  }
+}
+
 /** Cobra o cartão do pedido via token (checkout transparente / Payment Brick).
  *  Aprovado → confirma e vai pra produção. Devolve o status pra UI reagir. */
 export async function payOrderWithCard(
@@ -81,14 +97,20 @@ export async function payOrderWithCard(
   }
   const provider = getProvider();
   if (!provider.createCardPayment) return { status: "failed" };
-  const res = await provider.createCardPayment({
-    est: order.establishment,
-    reference: order.code,
-    total: Number(order.total),
-    platformFee: Number(order.platformFee),
-    description: `Pedido ${order.code}`,
-    brick,
-  });
+  let res;
+  try {
+    res = await provider.createCardPayment({
+      est: order.establishment,
+      reference: order.code,
+      total: Number(order.total),
+      platformFee: Number(order.platformFee),
+      description: `Pedido ${order.code}`,
+      brick,
+    });
+  } catch (e) {
+    // Erro do MP (ex.: token inválido / conta divergente) → surfacia o motivo.
+    return { status: "failed", statusDetail: mpErrorDetail(e) };
+  }
   // Guarda o id do pagamento (permite reconciliar pending depois, se for o caso).
   await prisma.payment.update({
     where: { id: order.payment.id },

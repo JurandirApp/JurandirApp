@@ -19,12 +19,15 @@ export type CardPayResult = {
  *  Google Pay / Apple Pay, quando disponíveis) dentro do app — sem redirect. */
 export function CardPaymentModal({
   amount,
+  kind,
   payerEmail,
   onPay,
   onApproved,
   onClose,
 }: {
   amount: number;
+  /** Tipo escolhido no app: mostra só crédito OU só débito no Brick. */
+  kind: "credit" | "debit";
   payerEmail?: string;
   onPay: (brick: CardBrickData) => Promise<CardPayResult>;
   onApproved: (order: ClientOrder) => void;
@@ -69,8 +72,11 @@ export function CardPaymentModal({
           },
           customization: {
             paymentMethods: {
-              creditCard: "all",
-              debitCard: "all",
+              // Mostra só o tipo que a pessoa escolheu no app.
+              creditCard: kind === "credit" ? "all" : "none",
+              // Só o débito real da conta (Elo Débito) — remove o "Débito
+              // Virtual CAIXA" que o MP empurra por padrão e confunde.
+              debitCard: kind === "debit" ? ["debelo"] : "none",
               maxInstallments: 1,
             },
           },
@@ -93,11 +99,13 @@ export function CardPaymentModal({
                       onApprovedRef.current(res.order);
                       resolve();
                     } else {
-                      setErrorMsg(
+                      const base =
                         res.status === "pending"
                           ? tRef.current("cardPending")
-                          : tRef.current("cardRejected"),
-                      );
+                          : tRef.current("cardRejected");
+                      // Mostra o status_detail do MP (ex.: cc_rejected_high_risk)
+                      // pra diagnosticar o motivo real da recusa.
+                      setErrorMsg(res.detail ? `${base} (${res.detail})` : base);
                       reject();
                     }
                   })
@@ -131,7 +139,7 @@ export function CardPaymentModal({
         /* já desmontado */
       }
     };
-  }, [amount, payerEmail]);
+  }, [amount, payerEmail, kind]);
 
   return (
     <div
