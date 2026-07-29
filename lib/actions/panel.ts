@@ -13,6 +13,7 @@ import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState } from "@/lib/payments/mercadopago";
+import { CATS } from "@/lib/data/panel";
 import type { Order, PanelPrintJob, PanelPrinter, PrinterInput } from "@/lib/data/panel";
 import {
   menuItemUpsertSchema,
@@ -169,7 +170,9 @@ export async function listPrintersAction(): Promise<{
       isDefault: p.isDefault,
       active: p.active,
     })),
-    categories: cats.map((c) => c.category),
+    // Taxonomia padrão + qualquer categoria já usada no cardápio (dedup). Assim
+    // o dono monta a Cozinha (comidas) mesmo antes de cadastrar esses itens.
+    categories: [...new Set([...Object.keys(CATS), ...cats.map((c) => c.category)])],
   };
 }
 

@@ -76,17 +76,21 @@ const PT: Guide = {
       ],
     },
     {
-      title: "Abrir o programa no computador do bar",
+      title: "Instalar o programa (2 cliques)",
       items: [
         "Na pasta **Downloads**, clique no zip com o **botão direito** → **Extrair Tudo** → **Extrair**.",
-        "Abra a pasta que apareceu e dê **2 cliques** em `Iniciar.bat`.",
-        "Abre uma **janelinha preta** escrito **Agente iniciado**. **Deixe ela aberta** (pode minimizar).",
+        "Abra a pasta que apareceu e dê **2 cliques** em `Instalar.bat`.",
+        "Vai aparecer **“Pronto! A impressora já está funcionando”**. Pode fechar a janela.",
       ],
       callouts: [
         { kind: "warn", text: "**Extraia primeiro** — não dê 2 cliques no arquivo de dentro do zip." },
         {
           kind: "tip",
           text: "Se aparecer **“O Windows protegeu seu computador”**: clique em **Mais informações** → **Executar assim mesmo**. Pode confiar, é o nosso programa.",
+        },
+        {
+          kind: "ok",
+          text: "O `Instalar.bat` já deixa **tudo automático**: inicia junto com o Windows e roda **em segundo plano** (sem janela). Não precisa mexer nunca mais.",
         },
       ],
     },
@@ -106,15 +110,14 @@ const PT: Guide = {
     },
   ],
   optional: {
-    title: "Fazer o programa abrir sozinho quando liga o PC",
+    title: "Bom saber (os outros arquivos do zip)",
     items: [
-      "Aperte as teclas `Windows` + `R` ao mesmo tempo.",
-      "Digite `shell:startup` e aperte **Enter** (abre a pasta “Inicializar”).",
-      "Arraste o `Iniciar.bat` pra dentro dela com o **botão direito** → **Criar atalhos aqui**.",
+      "`Iniciar.bat` — só pra **testar na hora**, com a janela aberta (não deixa automático).",
+      "`Desinstalar.bat` — **remove** o início automático e para o agente, se um dia precisar.",
     ],
-    callouts: [{ kind: "ok", text: "Agora sobe sozinho quando o PC liga. Nunca mais precisa mexer." }],
+    callouts: [],
   },
-  optionalTag: "Opcional",
+  optionalTag: "Extra",
   troubleTitle: "Deu ruim?",
   troubleHint: "Olhe o que apareceu na janelinha preta e ache aqui embaixo.",
   troubles: [
@@ -190,17 +193,21 @@ const EN: Guide = {
       ],
     },
     {
-      title: "Open the program on the bar's computer",
+      title: "Install the program (2 clicks)",
       items: [
         "In **Downloads**, right-click the zip → **Extract All** → **Extract**.",
-        "Open the folder that appears and **double-click** `Iniciar.bat`.",
-        "A **small black window** opens saying **Agente iniciado**. **Leave it open** (you can minimize it).",
+        "Open the folder that appears and **double-click** `Instalar.bat`.",
+        "It shows **“Pronto! A impressora já está funcionando”** (all set). You can close the window.",
       ],
       callouts: [
         { kind: "warn", text: "**Extract first** — don't double-click the file from inside the zip." },
         {
           kind: "tip",
           text: "If Windows shows **“Windows protected your PC”**: click **More info** → **Run anyway**. It's safe, it's our program.",
+        },
+        {
+          kind: "ok",
+          text: "`Instalar.bat` makes it **fully automatic**: it starts with Windows and runs **in the background** (no window). You never touch it again.",
         },
       ],
     },
@@ -220,15 +227,14 @@ const EN: Guide = {
     },
   ],
   optional: {
-    title: "Make the program start on its own when the PC boots",
+    title: "Good to know (the other files in the zip)",
     items: [
-      "Press `Windows` + `R` at the same time.",
-      "Type `shell:startup` and press **Enter** (opens the “Startup” folder).",
-      "Drag `Iniciar.bat` into it with the **right button** → **Create shortcuts here**.",
+      "`Iniciar.bat` — just to **test now**, with a visible window (doesn't set auto-start).",
+      "`Desinstalar.bat` — **removes** the auto-start and stops the agent, if ever needed.",
     ],
-    callouts: [{ kind: "ok", text: "Now it starts on its own when the PC boots. You never touch it again." }],
+    callouts: [],
   },
-  optionalTag: "Optional",
+  optionalTag: "Extra",
   troubleTitle: "Something wrong?",
   troubleHint: "Look at what the small black window shows and find it below.",
   troubles: [

@@ -41,17 +41,18 @@ Cada impressora térmica precisa estar instalada no Windows:
      "pollMs": 4000
    }
    ```
-4. **Dê 2 cliques no `Iniciar.bat`.** Vai abrir uma janela preta escrito
-   *"Agente de Impressao Jurandir iniciado"*. **Deixe essa janela aberta.**
+4. **Dê 2 cliques no `Instalar.bat`.** Ele deixa tudo automático: copia o agente
+   pra uma pasta fixa, **liga o início junto com o Windows** e passa a rodar **em
+   segundo plano (sem janela)**. Aparece *"Pronto! A impressora já está funcionando"*.
 5. No painel, clique em **Imprimir teste** numa impressora → deve sair papel.
 
-### Ligar sozinho quando o PC liga (recomendado)
+Pronto — a partir daí a impressão funciona sozinha, mesmo depois de reiniciar o PC.
 
-Pra não precisar clicar toda vez:
-1. Tecla **Windows + R**, digite `shell:startup`, Enter (abre a pasta de Inicializar).
-2. Arraste o **`Iniciar.bat`** pra dentro dela com o botão direito → **Criar atalhos aqui**.
+### Os outros arquivos
 
-Pronto — toda vez que o PC ligar, o agente sobe sozinho.
+- **`Iniciar.bat`** — só pra **testar na hora**, com a janela aberta (não configura
+  o início automático). Útil pra ver as mensagens/erros.
+- **`Desinstalar.bat`** — **remove** o início automático e para o agente.
 
 ---
 

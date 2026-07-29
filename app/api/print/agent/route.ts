@@ -2,26 +2,38 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
 import { buildZip } from "@/lib/print/zip";
-import { AGENT_PS1, INICIAR_BAT } from "@/lib/print/agent-files";
+import {
+  AGENT_PS1,
+  INICIAR_BAT,
+  INSTALAR_BAT,
+  DESINSTALAR_BAT,
+} from "@/lib/print/agent-files";
 
 const appBase = () =>
   (process.env.APP_BASE_URL ?? "https://jurandir.app.br").replace(/\/$/, "");
 
 const LEIAME = `AGENTE DE IMPRESSAO JURANDIR
 
+>>> JEITO FACIL (recomendado) <<<
 1. Extraia TODOS os arquivos (botao direito no zip > Extrair Tudo).
-2. De 2 cliques em "Iniciar.bat".
-3. Abre uma janela preta escrito "Agente iniciado". Deixe aberta.
-4. No painel, clique em "Imprimir teste" na impressora -> deve sair papel.
+2. De 2 cliques em "Instalar.bat".
+3. Pronto! A impressora passa a funcionar SOZINHA:
+   - inicia junto com o Windows
+   - roda em segundo plano (sem janela aberta)
+4. No painel, clique em "Imprimir teste" -> deve sair papel.
 
 O token JA ESTA configurado (config.json). Nao precisa digitar nada.
-Nao precisa instalar nada: usa o PowerShell que ja vem no Windows.
+Nao precisa instalar programa nenhum: usa o PowerShell que ja vem no Windows.
 
-Pra subir sozinho quando o PC ligar: aperte Windows+R, digite  shell:startup
-e arraste o Iniciar.bat pra dentro (botao direito > Criar atalhos aqui).
+--- Outros arquivos ---
+Iniciar.bat      : so testar agora, com a janela aberta (nao configura o auto-start).
+Desinstalar.bat  : remove o auto-start e para o agente.
 
-Se aparecer "Impressora nao encontrada": confira se o nome no painel e igual
-ao nome da impressora no Windows (Painel de Controle > Dispositivos e Impressoras).
+--- Se der problema ---
+"Impressora nao encontrada": o nome no painel tem que ser IGUAL ao nome da
+impressora no Windows (Painel de Controle > Dispositivos e Impressoras).
+"Token invalido": baixe o agente de novo pelo painel.
+Nada imprime: veja se a "Impressao automatica" esta ligada no painel.
 `;
 
 /** Baixa o agente de impressão pronto (zip) com o token do estabelecimento já
@@ -49,7 +61,9 @@ export async function GET(): Promise<Response> {
 
   const config = JSON.stringify({ url: appBase(), token, pollMs: 4000 }, null, 2) + "\n";
   const zip = buildZip([
+    { name: "Instalar.bat", content: INSTALAR_BAT },
     { name: "Iniciar.bat", content: INICIAR_BAT },
+    { name: "Desinstalar.bat", content: DESINSTALAR_BAT },
     { name: "agent.ps1", content: AGENT_PS1 },
     { name: "config.json", content: config },
     { name: "LEIA-ME.txt", content: LEIAME },

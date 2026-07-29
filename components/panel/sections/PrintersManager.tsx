@@ -57,7 +57,7 @@ export function PrintersManager() {
       .catch(() => {});
 
   const openNew = () => {
-    setForm({ ...EMPTY, isDefault: printers.length === 0 });
+    setForm({ ...EMPTY }); // padrão fica desmarcado — o dono escolhe manual
     setEditing("new");
     setMsg(null);
   };
