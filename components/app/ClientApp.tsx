@@ -82,7 +82,6 @@ export function ClientApp({
   const [cardPay, setCardPay] = useState<{
     input: OrderCreateInput;
     amount: number;
-    kind: "credit" | "debit";
   } | null>(null);
   const [exp, setExp] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -295,7 +294,7 @@ export function ClientApp({
         payment: { kind: "full", method: appToEnum(selPay!), installments: 1 },
       };
       const { grand } = fees(cartTotal(cart, menu), est.platformFeePct, est.serviceFeePct);
-      setCardPay({ input, amount: grand, kind: selPay === "credito" ? "credit" : "debit" });
+      setCardPay({ input, amount: grand });
     };
 
     return {
@@ -443,7 +442,6 @@ export function ClientApp({
           {cardPay && (
             <CardPaymentModal
               amount={cardPay.amount}
-              kind={cardPay.kind}
               onPay={(brick) => payCardAction(cardPay.input, brick)}
               onApproved={(order) => {
                 setMyOrders((prev) => [order, ...prev]);

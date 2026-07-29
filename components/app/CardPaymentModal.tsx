@@ -19,15 +19,12 @@ export type CardPayResult = {
  *  Google Pay / Apple Pay, quando disponíveis) dentro do app — sem redirect. */
 export function CardPaymentModal({
   amount,
-  kind,
   payerEmail,
   onPay,
   onApproved,
   onClose,
 }: {
   amount: number;
-  /** Tipo escolhido no app: mostra só crédito OU só débito no Brick. */
-  kind: "credit" | "debit";
   payerEmail?: string;
   onPay: (brick: CardBrickData) => Promise<CardPayResult>;
   onApproved: (order: ClientOrder) => void;
@@ -72,11 +69,8 @@ export function CardPaymentModal({
           },
           customization: {
             paymentMethods: {
-              // Mostra só o tipo que a pessoa escolheu no app.
-              creditCard: kind === "credit" ? "all" : "none",
-              // Só o débito real da conta (Elo Débito) — remove o "Débito
-              // Virtual CAIXA" que o MP empurra por padrão e confunde.
-              debitCard: kind === "debit" ? ["debelo"] : "none",
+              creditCard: "all",
+              debitCard: "all",
               maxInstallments: 1,
             },
           },
@@ -114,8 +108,15 @@ export function CardPaymentModal({
                     reject();
                   });
               }),
-            onError: () => {
-              if (!cancelled) setErrorMsg(tRef.current("cardError"));
+            onError: (error: unknown) => {
+              if (cancelled) return;
+              // Surfacia o motivo do erro de inicialização/render do Brick.
+              let d = "";
+              if (error && typeof error === "object") {
+                const eo = error as { message?: string; cause?: string; type?: string };
+                d = eo.message || eo.cause || eo.type || "";
+              }
+              setErrorMsg(tRef.current("cardError") + (d ? ` (${d})` : ""));
             },
           },
         });
@@ -139,7 +140,7 @@ export function CardPaymentModal({
         /* já desmontado */
       }
     };
-  }, [amount, payerEmail, kind]);
+  }, [amount, payerEmail]);
 
   return (
     <div
