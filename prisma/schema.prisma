@@ -99,6 +99,7 @@ model Establishment {
   searchEvents SearchEvent[]
   monthlyStats MonthlyStat[]
   printJobs    PrintJob[]
+  printers     Printer[]
 }
 
 model User {
@@ -200,6 +201,8 @@ model PrintJob {
   id              String         @id @default(cuid())
   establishmentId String
   establishment   Establishment  @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  printerId       String?
+  printer         Printer?       @relation(fields: [printerId], references: [id], onDelete: SetNull)
   orderId         String?
   kind            PrintJobKind   @default(ORDER)
   status          PrintJobStatus @default(PENDING)
@@ -210,6 +213,26 @@ model PrintJob {
   printedAt       DateTime?
 
   @@index([establishmentId, status])
+}
+
+/// Uma impressora física de uma estação (Bar, Cozinha…). Um agente por
+/// estabelecimento gerencia todas; o job carrega qual impressora é o alvo.
+model Printer {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  name            String
+  connection      String        @default("USB") // "USB" | "NETWORK"
+  target          String // USB: nome da impressora no Windows; NETWORK: IP
+  port            Int           @default(9100) // só NETWORK
+  categories      String[] // categorias do menu que roteiam pra cá
+  isDefault       Boolean       @default(false) // recebe itens sem categoria mapeada
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  jobs            PrintJob[]
+
+  @@index([establishmentId])
 }
 
 model SplitShare {

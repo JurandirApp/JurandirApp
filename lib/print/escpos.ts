@@ -80,3 +80,47 @@ export function renderTicket(t: TicketData): Uint8Array {
   b.raw(GS, 0x56, 0x00); // full cut
   return b.build();
 }
+
+/** Comanda de PRODUÇÃO (cozinha/bar): itens em destaque, SEM nenhum valor.
+ *  O cliente já pagou no app — a estação só precisa saber o que preparar. */
+export type PrepTicketData = {
+  establishment: string;
+  station: string; // nome da estação/impressora (ex.: "COZINHA")
+  code: string;
+  number: number;
+  location: string;
+  customer?: string;
+  timeLabel: string;
+  items: { qty: number; name: string }[];
+  note?: string;
+};
+
+export function renderPrepTicket(t: PrepTicketData): Uint8Array {
+  const b = new Builder();
+  b.raw(ESC, 0x40); // init
+  b.raw(ESC, 0x61, 0x01); // center
+  b.raw(GS, 0x21, 0x11); // double size — nome da estação bem visível
+  b.line(t.station);
+  b.raw(GS, 0x21, 0x00); // normal
+  b.line(t.establishment);
+  b.raw(ESC, 0x61, 0x00); // left
+  b.line("-".repeat(WIDTH));
+  b.line("Pedido " + t.code + "  #" + t.number);
+  b.line("Local: " + t.location + "   " + t.timeLabel);
+  if (t.customer) b.line("Cliente: " + t.customer);
+  b.line("-".repeat(WIDTH));
+  // Itens com altura dobrada pra leitura rápida na produção. Sem preço.
+  b.raw(GS, 0x21, 0x01); // double height
+  for (const it of t.items) b.line(it.qty + "x " + it.name);
+  b.raw(GS, 0x21, 0x00); // normal
+  if (t.note) {
+    b.line("-".repeat(WIDTH));
+    b.raw(ESC, 0x45, 0x01); // bold on
+    b.line("OBS: " + t.note);
+    b.raw(ESC, 0x45, 0x00); // bold off
+  }
+  b.line("-".repeat(WIDTH));
+  b.raw(ESC, 0x64, 0x04); // feed 4
+  b.raw(GS, 0x56, 0x00); // full cut
+  return b.build();
+}

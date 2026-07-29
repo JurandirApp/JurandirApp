@@ -2,17 +2,12 @@
 
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/ui/Toggle";
 import { usePanel } from "../context";
-
-const CONN_KEY: Record<string, string> = {
-  rede: "connRede",
-  usb: "connUsb",
-  nuvem: "connNuvem",
-};
+import { PrintersManager } from "./PrintersManager";
+import { PrinterSetupGuide } from "./PrinterSetupGuide";
 
 const PRINT_STATUS_STYLE: Record<
   string,
@@ -31,11 +26,6 @@ export function ConfigSection() {
     pwMsg,
     toggles,
     flipToggle,
-    printer,
-    setPrinter,
-    savePrinter,
-    testPrint,
-    prMsg,
     printEnabled,
     setPrintEnabled,
     hasPrintToken,
@@ -49,7 +39,6 @@ export function ConfigSection() {
     refreshPrintJobs,
   } = usePanel();
   const t = useTranslations("panel.config");
-  const connLabel = (c: string) => t(CONN_KEY[c]);
 
   return (
     <div className="max-w-[1000px]">
@@ -122,93 +111,7 @@ export function ConfigSection() {
             />
           </div>
 
-          <div className="mt-2">
-            <span className="text-xs font-medium text-ink/60">
-              {t("connectionType")}
-            </span>
-            <Dropdown
-              className="mt-1"
-              align="stretch"
-              value={printer.conn}
-              onChange={(v) => setPrinter("conn", v)}
-              options={Object.keys(CONN_KEY).map((value) => ({
-                value,
-                label: connLabel(value),
-              }))}
-              renderTrigger={({ open, toggle }) => (
-                <button
-                  type="button"
-                  onClick={toggle}
-                  className="box-border flex w-full items-center justify-between gap-2 rounded-xl border-2 border-ink/15 bg-white px-3 py-2.5 text-left text-sm font-medium text-ink"
-                >
-                  <span className="flex-1 truncate">
-                    {connLabel(printer.conn)}
-                  </span>
-                  <Icon
-                    name="expand_more"
-                    size={16}
-                    className="text-ink/40 transition-transform duration-150"
-                    style={{ transform: open ? "rotate(180deg)" : "none" }}
-                  />
-                </button>
-              )}
-            />
-          </div>
-
-          {printer.conn === "rede" && (
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <Field
-                label={
-                  <span className="flex items-center gap-1">
-                    <Icon name="wifi" size={13} />
-                    {t("printerIp")}
-                  </span>
-                }
-              >
-                <Input
-                  value={printer.ip}
-                  onChange={(e) => setPrinter("ip", e.target.value)}
-                  placeholder="192.168.0.50"
-                />
-              </Field>
-              <Field label={t("port")}>
-                <Input
-                  value={printer.port}
-                  onChange={(e) => setPrinter("port", e.target.value)}
-                  placeholder="9100"
-                />
-              </Field>
-            </div>
-          )}
-
-          <div className="mt-3">
-            <Field label={t("printerModel")}>
-              <Input
-                value={printer.model}
-                onChange={(e) => setPrinter("model", e.target.value)}
-                placeholder={t("printerModelPlaceholder")}
-              />
-            </Field>
-          </div>
-
-          {prMsg && <p className="m-0 mt-2 text-xs text-[#059669]">{prMsg}</p>}
-
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={testPrint}
-              className="flex-1 rounded-xl bg-dune-50 p-3 text-sm font-medium text-ink/70"
-            >
-              {t("testPrint")}
-            </button>
-            <button
-              type="button"
-              onClick={savePrinter}
-              className="flex-1 rounded-xl bg-ink p-3 text-sm font-semibold text-sand"
-            >
-              {t("save")}
-            </button>
-          </div>
+          <PrintersManager />
 
           {/* Agent token + setup */}
           <div className="mt-4 border-t border-ink/10 pt-3">
@@ -229,27 +132,28 @@ export function ConfigSection() {
                 {hasPrintToken ? t("printTokenSet") : t("printTokenNone")}
               </p>
             )}
+            {/* Download pronto: o agente já vem com o token embutido no zip.
+                É um attachment (o navegador baixa sem sair da página). */}
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = "/api/print/agent";
+              }}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-ink p-3 text-sm font-semibold text-sand"
+            >
+              <Icon name="download" size={16} />
+              {t("agentDownload")}
+            </button>
+
+            <PrinterSetupGuide />
+
             <button
               type="button"
               onClick={generatePrintToken}
-              className="mt-2 w-full rounded-xl bg-dune-50 p-2.5 text-xs font-semibold text-ink/70"
+              className="mt-2 w-full rounded-lg bg-transparent p-1.5 text-[11px] font-medium text-ink/40"
             >
               {hasPrintToken ? t("printTokenRegen") : t("printTokenGen")}
             </button>
-
-            <div className="mt-3 rounded-lg bg-dune-50 p-2.5 text-[11px] leading-relaxed text-ink/55">
-              <p className="m-0 mb-1 font-semibold text-ink/70">
-                {t("printSetupTitle")}
-              </p>
-              <ol className="m-0 flex list-decimal flex-col gap-0.5 pl-4">
-                <li>{t("printSetup1")}</li>
-                <li>{t("printSetup2")}</li>
-                <li>{t("printSetup3")}</li>
-              </ol>
-              <code className="mt-1.5 block break-all rounded bg-white px-2 py-1 text-[10px] text-ink/70">
-                node --env-file=.env jurandir-print-agent.mjs
-              </code>
-            </div>
           </div>
 
           {/* Recent print jobs */}

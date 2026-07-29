@@ -13,7 +13,7 @@ import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState } from "@/lib/payments/mercadopago";
-import type { Order, PanelPrintJob } from "@/lib/data/panel";
+import type { Order, PanelPrintJob, PanelPrinter, PrinterInput } from "@/lib/data/panel";
 import {
   menuItemUpsertSchema,
   passwordChangeSchema,
@@ -110,15 +110,120 @@ export async function savePrinterConfigAction(
   return { ok: true };
 }
 
-/** Enfileira uma comanda de teste. `hasToken` indica se o agente já pode puxá-la. */
-export async function testPrintAction(): Promise<{ ok: boolean; hasToken: boolean }> {
+/** Enfileira uma comanda de teste numa impressora (ou na padrão/primeira).
+ *  `hasToken` indica se o agente já pode puxá-la. */
+export async function testPrintAction(
+  printerId?: string,
+): Promise<{ ok: boolean; hasToken: boolean }> {
   const s = await requireEst();
   const est = await prisma.establishment.findUnique({
     where: { id: s.establishmentId! },
     select: { printAgentToken: true },
   });
-  await enqueueTestJob(s.establishmentId!);
+  await enqueueTestJob(s.establishmentId!, printerId);
   return { ok: true, hasToken: Boolean(est?.printAgentToken) };
+}
+
+// ---- Impressoras (CRUD) — cada estação (Bar, Cozinha…) é uma impressora ------
+
+function cleanPrinterInput(input: PrinterInput) {
+  return {
+    name: String(input?.name ?? "").trim().slice(0, 60),
+    connection: input?.connection === "NETWORK" ? "NETWORK" : "USB",
+    target: String(input?.target ?? "").trim().slice(0, 200),
+    port: Number(input?.port) || 9100,
+    categories: Array.isArray(input?.categories)
+      ? [...new Set(input.categories.filter((c) => typeof c === "string" && c))].slice(0, 50)
+      : [],
+    isDefault: Boolean(input?.isDefault),
+    active: input?.active !== false,
+  };
+}
+
+/** Impressoras do estabelecimento + categorias do cardápio (pro roteamento). */
+export async function listPrintersAction(): Promise<{
+  printers: PanelPrinter[];
+  categories: string[];
+}> {
+  const s = await requireEst();
+  const [printers, cats] = await Promise.all([
+    prisma.printer.findMany({
+      where: { establishmentId: s.establishmentId! },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.menuItem.findMany({
+      where: { establishmentId: s.establishmentId!, active: true },
+      select: { category: true },
+      distinct: ["category"],
+      orderBy: { category: "asc" },
+    }),
+  ]);
+  return {
+    printers: printers.map((p) => ({
+      id: p.id,
+      name: p.name,
+      connection: p.connection,
+      target: p.target,
+      port: p.port,
+      categories: p.categories,
+      isDefault: p.isDefault,
+      active: p.active,
+    })),
+    categories: cats.map((c) => c.category),
+  };
+}
+
+export async function createPrinterAction(input: PrinterInput): Promise<{ ok: boolean }> {
+  const s = await requireEst();
+  const data = cleanPrinterInput(input);
+  if (!data.name || !data.target) return { ok: false };
+  const created = await prisma.printer.create({
+    data: { ...data, establishmentId: s.establishmentId! },
+  });
+  // Só uma padrão por estabelecimento.
+  if (data.isDefault) {
+    await prisma.printer.updateMany({
+      where: { establishmentId: s.establishmentId!, id: { not: created.id } },
+      data: { isDefault: false },
+    });
+  }
+  revalidatePath("/painel");
+  return { ok: true };
+}
+
+export async function updatePrinterAction(
+  id: string,
+  input: PrinterInput,
+): Promise<{ ok: boolean }> {
+  const s = await requireEst();
+  const existing = await prisma.printer.findFirst({
+    where: { id, establishmentId: s.establishmentId! },
+    select: { id: true },
+  });
+  if (!existing) return { ok: false };
+  const data = cleanPrinterInput(input);
+  if (!data.name || !data.target) return { ok: false };
+  await prisma.printer.update({ where: { id }, data });
+  if (data.isDefault) {
+    await prisma.printer.updateMany({
+      where: { establishmentId: s.establishmentId!, id: { not: id } },
+      data: { isDefault: false },
+    });
+  }
+  revalidatePath("/painel");
+  return { ok: true };
+}
+
+export async function deletePrinterAction(id: string): Promise<{ ok: boolean }> {
+  const s = await requireEst();
+  const existing = await prisma.printer.findFirst({
+    where: { id, establishmentId: s.establishmentId! },
+    select: { id: true },
+  });
+  if (!existing) return { ok: false };
+  await prisma.printer.delete({ where: { id } });
+  revalidatePath("/painel");
+  return { ok: true };
 }
 
 /** Gera (ou regenera) o token do agente de impressão. Devolvido uma única vez

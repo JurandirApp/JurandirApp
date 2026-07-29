@@ -20,6 +20,29 @@ export type PanelPrintJob = {
   error?: string;
 };
 
+/** Uma impressora cadastrada (estação) do estabelecimento, no painel. */
+export type PanelPrinter = {
+  id: string;
+  name: string;
+  connection: string; // "USB" | "NETWORK"
+  target: string; // USB: nome no Windows; NETWORK: IP
+  port: number;
+  categories: string[];
+  isDefault: boolean;
+  active: boolean;
+};
+
+/** Entrada do formulário de impressora (criar/editar). */
+export type PrinterInput = {
+  name: string;
+  connection: string;
+  target: string;
+  port: number;
+  categories: string[];
+  isDefault: boolean;
+  active: boolean;
+};
+
 export type MenuItem = {
   id: number;
   dbId?: string;
