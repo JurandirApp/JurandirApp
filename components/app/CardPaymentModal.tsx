@@ -71,6 +71,10 @@ export function CardPaymentModal({
             paymentMethods: {
               creditCard: "all",
               debitCard: "all",
+              // Carteira do Mercado Pago (login → cartões salvos / saldo, sem
+              // digitar) e a base pra Google Pay/Apple Pay aparecerem quando
+              // o aparelho/conta forem elegíveis.
+              mercadoPago: "all",
               maxInstallments: 1,
             },
           },

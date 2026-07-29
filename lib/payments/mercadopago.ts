@@ -198,6 +198,8 @@ export const mercadoPagoProvider: PaymentProvider = {
     const doCall = (token: string) =>
       call<{ id: number; status: string; status_detail?: string }>("/v1/payments", token, {
         method: "POST",
+        // Obrigatório pelo MP; cada tentativa é um pedido novo (reference único).
+        headers: { "X-Idempotency-Key": reference },
         body: JSON.stringify(body),
       });
     const r = marketplace ? await withToken(est, doCall) : await doCall(testToken());
