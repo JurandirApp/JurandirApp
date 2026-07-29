@@ -29,6 +29,7 @@ export type PanelPrinter = {
   port: number;
   categories: string[];
   isDefault: boolean;
+  fullOrder: boolean; // balcão: imprime o pedido inteiro
   active: boolean;
 };
 
@@ -40,6 +41,7 @@ export type PrinterInput = {
   port: number;
   categories: string[];
   isDefault: boolean;
+  fullOrder: boolean;
   active: boolean;
 };
 

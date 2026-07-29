@@ -50,8 +50,8 @@ export function ConfigSection() {
       </div>
 
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
-        {/* Password */}
-        <Card className="md:col-start-1 md:row-start-1">
+        {/* Senha */}
+        <Card>
           <CardTitle icon="lock">{t("changePassword")}</CardTitle>
           <div className="flex flex-col gap-3">
             <Field label={t("currentPassword")}>
@@ -94,111 +94,8 @@ export function ConfigSection() {
           </button>
         </Card>
 
-        {/* Printer */}
-        <Card className="md:col-start-2 md:row-span-2 md:row-start-1">
-          <CardTitle icon="print">{t("printer")}</CardTitle>
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <p className="m-0 text-sm font-medium text-ink/80">
-                {t("autoPrint")}
-              </p>
-              <p className="m-0 text-xs text-ink/50">{t("autoPrintHint")}</p>
-            </div>
-            <Toggle
-              checked={printEnabled}
-              onChange={() => setPrintEnabled(!printEnabled)}
-              aria-label={t("autoPrint")}
-            />
-          </div>
-
-          <PrintersManager />
-
-          {/* Agent token + setup */}
-          <div className="mt-4 border-t border-ink/10 pt-3">
-            <p className="m-0 mb-1 text-xs font-semibold text-ink/60">
-              {t("printToken")}
-            </p>
-            {printToken ? (
-              <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-2.5">
-                <code className="block break-all text-[11px] font-medium text-ink/80">
-                  {printToken}
-                </code>
-                <p className="m-0 mt-1.5 text-[11px] font-medium text-[#92400e]">
-                  {t("printTokenOnce")}
-                </p>
-              </div>
-            ) : (
-              <p className="m-0 mb-1 text-[11px] text-ink/45">
-                {hasPrintToken ? t("printTokenSet") : t("printTokenNone")}
-              </p>
-            )}
-            {/* Download pronto: o agente já vem com o token embutido no zip.
-                É um attachment (o navegador baixa sem sair da página). */}
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href = "/api/print/agent";
-              }}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-ink p-3 text-sm font-semibold text-sand"
-            >
-              <Icon name="download" size={16} />
-              {t("agentDownload")}
-            </button>
-
-            <PrinterSetupGuide />
-
-            <button
-              type="button"
-              onClick={generatePrintToken}
-              className="mt-2 w-full rounded-lg bg-transparent p-1.5 text-[11px] font-medium text-ink/40"
-            >
-              {hasPrintToken ? t("printTokenRegen") : t("printTokenGen")}
-            </button>
-          </div>
-
-          {/* Recent print jobs */}
-          <div className="mt-4 border-t border-ink/10 pt-3">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="m-0 text-xs font-semibold text-ink/60">
-                {t("printJobs")}
-              </p>
-              <button
-                type="button"
-                onClick={refreshPrintJobs}
-                className="flex items-center gap-1 text-[11px] font-medium text-ocean-700"
-              >
-                <Icon name="refresh" size={13} />
-                {t("printRefresh")}
-              </button>
-            </div>
-            {printJobs.length === 0 ? (
-              <p className="m-0 text-[11px] text-ink/40">
-                {t("printJobsEmpty")}
-              </p>
-            ) : (
-              <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-                {printJobs.map((j) => (
-                  <li key={j.id} className="flex items-center gap-2 text-xs">
-                    <PrintStatusBadge
-                      status={j.status}
-                      label={t(`printStatus${j.status}`)}
-                      title={j.status === "FAILED" ? j.error : undefined}
-                    />
-                    <span className="truncate font-medium text-ink/80">
-                      {j.kind === "TEST" ? t("printJobTest") : j.code}
-                    </span>
-                    <span className="ml-auto shrink-0 text-[11px] tabular-nums text-ink/40">
-                      {j.timeLabel}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
-
-        {/* Notifications */}
-        <Card className="md:col-start-1 md:row-start-2">
+        {/* Notificações */}
+        <Card>
           <CardTitle icon="notifications">{t("notifications")}</CardTitle>
           <p className="m-0 mb-3 text-xs text-ink/50">
             {t.rich("notificationsHint", { b: (c) => <b>{c}</b> })}
@@ -222,8 +119,8 @@ export function ConfigSection() {
           </p>
         </Card>
 
-        {/* Payments — Mercado Pago (marketplace connect) */}
-        <Card className="md:col-span-2 md:row-start-3">
+        {/* Pagamentos — Mercado Pago (marketplace connect) */}
+        <Card className="md:col-span-2">
           <CardTitle icon="account_balance_wallet">{t("payments")}</CardTitle>
           <p className="m-0 mb-3 text-xs text-ink/50">{t("paymentsHint")}</p>
 
@@ -269,6 +166,109 @@ export function ConfigSection() {
             {t("mpFeeNote")}
           </p>
         </Card>
+
+        {/* Impressão — card largo, 2 colunas: impressoras | agente + comandas */}
+        <Card className="md:col-span-2">
+          <CardTitle icon="print">{t("printer")}</CardTitle>
+
+          {/* Impressão automática — faixa no topo */}
+          <div className="mb-5 flex items-center justify-between gap-3 rounded-xl bg-dune-50 px-3.5 py-2.5">
+            <div>
+              <p className="m-0 text-sm font-medium text-ink/80">{t("autoPrint")}</p>
+              <p className="m-0 text-xs text-ink/50">{t("autoPrintHint")}</p>
+            </div>
+            <Toggle
+              checked={printEnabled}
+              onChange={() => setPrintEnabled(!printEnabled)}
+              aria-label={t("autoPrint")}
+            />
+          </div>
+
+          <div className="grid gap-x-7 gap-y-6 md:grid-cols-2">
+            {/* Coluna 1 — Impressoras */}
+            <div>
+              <SectionLabel>{t("printersSection")}</SectionLabel>
+              <PrintersManager />
+            </div>
+
+            {/* Coluna 2 — Agente + comandas recentes */}
+            <div className="flex flex-col gap-5 md:border-l md:border-ink/10 md:pl-7">
+              <div>
+                <SectionLabel>{t("agentSection")}</SectionLabel>
+                {printToken ? (
+                  <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-2.5">
+                    <code className="block break-all text-[11px] font-medium text-ink/80">
+                      {printToken}
+                    </code>
+                    <p className="m-0 mt-1.5 text-[11px] font-medium text-[#92400e]">
+                      {t("printTokenOnce")}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="m-0 mb-1 text-[11px] text-ink/45">
+                    {hasPrintToken ? t("printTokenSet") : t("printTokenNone")}
+                  </p>
+                )}
+                {/* Download pronto: agente com o token embutido (attachment). */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = "/api/print/agent";
+                  }}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-ink p-3 text-sm font-semibold text-sand"
+                >
+                  <Icon name="download" size={16} />
+                  {t("agentDownload")}
+                </button>
+
+                <PrinterSetupGuide />
+
+                <button
+                  type="button"
+                  onClick={generatePrintToken}
+                  className="mt-2 w-full rounded-lg bg-transparent p-1.5 text-[11px] font-medium text-ink/40"
+                >
+                  {hasPrintToken ? t("printTokenRegen") : t("printTokenGen")}
+                </button>
+              </div>
+
+              <div className="border-t border-ink/10 pt-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <SectionLabel className="mb-0">{t("printJobs")}</SectionLabel>
+                  <button
+                    type="button"
+                    onClick={refreshPrintJobs}
+                    className="flex items-center gap-1 text-[11px] font-medium text-ocean-700"
+                  >
+                    <Icon name="refresh" size={13} />
+                    {t("printRefresh")}
+                  </button>
+                </div>
+                {printJobs.length === 0 ? (
+                  <p className="m-0 text-[11px] text-ink/40">{t("printJobsEmpty")}</p>
+                ) : (
+                  <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+                    {printJobs.map((j) => (
+                      <li key={j.id} className="flex items-center gap-2 text-xs">
+                        <PrintStatusBadge
+                          status={j.status}
+                          label={t(`printStatus${j.status}`)}
+                          title={j.status === "FAILED" ? j.error : undefined}
+                        />
+                        <span className="truncate font-medium text-ink/80">
+                          {j.kind === "TEST" ? t("printJobTest") : j.code}
+                        </span>
+                        <span className="ml-auto shrink-0 text-[11px] tabular-nums text-ink/40">
+                          {j.timeLabel}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );
@@ -296,6 +296,22 @@ function CardTitle({ icon, children }: { icon: string; children: ReactNode }) {
       <Icon name={icon} size={18} className="text-ocean-700" />
       {children}
     </h2>
+  );
+}
+
+function SectionLabel({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <p
+      className={`m-0 mb-2 text-[11px] font-bold uppercase tracking-wide text-ink/45 ${className}`}
+    >
+      {children}
+    </p>
   );
 }
 

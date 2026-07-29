@@ -13,8 +13,11 @@ import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState } from "@/lib/payments/mercadopago";
-import { CATS } from "@/lib/data/panel";
 import type { Order, PanelPrintJob, PanelPrinter, PrinterInput } from "@/lib/data/panel";
+
+// Roteamento simples: comida vs bebida. (Balcão é o toggle "pedido completo",
+// não uma categoria — ver PrintersManager.)
+const PRINT_CATEGORIES = ["Alimentos", "Bebidas"];
 import {
   menuItemUpsertSchema,
   passwordChangeSchema,
@@ -128,15 +131,20 @@ export async function testPrintAction(
 // ---- Impressoras (CRUD) — cada estação (Bar, Cozinha…) é uma impressora ------
 
 function cleanPrinterInput(input: PrinterInput) {
+  const fullOrder = Boolean(input?.fullOrder);
   return {
     name: String(input?.name ?? "").trim().slice(0, 60),
     connection: input?.connection === "NETWORK" ? "NETWORK" : "USB",
     target: String(input?.target ?? "").trim().slice(0, 200),
     port: Number(input?.port) || 9100,
-    categories: Array.isArray(input?.categories)
-      ? [...new Set(input.categories.filter((c) => typeof c === "string" && c))].slice(0, 50)
-      : [],
-    isDefault: Boolean(input?.isDefault),
+    // Balcão (pedido completo) não roteia por categoria nem é o "padrão".
+    categories: fullOrder
+      ? []
+      : Array.isArray(input?.categories)
+        ? [...new Set(input.categories.filter((c) => typeof c === "string" && c))].slice(0, 50)
+        : [],
+    isDefault: fullOrder ? false : Boolean(input?.isDefault),
+    fullOrder,
     active: input?.active !== false,
   };
 }
@@ -168,11 +176,12 @@ export async function listPrintersAction(): Promise<{
       port: p.port,
       categories: p.categories,
       isDefault: p.isDefault,
+      fullOrder: p.fullOrder,
       active: p.active,
     })),
-    // Taxonomia padrão + qualquer categoria já usada no cardápio (dedup). Assim
-    // o dono monta a Cozinha (comidas) mesmo antes de cadastrar esses itens.
-    categories: [...new Set([...Object.keys(CATS), ...cats.map((c) => c.category)])],
+    // Alimentos + Bebidas sempre aparecem; junta com o que o cardápio já usa
+    // (dedup) pra nenhum item ficar sem impressora.
+    categories: [...new Set([...PRINT_CATEGORIES, ...cats.map((c) => c.category)])],
   };
 }
 

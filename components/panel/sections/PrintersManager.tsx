@@ -22,6 +22,7 @@ const EMPTY: PrinterInput = {
   port: 9100,
   categories: [],
   isDefault: false,
+  fullOrder: false,
   active: true,
 };
 
@@ -69,6 +70,7 @@ export function PrintersManager() {
       port: p.port,
       categories: p.categories,
       isDefault: p.isDefault,
+      fullOrder: p.fullOrder,
       active: p.active,
     });
     setEditing(p.id);
@@ -195,42 +197,59 @@ export function PrintersManager() {
             </Field>
           )}
 
-          <div>
-            <span className="text-xs font-medium text-ink/60">{t("printerCategories")}</span>
-            <p className="m-0 mb-1.5 mt-0.5 text-[11px] leading-snug text-ink/45">
-              {t("printerCategoriesHint")}
-            </p>
-            {categories.length === 0 ? (
-              <p className="m-0 text-[11px] text-ink/40">{t("printerNoCategories")}</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {categories.map((c) => {
-                  const on = form.categories.includes(c);
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => toggleCat(c)}
-                      className={`rounded-full border-2 px-2.5 py-1 text-xs font-semibold transition-colors ${
-                        on
-                          ? "border-ocean-700 bg-ocean-700 text-white"
-                          : "border-ink/15 bg-white text-ink/60"
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           <ToggleLine
-            title={t("printerDefault")}
-            sub={t("printerDefaultHint")}
-            checked={form.isDefault}
-            onChange={() => setForm((f) => ({ ...f, isDefault: !f.isDefault }))}
+            title={t("printerFullOrder")}
+            sub={t("printerFullOrderHint")}
+            checked={form.fullOrder}
+            onChange={() => setForm((f) => ({ ...f, fullOrder: !f.fullOrder }))}
           />
+
+          {form.fullOrder ? (
+            <p className="m-0 rounded-lg bg-dune-50 p-2.5 text-[11px] leading-relaxed text-ink/55">
+              {t("printerFullOrderNote")}
+            </p>
+          ) : (
+            <>
+              <div>
+                <span className="text-xs font-medium text-ink/60">
+                  {t("printerCategories")}
+                </span>
+                <p className="m-0 mb-1.5 mt-0.5 text-[11px] leading-snug text-ink/45">
+                  {t("printerCategoriesHint")}
+                </p>
+                {categories.length === 0 ? (
+                  <p className="m-0 text-[11px] text-ink/40">{t("printerNoCategories")}</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {categories.map((c) => {
+                      const on = form.categories.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => toggleCat(c)}
+                          className={`rounded-full border-2 px-2.5 py-1 text-xs font-semibold transition-colors ${
+                            on
+                              ? "border-ocean-700 bg-ocean-700 text-white"
+                              : "border-ink/15 bg-white text-ink/60"
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <ToggleLine
+                title={t("printerDefault")}
+                sub={t("printerDefaultHint")}
+                checked={form.isDefault}
+                onChange={() => setForm((f) => ({ ...f, isDefault: !f.isDefault }))}
+              />
+            </>
+          )}
           <ToggleLine
             title={t("printerActive")}
             sub={t("printerActiveHint")}
@@ -277,6 +296,11 @@ export function PrintersManager() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-sm font-bold text-ink/90">{p.name}</span>
+                    {p.fullOrder && (
+                      <Badge bg="#ecfdf5" fg="#059669">
+                        {t("printerFullOrderBadge")}
+                      </Badge>
+                    )}
                     {p.isDefault && (
                       <Badge bg="#eef2ff" fg="#4f46e5">
                         {t("printerDefaultBadge")}
@@ -293,9 +317,11 @@ export function PrintersManager() {
                     {p.connection === "NETWORK" ? `:${p.port}` : ""}
                   </p>
                   <p className="m-0 mt-1 text-[11px] text-ink/45">
-                    {p.categories.length
-                      ? p.categories.join(", ")
-                      : t("printerCategoriesFallback")}
+                    {p.fullOrder
+                      ? t("printerFullOrderList")
+                      : p.categories.length
+                        ? p.categories.join(", ")
+                        : t("printerCategoriesFallback")}
                   </p>
                 </div>
                 <div className="flex flex-shrink-0 gap-1">

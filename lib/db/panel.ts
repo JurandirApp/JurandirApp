@@ -4,7 +4,7 @@ export function getEstablishment(id: string) {
   return prisma.establishment.findUnique({ where: { id } });
 }
 /** Comandas de impressão recentes do estabelecimento (+ código do pedido). */
-export async function listPanelPrintJobs(establishmentId: string, limit = 20) {
+export async function listPanelPrintJobs(establishmentId: string, limit = 10) {
   const jobs = await prisma.printJob.findMany({
     where: { establishmentId },
     orderBy: { createdAt: "desc" },

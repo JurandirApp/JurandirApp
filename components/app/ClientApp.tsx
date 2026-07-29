@@ -43,6 +43,9 @@ export function ClientApp({
   const storageKey = `jur_orders_${est.slug}`;
   const cartKey = `jur_cart_${est.slug}`;
   const pendingKey = `jur_pending_${est.slug}`;
+  // Lembra qual pedido está aguardando pagamento nesta aba → um F5/fechar-reabrir
+  // volta direto pra tela do Pix (com o QR), em vez de perder tudo.
+  const viewKey = `jur_view_${est.slug}`;
 
   // Voltando do Checkout Pro (?paid=1) → já abre em "Meus pedidos". Vem do
   // servidor (prop) para não quebrar a hidratação.
@@ -95,7 +98,9 @@ export function ClientApp({
     [],
   );
 
-  // Load "my orders" (ids persisted in this browser) from the DB on mount.
+  // Load "my orders" (ids persisted in this browser) from the DB on mount. Se
+  // havia um pedido aguardando pagamento (Pix) salvo nesta aba, resume a tela do
+  // QR depois do fetch — assim um F5 ou fechar/reabrir não perde o QR nem o pedido.
   useEffect(() => {
     let ids: string[] = [];
     try {
@@ -103,7 +108,35 @@ export function ClientApp({
     } catch {
       ids = [];
     }
-    if (ids.length) getMyOrdersAction(ids).then(setMyOrders).catch(() => {});
+    let resumeId: string | null = null;
+    try {
+      resumeId =
+        (JSON.parse(localStorage.getItem(viewKey) ?? "null") as { dbId?: string } | null)
+          ?.dbId ?? null;
+    } catch {
+      resumeId = null;
+    }
+    if (!ids.length) return;
+    getMyOrdersAction(ids)
+      .then((orders) => {
+        setMyOrders(orders);
+        // Só resume se o pedido ainda aguarda pagamento (QR vivo). paidReturn já
+        // manda pra "myorders", então não sobrepõe.
+        if (resumeId && !paidReturn) {
+          const o = orders.find((x) => x.dbId === resumeId);
+          if (o && o.status === "aguardando" && !o.expired) {
+            setLastOrder(o);
+            setStep("done");
+          } else {
+            try {
+              localStorage.removeItem(viewKey);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [est.slug]);
 
@@ -129,6 +162,21 @@ export function ClientApp({
       /* localStorage unavailable */
     }
   }, [cart, cartKey]);
+
+  // Enquanto o pedido exibido aguarda pagamento (Pix), lembra dele → o reload
+  // resume a tela do QR. Some assim que ele é pago/entregue/expira.
+  useEffect(() => {
+    if (!lastOrder?.dbId) return;
+    try {
+      if (lastOrder.status === "aguardando" && !lastOrder.expired) {
+        localStorage.setItem(viewKey, JSON.stringify({ dbId: lastOrder.dbId }));
+      } else {
+        localStorage.removeItem(viewKey);
+      }
+    } catch {
+      /* localStorage unavailable */
+    }
+  }, [lastOrder, viewKey]);
 
   // Retorno do Checkout Pro (?paid=1): limpa a URL e força uma reconciliação
   // imediata para o pedido aparecer já pago / em produção. A troca de tela já

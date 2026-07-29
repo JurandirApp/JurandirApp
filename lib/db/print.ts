@@ -6,7 +6,13 @@ const timeLabel = (d: Date): string =>
   d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 type OrderItemRow = { menuItemId: string | null; name: string; qty: number };
-type PrinterRow = { id: string; name: string; categories: string[]; isDefault: boolean };
+type PrinterRow = {
+  id: string;
+  name: string;
+  categories: string[];
+  isDefault: boolean;
+  fullOrder: boolean;
+};
 type OrderRow = {
   id: string;
   code: string;
@@ -65,11 +71,26 @@ async function createOrderJobs(
   const printers = await prisma.printer.findMany({
     where: { establishmentId, active: true },
     orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, categories: true, isDefault: true },
+    select: {
+      id: true,
+      name: true,
+      categories: true,
+      isDefault: true,
+      fullOrder: true,
+    },
   });
   if (printers.length === 0) return 0;
+
+  // Estações (Bar, Cozinha…) roteiam por categoria. Impressoras "pedido completo"
+  // (balcão/coordenação) recebem TODOS os itens do pedido, numa via só.
+  const stations = printers.filter((p) => !p.fullOrder);
+  const fulls = printers.filter((p) => p.fullOrder);
   const catByItem = await categoryByItemId(order.items);
-  const groups = groupByPrinter(order.items, catByItem, printers);
+
+  const groups: { printer: PrinterRow; items: OrderItemRow[] }[] = [];
+  if (stations.length) groups.push(...groupByPrinter(order.items, catByItem, stations));
+  for (const p of fulls) groups.push({ printer: p, items: order.items });
+
   for (const { printer, items } of groups) {
     const data: PrepTicketData = {
       establishment: establishmentName,

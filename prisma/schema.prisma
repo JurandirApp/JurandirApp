@@ -227,6 +227,7 @@ model Printer {
   port            Int           @default(9100) // só NETWORK
   categories      String[] // categorias do menu que roteiam pra cá
   isDefault       Boolean       @default(false) // recebe itens sem categoria mapeada
+  fullOrder       Boolean       @default(false) // balcão/coordenação: recebe o pedido inteiro
   active          Boolean       @default(true)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

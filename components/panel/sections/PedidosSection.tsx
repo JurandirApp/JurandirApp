@@ -29,9 +29,9 @@ export function PedidosSection() {
 
   const filters: [string, string, number][] = [
     ["todos", t("filterTodos"), orders.length],
-    ["aguardando", t("filterAguardando"), agu.length],
     ["producao", t("filterProducao"), prod.length],
     ["entregue", t("filterEntregue"), ent.length],
+    ["aguardando", t("filterAguardando"), agu.length],
     ...(exp.length
       ? [["expirado", t("filterExpirado"), exp.length] as [string, string, number]]
       : []),
@@ -46,12 +46,14 @@ export function PedidosSection() {
     cards: Order[];
   }[] = [];
   const F = orderFilter;
-  if ((F === "todos" || F === "aguardando") && agu.length)
-    groups.push({ key: "agu", title: t("groupAwaiting"), color: "#e11d48", dot: "#fb7185", opacity: 1, cards: agu });
+  // Ordem: Em produção (o que a cozinha precisa fazer) → Entregues → Aguardando
+  // pagamento → Expirados.
   if ((F === "todos" || F === "producao") && prod.length)
     groups.push({ key: "prod", title: t("groupProduction"), color: "rgba(20,24,33,.6)", dot: "#fbbf24", opacity: 1, cards: prod });
   if ((F === "todos" || F === "entregue") && ent.length)
     groups.push({ key: "ent", title: t("groupDelivered"), color: "rgba(20,24,33,.6)", dot: null, opacity: 0.7, cards: ent });
+  if ((F === "todos" || F === "aguardando") && agu.length)
+    groups.push({ key: "agu", title: t("groupAwaiting"), color: "#e11d48", dot: "#fb7185", opacity: 1, cards: agu });
   if ((F === "todos" || F === "expirado") && exp.length)
     groups.push({ key: "exp", title: t("groupExpired"), color: "rgba(20,24,33,.45)", dot: null, opacity: 0.6, cards: exp });
 
