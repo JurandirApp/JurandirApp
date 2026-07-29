@@ -843,6 +843,8 @@
     "cardTitle": "Pagamento com cartão",
     "cardAmount": "Total a pagar: {amount}",
     "cardLoading": "Carregando o pagamento…",
+    "cardProcessing": "Processando seu pagamento…",
+    "cardApproved": "Pagamento aprovado!",
     "cardClose": "Fechar",
     "cardRejected": "Pagamento recusado. Tente outro cartão ou método.",
     "cardPending": "Pagamento em análise — avisamos assim que confirmar.",

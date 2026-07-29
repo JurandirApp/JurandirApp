@@ -33,6 +33,8 @@ export function CardPaymentModal({
   const t = useTranslations("app");
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false); // processando o pagamento
+  const [approved, setApproved] = useState(false); // aprovado (antes de trocar de tela)
 
   // Refs mantêm o efeito do Brick estável (não recria a cada render). Atualizados
   // num efeito (padrão "latest ref") — não pode escrever ref durante o render.
@@ -90,12 +92,17 @@ export function CardPaymentModal({
                   return;
                 }
                 setErrorMsg(null);
+                setPaying(true); // overlay "Processando…"
                 onPayRef
                   .current(fd)
                   .then((res) => {
+                    setPaying(false);
                     if (res.ok && res.status === "paid" && res.order) {
-                      onApprovedRef.current(res.order);
+                      const order = res.order;
+                      setApproved(true); // overlay "Aprovado! ✅"
                       resolve();
+                      // pequena pausa pro cliente ver a confirmação antes de trocar de tela.
+                      window.setTimeout(() => onApprovedRef.current(order), 1300);
                     } else {
                       const base =
                         res.status === "pending"
@@ -108,6 +115,7 @@ export function CardPaymentModal({
                     }
                   })
                   .catch(() => {
+                    setPaying(false);
                     setErrorMsg(tRef.current("cardError"));
                     reject();
                   });
@@ -152,9 +160,30 @@ export function CardPaymentModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-t-[24px] bg-white p-5 md:rounded-[24px]"
+        className="relative max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-t-[24px] bg-white p-5 md:rounded-[24px]"
         onClick={(e) => e.stopPropagation()}
       >
+        {(paying || approved) && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-[24px] bg-white/95 md:rounded-[24px]">
+            {approved ? (
+              <>
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#10b981] text-white">
+                  <Icon name="check" size={36} />
+                </div>
+                <p className="m-0 font-display text-lg font-extrabold">
+                  {t("cardApproved")}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-ink/15 border-t-coral" />
+                <p className="m-0 text-sm font-semibold text-ink/60">
+                  {t("cardProcessing")}
+                </p>
+              </>
+            )}
+          </div>
+        )}
         <div className="mb-1 flex items-center justify-between">
           <h2 className="m-0 font-display text-lg font-extrabold uppercase tracking-[-0.01em]">
             {t("cardTitle")}

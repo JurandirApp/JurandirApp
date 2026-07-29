@@ -843,6 +843,8 @@
     "cardTitle": "Card payment",
     "cardAmount": "Total to pay: {amount}",
     "cardLoading": "Loading payment…",
+    "cardProcessing": "Processing your payment…",
+    "cardApproved": "Payment approved!",
     "cardClose": "Close",
     "cardRejected": "Payment declined. Try another card or method.",
     "cardPending": "Payment under review — we'll let you know once confirmed.",
