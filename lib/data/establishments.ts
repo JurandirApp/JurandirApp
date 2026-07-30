@@ -4,11 +4,14 @@
  * later phases replace it with the Prisma-backed establishments.
  */
 
-export const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
+import { isOpenAt, type TimeWindow, type WeekSchedule } from "@/lib/domain/schedule";
 
-export type TimeWindow = { o: string; c: string };
-/** Length 7, index 0 = Sunday. `null` = closed that day. */
-export type WeekSchedule = (TimeWindow | null)[];
+// Modelo de horário mora em lib/domain/schedule.ts; re-exportado aqui pra não
+// quebrar os importadores existentes (site adapters, ranking…).
+export { isOpenAt };
+export type { TimeWindow, WeekSchedule };
+
+export const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
 
 export type Establishment = {
   id: string;
@@ -26,29 +29,28 @@ export type Establishment = {
 
 const BEACH_TYPES = ["Quiosque", "Estabelecimento de Praia"];
 
-const beachH: WeekSchedule = Array.from({ length: 7 }, () => ({
-  o: "09:00",
-  c: "20:00",
-}));
+const beachH: WeekSchedule = Array.from({ length: 7 }, () => [
+  { o: "09:00", c: "20:00" },
+]);
 
 const barH: WeekSchedule = [
-  { o: "17:00", c: "23:00" }, // Sun
-  null, // Mon
-  { o: "18:00", c: "00:00" }, // Tue
-  { o: "18:00", c: "00:00" }, // Wed
-  { o: "18:00", c: "01:00" }, // Thu
-  { o: "18:00", c: "02:00" }, // Fri
-  { o: "16:00", c: "02:00" }, // Sat
+  [{ o: "17:00", c: "23:00" }], // Sun
+  [], // Mon
+  [{ o: "18:00", c: "00:00" }], // Tue
+  [{ o: "18:00", c: "00:00" }], // Wed
+  [{ o: "18:00", c: "01:00" }], // Thu
+  [{ o: "18:00", c: "02:00" }], // Fri
+  [{ o: "16:00", c: "02:00" }], // Sat
 ];
 
 const bruxaH: WeekSchedule = [
-  { o: "16:00", c: "23:00" }, // Sun
-  null,
-  null,
-  { o: "18:00", c: "01:00" }, // Wed
-  { o: "18:00", c: "01:00" }, // Thu
-  { o: "18:00", c: "01:00" }, // Fri
-  { o: "16:00", c: "01:00" }, // Sat
+  [{ o: "16:00", c: "23:00" }], // Sun
+  [], // Mon
+  [], // Tue
+  [{ o: "18:00", c: "01:00" }], // Wed
+  [{ o: "18:00", c: "01:00" }], // Thu
+  [{ o: "18:00", c: "01:00" }], // Fri
+  [{ o: "16:00", c: "01:00" }], // Sat
 ];
 
 // [id, name, city, neigh, tipo, cuisine, orders, rating]
@@ -90,34 +92,6 @@ export const establishments: Establishment[] = rows.map((a) => ({
   rating: a[7],
   hours: a[0] === "e12" ? bruxaH : BEACH_TYPES.includes(a[4]) ? beachH : barH,
 }));
-
-function toMin(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
-
-/** Is the establishment open at the given moment? Handles overnight windows. */
-export function isOpenAt(week: WeekSchedule, date: Date): boolean {
-  const day = date.getDay();
-  const mins = date.getHours() * 60 + date.getMinutes();
-
-  const today = week[day];
-  if (today) {
-    const o = toMin(today.o);
-    const c = toMin(today.c);
-    if (c > o ? mins >= o && mins < c : mins >= o) return true;
-  }
-
-  // Overnight window that started yesterday (c <= o) may still be open early today.
-  const yesterday = week[(day + 6) % 7];
-  if (yesterday) {
-    const o = toMin(yesterday.o);
-    const c = toMin(yesterday.c);
-    if (c <= o && mins < c) return true;
-  }
-
-  return false;
-}
 
 /** Unique, sorted list helper for filter options. */
 export function uniqueSorted(values: string[]): string[] {

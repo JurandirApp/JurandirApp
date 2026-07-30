@@ -25,7 +25,6 @@ import {
   printOrderAction,
   refreshOrdersAction,
   refreshPrintJobsAction,
-  saveDayStartAction,
   saveEstablishmentImageAction,
   savePrinterConfigAction,
   saveProfileAction,
@@ -34,6 +33,7 @@ import {
   upsertMenuItemAction,
 } from "@/lib/actions/panel";
 import type { OrdersPeriod } from "@/lib/domain/period";
+import type { WeekSchedule } from "@/lib/domain/schedule";
 import {
   PanelContext,
   type AuditFilters,
@@ -66,6 +66,7 @@ export function PanelApp({
   slug,
   dayStartHour,
   dayStartSet: dayStartSet0,
+  weekly: weekly0,
   profile: profile0,
   images,
   orders: orders0,
@@ -82,6 +83,7 @@ export function PanelApp({
   slug: string;
   dayStartHour: number;
   dayStartSet: boolean;
+  weekly: WeekSchedule;
   profile: ProfileForm;
   images: { cover: string | null; logo: string | null };
   orders: Order[];
@@ -109,6 +111,7 @@ export function PanelApp({
   const [ordersPeriod, setOrdersPeriodState] = useState<OrdersPeriod>({ kind: "hoje" });
   const [dayStart, setDayStart] = useState(dayStartHour);
   const [dayStartSet, setDayStartSet] = useState(dayStartSet0);
+  const [weekly, setWeeklyState] = useState<WeekSchedule>(weekly0);
   const [period, setPeriod] = useState("hoje");
   const [openPay, setOpenPay] = useState<string | null>(null);
   const [menuCat, setMenuCat] = useState("Todos");
@@ -231,17 +234,6 @@ export function PanelApp({
       },
       dayStartHour: dayStart,
       dayStartSet,
-      setDayStartHour: (h: number) => {
-        setDayStart(h);
-        setDayStartSet(true);
-        (async () => {
-          await saveDayStartAction(h);
-          // Refaz a busca do período atual com a nova fronteira do dia.
-          const fresh = await refreshOrdersAction(ordersPeriodRef.current);
-          fresh.forEach((o) => o.dbId && seenOrders.current.add(o.dbId));
-          setOrders(fresh);
-        })().catch(() => {});
-      },
       deliverOrder: (id) => {
         const o = orders.find((x) => x.id === id);
         setOrders((prev) =>
@@ -322,6 +314,11 @@ export function PanelApp({
         setProfileState((prev) => ({ ...prev, [k]: v }));
         setProfSaved(false);
       },
+      weekly,
+      setWeekly: (w: WeekSchedule) => {
+        setWeeklyState(w);
+        setProfSaved(false);
+      },
       profSaved,
       saveProfile: () => {
         startTransition(async () => {
@@ -331,7 +328,7 @@ export function PanelApp({
               tagline: profile.tagline,
               desc: profile.desc,
               address: profile.address,
-              hours: profile.hours,
+              weekly,
               serviceFee: Number(profile.serviceFee) || 0,
               radius: profile.radius,
               phone: profile.phone,
@@ -343,6 +340,16 @@ export function PanelApp({
             if (r.ok) {
               setProfSaved(true);
               toast(t("toasts.profileSaved"));
+              // O horário mudou a fronteira do "dia operacional" — reflete no
+              // filtro de pedidos e refaz a busca do período atual.
+              if (typeof r.dayStartHour === "number") setDayStart(r.dayStartHour);
+              setDayStartSet(true);
+              refreshOrdersAction(ordersPeriodRef.current)
+                .then((fresh) => {
+                  fresh.forEach((o) => o.dbId && seenOrders.current.add(o.dbId));
+                  setOrders(fresh);
+                })
+                .catch(() => {});
             } else {
               toast(t("toasts.profileError"));
             }
@@ -486,7 +493,7 @@ export function PanelApp({
   }, [
     t, beach, now, slug, orders, menu, qrs, stats, tab, orderFilter, ordersPeriod, dayStart,
     dayStartSet, period, openPay, menuCat,
-    itemCat, qrLabel, aud, audPage, profile, profSaved, pw, pwMsg,
+    itemCat, qrLabel, aud, audPage, profile, weekly, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
   ]);

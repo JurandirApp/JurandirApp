@@ -13,8 +13,17 @@ import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
-import { periodRange, clampHour, type OrdersPeriod } from "@/lib/domain/period";
+import { periodRange, type OrdersPeriod } from "@/lib/domain/period";
+import {
+  normalizeWeekly,
+  formatWeekly,
+  deriveDayStartHour,
+} from "@/lib/domain/schedule";
+import { Prisma } from "@prisma/client";
 import type { Order, PanelPrintJob, PanelPrinter, PrinterInput } from "@/lib/data/panel";
+
+// Rótulos dos dias (índice 0 = domingo) pro texto de exibição do horário.
+const DIAS_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 // Roteamento simples: comida vs bebida. (Balcão é o toggle "pedido completo",
 // não uma categoria — ver PrintersManager.)
@@ -65,18 +74,6 @@ export async function checkPixReadyAction(): Promise<{
   });
   revalidatePath("/painel");
   return { ready: res.ready, reason: res.reason, connected: Boolean(est.mpAccessToken) };
-}
-
-/** Salva a hora (0-23, Brasília) em que o dia operacional começa + marca como
- *  confirmado (some o aviso de "configure o horário"). */
-export async function saveDayStartAction(hour: number): Promise<{ ok: boolean }> {
-  const s = await requireEst();
-  await prisma.establishment.update({
-    where: { id: s.establishmentId! },
-    data: { dayStartHour: clampHour(hour), dayStartSet: true },
-  });
-  revalidatePath("/painel");
-  return { ok: true };
 }
 
 /** Status recente das comandas de impressão (para o card no painel). */
@@ -354,11 +351,15 @@ export async function deleteQrSpotAction(dbId: string): Promise<void> {
 
 export async function saveProfileAction(
   input: ProfileSaveInput,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; dayStartHour?: number; dayStartSet?: boolean }> {
   const s = await requireEst();
   const parsed = profileSaveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
   const d = parsed.data;
+  // weeklyHours é a fonte única; os derivados (texto, fronteira do dia) saem dele.
+  const weekly = normalizeWeekly(d.weekly ?? []);
+  const hoursStr = formatWeekly(weekly, { labels: DIAS_PT, and: "e", allClosed: "Fechado" });
+  const dayStartHour = deriveDayStartHour(weekly);
   await prisma.establishment.update({
     where: { id: s.establishmentId! },
     data: {
@@ -366,7 +367,10 @@ export async function saveProfileAction(
       tagline: d.tagline || null,
       description: d.desc || null,
       address: d.address || null,
-      hours: d.hours || null,
+      weeklyHours: weekly as unknown as Prisma.InputJsonValue,
+      hours: hoursStr || null,
+      dayStartHour,
+      dayStartSet: true,
       serviceFeePct: d.serviceFee,
       radiusM: (() => { const n = Number(d.radius); return d.radius && Number.isFinite(n) ? Math.round(n) : null; })(),
       phone: d.phone || null,
@@ -377,7 +381,7 @@ export async function saveProfileAction(
     },
   });
   revalidatePath("/painel");
-  return { ok: true };
+  return { ok: true, dayStartHour, dayStartSet: true };
 }
 
 export async function changePasswordAction(

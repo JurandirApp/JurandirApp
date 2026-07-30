@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Dropdown, type DropdownOption } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { isOpenAt, uniqueSorted, type Establishment } from "@/lib/data/establishments";
+import { formatDayWindows } from "@/lib/domain/schedule";
 import { Link } from "@/i18n/navigation";
 import { useRankingFilters } from "./ranking-filters";
 import { Reveal } from "./Reveal";
@@ -132,7 +133,7 @@ export function RankingHypados({ establishments }: { establishments: Establishme
         .filter((e) => !bairro || e.neigh === bairro)
         .filter((e) => !cuisine || e.cuisine === cuisine)
         .filter((e) => !tipo || e.tipo === tipo)
-        .filter((e) => dayN === null || Boolean(e.hours[dayN]))
+        .filter((e) => dayN === null || (e.hours[dayN]?.length ?? 0) > 0)
         .filter((e) => !openNow || (now !== null && isOpenAt(e.hours, now)))
         .sort((a, b) => b.orders - a.orders),
     [establishments, city, bairro, cuisine, tipo, dayN, openNow, now],
@@ -226,10 +227,10 @@ export function RankingHypados({ establishments }: { establishments: Establishme
           {filtered.map((e, idx) => {
           const top3 = idx < 3;
           const aberto = now ? isOpenAt(e.hours, now) : null;
-          const h = showDay !== null ? e.hours[showDay] : null;
+          const dayWins = showDay !== null ? e.hours[showDay] : null;
           const hoursLabel =
             showDay !== null
-              ? `${wd[showDay]} ${h ? `${h.o}–${h.c}` : t("closedHours")}`
+              ? `${wd[showDay]} ${dayWins && dayWins.length ? formatDayWindows(dayWins) : t("closedHours")}`
               : null;
 
           return (

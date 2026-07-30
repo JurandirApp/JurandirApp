@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 import type { MenuItem, Order, PanelPrintJob, ProfileForm, Qr } from "@/lib/data/panel";
 import type { MonthlyStatLite } from "@/lib/admin/scale";
 import type { OrdersPeriod } from "@/lib/domain/period";
+import type { WeekSchedule } from "@/lib/domain/schedule";
 
 export type TabId =
   | "pedidos"
@@ -39,11 +40,10 @@ export interface PanelValue {
   /** Período exibido (Hoje/Ontem/7 dias/custom), buscado no servidor. */
   ordersPeriod: OrdersPeriod;
   setOrdersPeriod: (p: OrdersPeriod) => void;
-  /** Hora (0-23, Brasília) em que o dia operacional começa — Config. */
+  /** Hora (0-23, Brasília) em que o dia operacional começa — derivada do horário. */
   dayStartHour: number;
-  /** O dono já confirmou o horário? Senão, mostra o aviso nos Pedidos. */
+  /** O dono já preencheu o horário? Senão, mostra o aviso nos Pedidos. */
   dayStartSet: boolean;
-  setDayStartHour: (h: number) => void;
   deliverOrder: (id: number) => void;
   printOrder: (id: number) => void;
 
@@ -80,6 +80,9 @@ export interface PanelValue {
   // Perfil
   profile: ProfileForm;
   setProfile: (k: keyof ProfileForm, v: string) => void;
+  /** Horário de funcionamento semanal (7 dias, até 2 turnos, índice 0 = domingo). */
+  weekly: WeekSchedule;
+  setWeekly: (w: WeekSchedule) => void;
   profSaved: boolean;
   saveProfile: () => void;
   /** Capa e logo atuais (Cloudinary) — refletem no preview do cardápio. */

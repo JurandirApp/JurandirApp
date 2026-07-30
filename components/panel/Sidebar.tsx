@@ -13,7 +13,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-50 box-border flex h-screen w-[248px] flex-shrink-0 flex-col overflow-y-auto bg-ink px-[14px] py-5 transition-transform duration-200 lg:sticky lg:top-[84px] lg:z-auto lg:h-[calc(100vh-84px)] lg:translate-x-0 lg:self-start ${
+      className={`fixed left-0 top-0 z-50 box-border flex h-[100dvh] w-[248px] flex-shrink-0 flex-col overflow-y-auto bg-ink px-[14px] pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] transition-transform duration-200 lg:sticky lg:top-[84px] lg:z-auto lg:h-[calc(100vh-84px)] lg:translate-x-0 lg:self-start lg:pb-5 ${
         open ? "translate-x-0" : "-translate-x-full"
       }`}
     >

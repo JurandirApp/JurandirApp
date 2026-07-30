@@ -107,12 +107,17 @@ export const establishmentUpsertSchema = z.object({
 });
 export type EstablishmentUpsertInput = z.infer<typeof establishmentUpsertSchema>;
 
+const timeStr = z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/);
+const timeWindow = z.object({ o: timeStr, c: timeStr });
+/** Horário semanal: 7 dias, até 2 janelas por dia (índice 0 = domingo). */
+const weekScheduleSchema = z.array(z.array(timeWindow).max(2)).max(7);
+
 export const profileSaveSchema = z.object({
   name: z.string().min(1),
   tagline: z.string().optional(),
   desc: z.string().optional(),
   address: z.string().optional(),
-  hours: z.string().optional(),
+  weekly: weekScheduleSchema.optional(),
   serviceFee: z.coerce.number().int().min(0).max(100),
   radius: z.string().optional(),
   phone: z.string().optional(),

@@ -26,7 +26,6 @@ export function PedidosSection() {
     ordersPeriod,
     setOrdersPeriod,
     dayStartSet,
-    setDayStartHour,
     setTab,
   } = usePanel();
   const t = useTranslations("panel.pedidos");
@@ -71,7 +70,7 @@ export function PedidosSection() {
 
   return (
     <div>
-      {/* Aviso: o dono ainda não confirmou o horário de funcionamento (importante
+      {/* Aviso: o dono ainda não preencheu o horário de funcionamento (importante
           pro filtro Hoje/Ontem, principalmente em bar que vira a noite). */}
       {!dayStartSet && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-3.5 py-2.5">
@@ -84,22 +83,13 @@ export function PedidosSection() {
               {t("dayStartBannerText")}
             </p>
           </div>
-          <div className="flex flex-none gap-2">
-            <button
-              type="button"
-              onClick={() => setDayStartHour(0)}
-              className="rounded-lg border border-[#fde68a] bg-white px-3 py-1.5 text-xs font-bold text-[#92400e]"
-            >
-              {t("dayStartBannerNormal")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("config")}
-              className="rounded-lg bg-[#b45309] px-3 py-1.5 text-xs font-bold text-white"
-            >
-              {t("dayStartBannerConfigure")}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setTab("perfil")}
+            className="flex-none rounded-lg bg-[#b45309] px-3 py-1.5 text-xs font-bold text-white"
+          >
+            {t("dayStartBannerConfigure")}
+          </button>
         </div>
       )}
 
@@ -198,6 +188,28 @@ export function PedidosSection() {
           </div>
         </div>
       ))}
+
+      {orders.length === 0 && (
+        <div className="mt-8 flex flex-col items-center px-6 py-14 text-center">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-ink bg-white shadow-hard">
+            <Icon name="receipt_long" size={30} className="text-ink" />
+          </div>
+          <h2 className="m-0 font-display text-xl font-extrabold uppercase tracking-[-0.01em] text-ink">
+            {t("emptyOrdersTitle")}
+          </h2>
+          <p className="m-0 mt-2 max-w-[380px] text-sm leading-relaxed text-ink/50">
+            {t("emptyOrdersText")}
+          </p>
+          <button
+            type="button"
+            onClick={() => setTab("qrcodes")}
+            className="mt-5 flex items-center gap-1.5 rounded-xl border-2 border-ink bg-sand px-4 py-2.5 text-sm font-bold text-ink shadow-hard"
+          >
+            <Icon name="qr_code_2" size={16} />
+            {t("emptyOrdersCta")}
+          </button>
+        </div>
+      )}
 
       {orders.length > 0 && groups.length === 0 && (
         <div className="py-12 text-center text-sm text-ink/40">

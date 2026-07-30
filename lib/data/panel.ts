@@ -113,8 +113,8 @@ export const GW: Record<PayMethod, number> = {
 
 export const CATS: Record<string, string[]> = {
   "Combos & Combinações": ["Combos", "Combinações"],
-  Bebidas: ["Drinks", "Cervejas", "Refrigerantes", "Naturais", "Águas"],
-  Alimentos: ["Porções", "Pratos", "Saudáveis"],
+  Bebidas: ["Drinks", "Cervejas", "Chopp", "Doses", "Refrigerantes", "Naturais", "Águas"],
+  Alimentos: ["Porções", "Acompanhamentos", "Pratos", "Saudáveis"],
   Snacks: ["Salgados", "Petiscos"],
   Sobremesas: ["Sorvetes", "Doces"],
 };

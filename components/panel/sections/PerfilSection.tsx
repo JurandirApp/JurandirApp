@@ -5,12 +5,15 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Textarea } from "@/components/ui/Input";
 import { COVER_IMG, type ProfileForm } from "@/lib/data/panel";
+import { formatWeekly } from "@/lib/domain/schedule";
 import { usePanel } from "../context";
+import { WeeklyHoursEditor } from "./WeeklyHoursEditor";
 
 export function PerfilSection() {
   const {
     profile,
     setProfile,
+    weekly,
     profSaved,
     saveProfile,
     coverImg,
@@ -20,6 +23,11 @@ export function PerfilSection() {
     beach,
   } = usePanel();
   const t = useTranslations("panel.perfil");
+  const hoursSummary = formatWeekly(weekly, {
+    labels: t.raw("weekdaysShort") as string[],
+    and: t("and"),
+    allClosed: t("closedAll"),
+  });
 
   const pick = (kind: "cover" | "logo") => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,7 +75,7 @@ export function PerfilSection() {
             </p>
             <p className="m-0 mt-0.5 flex items-center gap-1 text-[11px] text-white/80">
               <Icon name="schedule" size={12} />
-              {profile.hours}
+              {hoursSummary}
             </p>
           </div>
         </div>
@@ -123,11 +131,8 @@ export function PerfilSection() {
           <Field className="sm:col-span-2" label={t("desc")}>
             <Textarea rows={3} {...bind("desc")} />
           </Field>
-          <Field label={t("address")}>
+          <Field className="sm:col-span-2" label={t("address")}>
             <Input {...bind("address")} />
-          </Field>
-          <Field label={t("hours")}>
-            <Input {...bind("hours")} />
           </Field>
           <Field
             label={
@@ -157,6 +162,14 @@ export function PerfilSection() {
               </Suffix>
             </Field>
           )}
+        </div>
+
+        <div className="mt-4 border-t border-ink/10 pt-3">
+          <p className="m-0 mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink/50">
+            <Icon name="schedule" size={14} className="text-coral" />
+            {t("hoursTitle")}
+          </p>
+          <WeeklyHoursEditor />
         </div>
 
         <div className="mt-4 border-t border-ink/10 pt-3">
