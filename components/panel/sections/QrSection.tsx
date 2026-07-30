@@ -6,7 +6,7 @@ import { qrImg } from "@/lib/panel/helpers";
 import { usePanel } from "../context";
 
 export function QrSection() {
-  const { qrs, qrLabel, setQrLabel, addQr, openZoom, askDeleteQr, beach } =
+  const { qrs, qrLabel, setQrLabel, addQr, openZoom, askDeleteQr, beach, slug } =
     usePanel();
   const t = useTranslations("panel");
   const canAdd = qrLabel.trim().length > 0;
@@ -60,7 +60,7 @@ export function QrSection() {
                 role="img"
                 aria-label={`QR ${q.label}`}
                 className="aspect-square w-full bg-cover bg-center"
-                style={{ backgroundImage: `url("${qrImg(q.label, 220)}")` }}
+                style={{ backgroundImage: `url("${qrImg(slug, q.label, 220)}")` }}
               />
             </button>
             <p className="m-0 mt-2 flex items-center gap-1 text-sm font-semibold text-ink/80">
@@ -69,7 +69,7 @@ export function QrSection() {
             </p>
             <div className="mt-2 flex w-full gap-1.5">
               <a
-                href={qrImg(q.label, 600)}
+                href={qrImg(slug, q.label, 600)}
                 target="_blank"
                 rel="noreferrer"
                 className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-dune-50 py-2 text-xs font-medium text-ink/70"

@@ -65,7 +65,7 @@ export function CheckoutScreen() {
   }
 
   return (
-    <div className="px-5 pb-28 pt-5">
+    <div className="animate-rise-in px-5 pb-28 pt-5">
       <button
         type="button"
         onClick={goMenu}
@@ -386,6 +386,9 @@ export function CheckoutScreen() {
           className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold text-white"
           style={{ background: payBg }}
         >
+          {paying && (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white" />
+          )}
           {payLabel}
         </button>
       </div>

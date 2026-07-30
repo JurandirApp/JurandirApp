@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { CATS, type AppEstablishment, type PayId } from "@/lib/data/app";
 import type { MenuItem } from "@/lib/data/panel";
 import { cartTotal, fees, type CartLine, type ClientOrder, type Share } from "@/lib/app/helpers";
+import { PIX_EXPIRES_MIN } from "@/lib/domain/pricing";
 import { appToEnum } from "@/lib/app/adapters";
 import { createOrderAction, getMyOrdersAction, payCardAction, payShareAction } from "@/lib/actions/app";
 import type { OrderCreateInput } from "@/lib/validation";
@@ -111,8 +112,8 @@ export function ClientApp({
     let resumeId: string | null = null;
     try {
       resumeId =
-        (JSON.parse(localStorage.getItem(viewKey) ?? "null") as { dbId?: string } | null)
-          ?.dbId ?? null;
+        (JSON.parse(localStorage.getItem(viewKey) ?? "null") as ClientOrder | null)?.dbId ??
+        null;
     } catch {
       resumeId = null;
     }
@@ -120,14 +121,16 @@ export function ClientApp({
     getMyOrdersAction(ids)
       .then((orders) => {
         setMyOrders(orders);
-        // Só resume se o pedido ainda aguarda pagamento (QR vivo). paidReturn já
-        // manda pra "myorders", então não sobrepõe.
+        // Confirma/atualiza o pedido resumido com a verdade do servidor (pode ter
+        // sido pago/expirado enquanto o app estava fechado). A tela do Pix já
+        // apareceu instantânea pelo cache; aqui só corrige o status.
         if (resumeId && !paidReturn) {
           const o = orders.find((x) => x.dbId === resumeId);
-          if (o && o.status === "aguardando" && !o.expired) {
+          if (o) {
             setLastOrder(o);
-            setStep("done");
-          } else {
+            if (o.status === "aguardando" && !o.expired) setStep("done");
+          }
+          if (!o || o.status !== "aguardando" || o.expired) {
             try {
               localStorage.removeItem(viewKey);
             } catch {
@@ -137,6 +140,29 @@ export function ClientApp({
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [est.slug]);
+
+  // Mostra a tela do Pix IMEDIATAMENTE a partir do pedido salvo (com o QR) — sem
+  // esperar a rede. O fetch acima só confirma/atualiza o status depois. Guarda
+  // contra Pix já vencido (fora da janela) — nesse caso deixa o fetch decidir.
+  useEffect(() => {
+    if (paidReturn) return;
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(viewKey) ?? "null",
+      ) as ClientOrder | null;
+      const withinWindow =
+        !!saved?.ts && Date.now() - saved.ts < (PIX_EXPIRES_MIN + 1) * 60_000;
+      if (saved?.dbId && saved.status === "aguardando" && !saved.expired && withinWindow) {
+        queueMicrotask(() => {
+          setLastOrder(saved);
+          setStep("done");
+        });
+      }
+    } catch {
+      /* localStorage unavailable */
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [est.slug]);
 
@@ -169,7 +195,9 @@ export function ClientApp({
     if (!lastOrder?.dbId) return;
     try {
       if (lastOrder.status === "aguardando" && !lastOrder.expired) {
-        localStorage.setItem(viewKey, JSON.stringify({ dbId: lastOrder.dbId }));
+        // Guarda o pedido INTEIRO (com o payload/QR do Pix) → no reload a tela
+        // aparece na hora, sem esperar a rede.
+        localStorage.setItem(viewKey, JSON.stringify(lastOrder));
       } else {
         localStorage.removeItem(viewKey);
       }
@@ -487,6 +515,16 @@ export function ClientApp({
           {step === "done" && lastOrder && <DoneScreen />}
           {step === "myorders" && <MyOrdersScreen />}
           {cartOpen && <CartDrawer />}
+          {paying && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-6">
+              <div className="flex animate-rise-in flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-modal">
+                <div className="h-9 w-9 animate-spin rounded-full border-[3px] border-ink/15 border-t-coral" />
+                <p className="m-0 text-sm font-semibold text-ink/70">
+                  {t("payProcessing")}
+                </p>
+              </div>
+            </div>
+          )}
           {cardPay && (
             <CardPaymentModal
               amount={cardPay.amount}

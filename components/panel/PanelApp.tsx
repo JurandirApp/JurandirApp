@@ -60,6 +60,7 @@ const EMPTY_PW: PwForm = { cur: "", nova: "", conf: "" };
 
 export function PanelApp({
   now,
+  slug,
   profile: profile0,
   images,
   orders: orders0,
@@ -72,6 +73,7 @@ export function PanelApp({
   mpResult = null,
 }: {
   now: number;
+  slug: string;
   profile: ProfileForm;
   images: { cover: string | null; logo: string | null };
   orders: Order[];
@@ -179,6 +181,7 @@ export function PanelApp({
     return {
       beach,
       restName: profile.name,
+      slug,
       now,
       orders,
       menu,
@@ -428,7 +431,7 @@ export function PanelApp({
       },
     };
   }, [
-    t, beach, now, orders, menu, qrs, stats, tab, orderFilter, period, openPay, menuCat,
+    t, beach, now, slug, orders, menu, qrs, stats, tab, orderFilter, period, openPay, menuCat,
     itemCat, qrLabel, aud, audPage, profile, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpResult, coverImg, logoImg, uploadingImg,
@@ -556,6 +559,7 @@ export function PanelApp({
         {qrZoom && (
           <QrZoomModal
             qr={qrZoom}
+            slug={slug}
             restName={profile.name}
             onClose={() => setQrZoom(null)}
             onPrint={() => toast(t("toasts.qrPrint"))}

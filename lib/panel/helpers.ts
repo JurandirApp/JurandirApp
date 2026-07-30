@@ -43,16 +43,15 @@ export function ymd(ts: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-const SLUG = "quiosque-do-mar";
-
-/** URL a QR encodes — points at the production client app for this spot. */
-export function qrUrl(label: string): string {
-  return `https://jurandir.app.br/${SLUG}?local=${encodeURIComponent(label)}`;
+/** URL a QR encodes — points at the production client app for THIS establishment
+ *  (slug) + spot label. O slug é o do estabelecimento logado, não um fixo. */
+export function qrUrl(slug: string, label: string): string {
+  return `https://jurandir.app.br/${slug}?local=${encodeURIComponent(label)}`;
 }
 
-export function qrImg(label: string, size: number): string {
+export function qrImg(slug: string, label: string, size: number): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=10&data=${encodeURIComponent(
-    qrUrl(label),
+    qrUrl(slug, label),
   )}`;
 }
 

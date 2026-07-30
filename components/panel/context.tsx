@@ -21,6 +21,8 @@ export type Toggles = { auto: boolean; wa: boolean; em: boolean };
 export interface PanelValue {
   beach: boolean;
   restName: string;
+  /** Slug do estabelecimento logado — usado nas URLs dos QR codes. */
+  slug: string;
   now: number;
   orders: Order[];
   menu: MenuItem[];

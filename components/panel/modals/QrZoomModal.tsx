@@ -8,11 +8,13 @@ import { qrImg, qrUrl } from "@/lib/panel/helpers";
 
 export function QrZoomModal({
   qr,
+  slug,
   restName,
   onClose,
   onPrint,
 }: {
   qr: Qr;
+  slug: string;
   restName: string;
   onClose: () => void;
   onPrint: () => void;
@@ -42,14 +44,14 @@ export function QrZoomModal({
           role="img"
           aria-label="QR Code"
           className="aspect-square w-full rounded-xl border border-ink/10 bg-cover bg-center"
-          style={{ backgroundImage: `url("${qrImg(qr.label, 320)}")` }}
+          style={{ backgroundImage: `url("${qrImg(slug, qr.label, 320)}")` }}
         />
         <p className="m-0 mt-3 flex items-center justify-center gap-1.5 font-display text-lg font-bold">
           <Icon name="location_on" size={16} className="text-ocean-700" />
           {qr.label}
         </p>
         <p className="m-0 mt-1 break-all text-[11px] text-ink/40">
-          {qrUrl(qr.label)}
+          {qrUrl(slug, qr.label)}
         </p>
         <p className="m-0 mt-3 text-xs text-ink/60">
           {t.rich("zoomHint", { label: qr.label, b: (c) => <b>{c}</b> })}
@@ -64,7 +66,7 @@ export function QrZoomModal({
             {t("print")}
           </button>
           <a
-            href={qrImg(qr.label, 600)}
+            href={qrImg(slug, qr.label, 600)}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-center gap-1.5 rounded-xl bg-ink p-2.5 text-sm font-semibold text-sand"

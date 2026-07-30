@@ -45,7 +45,7 @@ export function DoneScreen() {
   });
 
   return (
-    <div className="px-6 py-12 text-center">
+    <div className="animate-rise-in px-6 py-12 text-center">
       <div
         className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full text-white"
         style={{
