@@ -34,18 +34,20 @@ export function splitToEstablishment(total: number, platformFee: number): number
 
 export type Totals = { platformFee: number; serviceFee: number; total: number };
 
-/** Modelo comissão (marketplace): o cliente paga `subtotal` (+ taxa de serviço do
- *  bar, se houver). A `platformFee` é a COMISSÃO da plataforma (application_fee) —
- *  ela NÃO é somada ao total; sai do valor que vai pro bar. Ex.: cliente paga 100,
- *  comissão 5% → bar recebe 95, plataforma 5. */
+/** Modelo comissão (marketplace): a comissão da plataforma é SOMADA à conta do
+ *  cliente — o bar recebe o valor cheio. `total` = subtotal + taxa de serviço do
+ *  bar + comissão da plataforma. A `platformFee` (application_fee) sai desse total
+ *  pra plataforma; o resto (subtotal + taxa do bar) vai pro bar.
+ *  Ex.: conta 100, comissão 5% → cliente paga 105, bar recebe 100, plataforma 5. */
 export function computeTotals(
   subtotal: number,
   platformFeePct: number,
   serviceFeePct: number,
 ): Totals {
   const serviceFee = round2((subtotal * serviceFeePct) / 100);
-  const total = round2(subtotal + serviceFee);
-  const platformFee = round2((total * platformFeePct) / 100);
+  const base = round2(subtotal + serviceFee); // o que vai pro bar
+  const platformFee = round2((base * platformFeePct) / 100); // comissão (application_fee)
+  const total = round2(base + platformFee); // o que o cliente paga
   return { platformFee, serviceFee, total };
 }
 

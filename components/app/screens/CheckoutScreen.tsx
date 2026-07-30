@@ -18,7 +18,7 @@ export function CheckoutScreen() {
   const tShort = useTranslations("app.payShort");
 
   const total = cartTotal(cart, menu);
-  const { fee, est: estFee, grand } = fees(total, est.platformFeePct, est.serviceFeePct);
+  const { grand } = fees(total, est.platformFeePct, est.serviceFeePct);
   const full = mode === "full";
 
   const lines = cart
@@ -122,25 +122,9 @@ export function CheckoutScreen() {
             </button>
           </div>
         ))}
-        <div className="mt-3 border-t border-[#f1f5f9] pt-3">
-          {estFee > 0 && (
-            <div className="mb-1.5 flex flex-col gap-1.5">
-              <Row label={t("subtotal")} value={money(total)} />
-              <Row
-                label={
-                  <span className="flex items-center gap-1">
-                    {t("feeEstNamed", { name: est.name })}{" "}
-                    <Pill>{est.serviceFeePct}%</Pill>
-                  </span>
-                }
-                value={money(estFee)}
-              />
-            </div>
-          )}
-          <div className="flex justify-between font-bold">
-            <span>{t("totalToPay")}</span>
-            <span className="text-coral-emph">{money(grand)}</span>
-          </div>
+        <div className="mt-3 flex justify-between border-t border-[#f1f5f9] pt-3 font-bold">
+          <span>{t("totalToPay")}</span>
+          <span className="text-coral-emph">{money(grand)}</span>
         </div>
       </div>
 
@@ -356,17 +340,6 @@ export function CheckoutScreen() {
               />
             </div>
           </div>
-          <p className="m-0 mt-2 text-[11px] text-[#94a3b8]">
-            {t.rich("splitFeeNote", {
-              fee: money(fee),
-              name: est.name,
-              est: money(estFee),
-              grand: money(grand),
-              platformPct: est.platformFeePct,
-              servicePct: est.serviceFeePct,
-              b: (c) => <b className="text-ink/70">{c}</b>,
-            })}
-          </p>
 
           {nPaid > 0 && nPaid < people && (
             <div className="mt-3 flex gap-1.5 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-xs text-[#92400e]">
@@ -401,23 +374,6 @@ export function CheckoutScreen() {
         </button>
       </div>
     </div>
-  );
-}
-
-function Row({ label, value }: { label: React.ReactNode; value: string }) {
-  return (
-    <div className="flex justify-between text-sm text-ink/60">
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
-function Pill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-full bg-[#f1f5f9] px-1.5 py-0.5 text-[10px] font-medium">
-      {children}
-    </span>
   );
 }
 

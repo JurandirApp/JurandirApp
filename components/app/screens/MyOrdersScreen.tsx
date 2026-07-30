@@ -62,7 +62,7 @@ export function MyOrdersScreen() {
                 ? { key: "statusPaid", bg: "#fef3c7", fg: "#b45309" }
                 : { key: "statusDelivered", bg: "#d1fae5", fg: "#047857" };
           const incomplete = inc && !!o.splits;
-          const grand = o.total + o.fee + o.est;
+          const grand = o.grand;
           const nPaid = o.splits ? paidCount(o.splits) : 0;
           const oPaid = o.splits ? paidAmount(o.splits) : 0;
           const isExp = exp === o.id;
@@ -119,7 +119,7 @@ export function MyOrdersScreen() {
               </div>
               <div className="flex justify-between border-t border-[#f1f5f9] pt-2 text-sm font-bold">
                 <span>{t("total")}</span>
-                <span className="text-coral-emph">{money(o.total)}</span>
+                <span className="text-coral-emph">{money(o.grand)}</span>
               </div>
 
               {/* Pix cheio aguardando → botão pra retomar o pagamento (ver o QR). */}

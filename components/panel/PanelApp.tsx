@@ -15,6 +15,7 @@ import { padId } from "@/lib/panel/helpers";
 import {
   addQrSpotAction,
   changePasswordAction,
+  checkPixReadyAction,
   deleteMenuItemAction,
   deleteQrSpotAction,
   deliverOrderAction,
@@ -74,6 +75,7 @@ export function PanelApp({
   printJobs: printJobs0,
   printer: printer0,
   mpConnected: mpConnected0,
+  mpPixReady: mpPixReady0,
   mpResult = null,
 }: {
   now: number;
@@ -89,6 +91,7 @@ export function PanelApp({
   printJobs: PanelPrintJob[];
   printer: { ip: string; enabled: boolean; hasToken: boolean };
   mpConnected: boolean;
+  mpPixReady: boolean | null;
   mpResult?: "ok" | "error" | null;
 }) {
   const t = useTranslations("panel");
@@ -131,6 +134,7 @@ export function PanelApp({
   const [hasPrintToken, setHasPrintToken] = useState(printer0.hasToken);
   const [printToken, setPrintToken] = useState<string | null>(null);
   const [mpConnected, setMpConnected] = useState(mpConnected0);
+  const [mpPixReady, setMpPixReady] = useState<boolean | null>(mpPixReady0);
   const [prMsg, setPrMsg] = useState<string | null>(null);
   const [toggles, setToggles] = useState<Toggles>({ auto: true, wa: true, em: true });
 
@@ -451,6 +455,12 @@ export function PanelApp({
         });
       },
       mpConnected,
+      mpPixReady,
+      checkPix: async () => {
+        const r = await checkPixReadyAction();
+        setMpPixReady(r.connected ? r.ready : null);
+        return r;
+      },
       mpResult,
       connectMp: () => {
         getMpConnectUrlForMeAction()
@@ -463,6 +473,7 @@ export function PanelApp({
         startTransition(async () => {
           await disconnectMpAction();
           setMpConnected(false);
+          setMpPixReady(null);
         });
       },
       printJobs,
@@ -477,7 +488,7 @@ export function PanelApp({
     dayStartSet, period, openPay, menuCat,
     itemCat, qrLabel, aud, audPage, profile, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
-    mpConnected, mpResult, coverImg, logoImg, uploadingImg,
+    mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
   ]);
 
   const saveItem = (clean: MenuItem) => {

@@ -7,18 +7,18 @@ import {
 } from "@/lib/domain/pricing";
 
 describe("computeTotals", () => {
-  it("comissão sobre o total, sem somá-la ao que o cliente paga", () => {
+  it("comissão SOMADA à conta do cliente (o bar recebe cheio)", () => {
     const t = computeTotals(121, 8, 10);
     expect(t.serviceFee).toBe(12.1);
-    expect(t.total).toBe(133.1); // subtotal + serviço (comissão NÃO somada)
-    expect(t.platformFee).toBe(10.65); // comissão = 8% de 133.1
+    expect(t.platformFee).toBe(10.65); // comissão = 8% de (121 + serviço)
+    expect(t.total).toBe(143.75); // subtotal + serviço + comissão (o cliente paga)
   });
 
   it("arredonda para 2 casas", () => {
     const t = computeTotals(33.33, 8, 10);
     expect(t.serviceFee).toBe(3.33);
-    expect(t.total).toBe(36.66);
     expect(t.platformFee).toBe(2.93);
+    expect(t.total).toBe(39.59);
   });
 });
 

@@ -12,7 +12,7 @@ import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
 import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
-import { getOAuthUrl, signState } from "@/lib/payments/mercadopago";
+import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
 import { periodRange, clampHour, type OrdersPeriod } from "@/lib/domain/period";
 import type { Order, PanelPrintJob, PanelPrinter, PrinterInput } from "@/lib/data/panel";
 
@@ -45,6 +45,26 @@ export async function refreshOrdersAction(period?: OrdersPeriod): Promise<Order[
   const range = periodRange(period ?? { kind: "hoje" }, est?.dayStartHour ?? 0, Date.now());
   const rows = await listPanelOrders(s.establishmentId!, range);
   return rows.map(toPanelOrder);
+}
+
+/** Verifica se a conta MP conectada consegue gerar QR Pix e grava o status.
+ *  Chamado no connect do MP e pelo botão "Verificar Pix" no painel. */
+export async function checkPixReadyAction(): Promise<{
+  ready: boolean;
+  reason: string;
+  connected: boolean;
+}> {
+  const s = await requireEst();
+  const est = await prisma.establishment.findUnique({ where: { id: s.establishmentId! } });
+  if (!est) return { ready: false, reason: "error", connected: false };
+  const res = await probePixReady(est);
+  await prisma.establishment.update({
+    where: { id: est.id },
+    // not-connected → null (não avisa; usa a conta da plataforma).
+    data: { mpPixReady: res.reason === "not-connected" ? null : res.ready },
+  });
+  revalidatePath("/painel");
+  return { ready: res.ready, reason: res.reason, connected: Boolean(est.mpAccessToken) };
 }
 
 /** Salva a hora (0-23, Brasília) em que o dia operacional começa + marca como

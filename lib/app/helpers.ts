@@ -19,9 +19,14 @@ export type ClientOrder = {
   /** epoch ms (client clock at checkout) */
   ts: number;
   items: { name: string; qty: number; price: number }[];
+  /** Subtotal do carrinho (só os itens). */
   total: number;
+  /** Comissão da plataforma (parte do `grand`). */
   fee: number;
+  /** Taxa de serviço do bar (parte do `grand`). */
   est: number;
+  /** O que o cliente paga de verdade = subtotal + taxa do bar + comissão. */
+  grand: number;
   note: string;
   name: string;
   status: "aguardando" | "producao" | "entregue";
@@ -50,14 +55,15 @@ export function cartCount(cart: CartLine[]): number {
 }
 
 /**
- * Modelo comissão. `total` = subtotal do carrinho → { fee (comissão da
- * plataforma, NÃO somada — sai do bar), est (taxa de serviço do bar), grand (o
- * que o cliente paga = subtotal + serviço) }. Espelha `computeTotals` no servidor.
+ * Modelo comissão. `total` = subtotal do carrinho → { fee (comissão da plataforma,
+ * SOMADA à conta do cliente), est (taxa de serviço do bar), grand (o que o cliente
+ * paga = subtotal + taxa do bar + comissão) }. Espelha `computeTotals` no servidor.
  */
 export function fees(total: number, platformFeePct = JUR_FEE_PCT, serviceFeePct = EST_FEE_PCT) {
-  const est = round2((total * serviceFeePct) / 100);
-  const grand = round2(total + est);
-  const fee = round2((grand * platformFeePct) / 100);
+  const est = round2((total * serviceFeePct) / 100); // taxa de serviço do bar
+  const base = round2(total + est); // o que vai pro bar
+  const fee = round2((base * platformFeePct) / 100); // comissão da plataforma
+  const grand = round2(base + fee); // o que o cliente paga (inclui a comissão)
   return { fee, est, grand };
 }
 

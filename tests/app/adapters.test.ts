@@ -11,11 +11,13 @@ describe("appToEnum", () => {
 });
 
 describe("fees", () => {
-  it("comissão da plataforma sobre o total (não somada ao que o cliente paga)", () => {
-    expect(fees(100, 9, 12)).toEqual({ fee: 10.08, est: 12, grand: 112 });
+  it("comissão da plataforma SOMADA ao que o cliente paga (grand)", () => {
+    // est=12, base=112, fee=9% de 112=10.08, grand=112+10.08=122.08
+    expect(fees(100, 9, 12)).toEqual({ fee: 10.08, est: 12, grand: 122.08 });
   });
   it("usa os defaults 8%/10% quando nenhuma % é passada", () => {
-    expect(fees(100)).toEqual({ fee: 8.8, est: 10, grand: 110 });
+    // est=10, base=110, fee=8% de 110=8.8, grand=110+8.8=118.8
+    expect(fees(100)).toEqual({ fee: 8.8, est: 10, grand: 118.8 });
   });
 });
 
@@ -58,9 +60,10 @@ describe("toClientOrder", () => {
     expect(o.dbId).toBe("o1");
     expect(o.code).toBe("PED-ABC");
     expect(o.status).toBe("producao");
-    expect(o.total).toBe(121);
+    expect(o.total).toBe(121); // subtotal
     expect(o.fee).toBe(9.68);
     expect(o.est).toBe(12.1);
+    expect(o.grand).toBe(142.78); // subtotal + serviço + comissão (o que o cliente paga)
     expect(o.pay).toEqual({ id: "credito", parc: 3 });
     expect(o.splits).toBeNull();
     expect(o.name).toBe("Rômulo");

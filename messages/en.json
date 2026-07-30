@@ -532,7 +532,12 @@
       "mpDisconnect": "Disconnect",
       "mpConnectedOk": "Account connected! Payments now go straight to your account.",
       "mpConnectError": "Couldn't connect. Please try again.",
-      "mpFeeNote": "The platform keeps a 5% commission per order; the rest goes straight to your account. Until you connect, payments stay with the platform."
+      "mpFeeNote": "The platform keeps a 5% commission per order; the rest goes straight to your account. Until you connect, payments stay with the platform.",
+      "pixNoKey": "Your Mercado Pago account has no Pix key registered — without it the QR isn't generated and customers can't pay with Pix. Register a Pix key (tax ID, email, phone or random) in your Mercado Pago.",
+      "pixReady": "Pix ready — your account generates the QR fine.",
+      "pixUnchecked": "Pix not checked on this account yet.",
+      "pixCheck": "Check Pix",
+      "pixChecking": "Checking…"
     },
     "cat": {
       "Combos & Combinações": "Combos & Pairings",
@@ -842,6 +847,7 @@
     "plusAria": "Increase",
     "removeAria": "Remove",
     "subtotal": "Subtotal",
+    "serviceFee": "Service fee",
     "feeJurandir": "Jurandir service fee",
     "feeEstNamed": "{name} service fee",
     "totalToPay": "Total to pay",

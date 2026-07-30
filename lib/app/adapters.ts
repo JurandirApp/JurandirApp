@@ -1,5 +1,5 @@
 import type { PaymentMethod } from "@prisma/client";
-import { isPixExpired } from "@/lib/domain/pricing";
+import { isPixExpired, round2 } from "@/lib/domain/pricing";
 import type { AppEstablishment, PayId } from "@/lib/data/app";
 import { COVER_IMG } from "@/lib/data/panel";
 import type { MenuItem } from "@/lib/data/panel";
@@ -97,6 +97,8 @@ export function toClientOrder(o: DbOrder): ClientOrder {
     total: num(o.subtotal),
     fee: num(o.platformFee),
     est: num(o.serviceFee),
+    // O que o cliente paga = subtotal + taxa do bar + comissão (bate com computeTotals).
+    grand: round2(num(o.subtotal) + num(o.serviceFee) + num(o.platformFee)),
     note: o.note ?? "",
     name: o.customerName ?? "",
     status: STATUS[o.status] ?? "aguardando",

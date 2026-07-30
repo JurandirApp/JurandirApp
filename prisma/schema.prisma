@@ -91,6 +91,9 @@ model Establishment {
   mpAccessToken    String?
   mpRefreshToken   String?
   mpPublicKey      String?
+  // Conta MP conectada consegue gerar QR Pix? (null = não verificado). Se false,
+  // o painel avisa o dono pra cadastrar uma chave Pix no Mercado Pago dele.
+  mpPixReady       Boolean?
   printAgentToken  String?             @unique
   printerIp        String?
   printEnabled     Boolean             @default(false)

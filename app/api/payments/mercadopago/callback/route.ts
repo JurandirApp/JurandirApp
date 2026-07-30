@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
-import { exchangeOAuthCode, verifyState } from "@/lib/payments/mercadopago";
+import {
+  exchangeOAuthCode,
+  verifyState,
+  probePixReady,
+} from "@/lib/payments/mercadopago";
 
 /** Callback OAuth do Mercado Pago: troca o code por tokens e ativa pagamentos no estabelecimento. */
 export async function GET(req: Request): Promise<Response> {
@@ -12,7 +16,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!code || !v) return back("error");
   try {
     const t = await exchangeOAuthCode(code);
-    await prisma.establishment.update({
+    const est = await prisma.establishment.update({
       where: { id: v.estId },
       data: {
         paymentProvider: "MERCADO_PAGO",
@@ -23,6 +27,17 @@ export async function GET(req: Request): Promise<Response> {
         paymentOnboarded: true,
       },
     });
+    // Já testa se a conta consegue gerar QR Pix → o painel avisa o dono se não
+    // tiver chave Pix (sem isso, o cliente é quem descobre no checkout).
+    try {
+      const pix = await probePixReady(est);
+      await prisma.establishment.update({
+        where: { id: est.id },
+        data: { mpPixReady: pix.reason === "not-connected" ? null : pix.ready },
+      });
+    } catch {
+      /* não bloqueia o connect */
+    }
     return back("ok");
   } catch {
     return back("error");

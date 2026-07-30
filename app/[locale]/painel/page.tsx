@@ -87,6 +87,7 @@ export default async function PainelPage({
         hasToken: Boolean(est.printAgentToken),
       }}
       mpConnected={Boolean(est.mpAccessToken)}
+      mpPixReady={est.mpPixReady}
       mpResult={mp === "ok" ? "ok" : mp === "error" ? "error" : null}
     />
   );

@@ -532,7 +532,12 @@
       "mpDisconnect": "Desconectar",
       "mpConnectedOk": "Conta conectada! Os pagamentos agora caem direto na sua conta.",
       "mpConnectError": "Não foi possível conectar. Tente novamente.",
-      "mpFeeNote": "A plataforma retém 5% de comissão por pedido; o restante cai direto na sua conta. Enquanto não conectar, os pagamentos ficam retidos na plataforma."
+      "mpFeeNote": "A plataforma retém 5% de comissão por pedido; o restante cai direto na sua conta. Enquanto não conectar, os pagamentos ficam retidos na plataforma.",
+      "pixNoKey": "Sua conta do Mercado Pago não tem uma chave Pix cadastrada — sem ela o QR não é gerado e o cliente não consegue pagar por Pix. Cadastre uma chave Pix (CPF/CNPJ, e-mail, celular ou aleatória) no seu Mercado Pago.",
+      "pixReady": "Pix pronto — sua conta gera o QR normalmente.",
+      "pixUnchecked": "Pix ainda não verificado nesta conta.",
+      "pixCheck": "Verificar Pix",
+      "pixChecking": "Verificando…"
     },
     "cat": {
       "Combos & Combinações": "Combos & Combinações",
@@ -842,6 +847,7 @@
     "plusAria": "Aumentar",
     "removeAria": "Excluir",
     "subtotal": "Subtotal",
+    "serviceFee": "Taxa de serviço",
     "feeJurandir": "Taxa de serviço Jurandir",
     "feeEstNamed": "Taxa de serviço {name}",
     "totalToPay": "Total a pagar",

@@ -217,6 +217,46 @@ export const mercadoPagoProvider: PaymentProvider = {
   },
 };
 
+/** Verifica se a conta MP conectada consegue gerar QR Pix (tem chave Pix). Faz
+ *  uma cobrança mínima que expira em 5 min: se der o erro "sem chave" (código
+ *  13253 / "without key enabled for QR"), a conta não está pronta pro Pix. Só
+ *  cria a cobrança-teste quando a conta ESTÁ ok (senão o MP recusa antes de criar). */
+export async function probePixReady(est: Establishment): Promise<{
+  ready: boolean;
+  reason: "not-connected" | "ok" | "no-key" | "error";
+}> {
+  if (!est.mpAccessToken) return { ready: true, reason: "not-connected" };
+  const ref = "PIXCHECK-" + est.id.slice(0, 10) + "-" + Date.now();
+  const body = {
+    transaction_amount: 1,
+    description: "Verificacao Pix (Jurandir)",
+    payment_method_id: "pix",
+    external_reference: ref,
+    date_of_expiration: new Date(Date.now() + 5 * 60_000)
+      .toISOString()
+      .replace("Z", "+00:00"),
+    payer: { email: "verificacao@jurandir.app.br", first_name: "Jurandir" },
+  };
+  try {
+    await withToken(est, (token) =>
+      call<MpPayment>("/v1/payments", token, {
+        method: "POST",
+        headers: { "X-Idempotency-Key": ref },
+        body: JSON.stringify(body),
+      }),
+    );
+    return { ready: true, reason: "ok" };
+  } catch (e) {
+    if (
+      e instanceof MpError &&
+      (e.body.includes("13253") || /without key enabled for QR/i.test(e.body))
+    ) {
+      return { ready: false, reason: "no-key" };
+    }
+    return { ready: false, reason: "error" };
+  }
+}
+
 export function getOAuthUrl(state: string): string {
   const p = new URLSearchParams({
     client_id: process.env.MP_CLIENT_ID ?? "",

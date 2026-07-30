@@ -108,6 +108,10 @@ export interface PanelValue {
   generatePrintToken: () => void;
   // Pagamentos — Mercado Pago (marketplace connect)
   mpConnected: boolean;
+  /** A conta MP conectada consegue gerar QR Pix? (null = não verificado). */
+  mpPixReady: boolean | null;
+  /** Roda a verificação de Pix (cobrança-teste) e atualiza o status. */
+  checkPix: () => Promise<{ ready: boolean; reason: string; connected: boolean }>;
   mpResult: "ok" | "error" | null;
   connectMp: () => void;
   disconnectMp: () => void;

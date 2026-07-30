@@ -20,7 +20,7 @@ export function DoneScreen() {
   const isSplit = Boolean(L.splits);
   // Modelo comissão: o cliente paga subtotal + taxa de serviço (a comissão da
   // plataforma NÃO entra no valor pago — sai do que vai pro bar).
-  const grand = L.total + L.est;
+  const grand = L.grand;
   const lPaid = L.splits ? paidAmount(L.splits) : 0;
 
   const title = expired
@@ -103,18 +103,6 @@ export function DoneScreen() {
           </div>
         )}
 
-        {L.est > 0 && (
-          <div className="mt-3 flex flex-col gap-1 border-t border-[#f1f5f9] pt-3 text-sm text-[#64748b]">
-            <div className="flex justify-between">
-              <span>{t("subtotal")}</span>
-              <span>{money(L.total)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>{t("doneFeeEst", { pct: L.total ? Math.round((L.est / L.total) * 100) : 0 })}</span>
-              <span>{money(L.est)}</span>
-            </div>
-          </div>
-        )}
         <div className="mt-3 flex justify-between border-t border-[#f1f5f9] pt-3 font-bold">
           <span>
             {expired
