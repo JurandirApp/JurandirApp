@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { money } from "@/lib/panel/helpers";
-import { PAY_IDS, PM, type PayId } from "@/lib/data/app";
+import { PAY_IDS, PM, isComingSoon, type PayId } from "@/lib/data/app";
 import { cartTotal, fees, shares as splitShares } from "@/lib/app/helpers";
 import { useApp } from "../context";
 
@@ -232,18 +232,25 @@ export function CheckoutScreen() {
           <h2 className="m-0 mb-2 text-sm font-semibold text-ink/70">{t("paymentMethod")}</h2>
           <div className="grid grid-cols-2 gap-2">
             {PAY_IDS.map((id) => {
+              const soon = isComingSoon(id);
               const sel = selPay === id;
               return (
                 <button
                   key={id}
                   type="button"
+                  disabled={soon}
                   onClick={() => pickPay(id)}
-                  className="flex flex-col items-center gap-2 rounded-2xl border-2 p-3"
+                  className="relative flex flex-col items-center gap-2 rounded-2xl border-2 p-3 disabled:cursor-not-allowed disabled:opacity-55"
                   style={{
                     borderColor: sel ? "#FF6B4A" : "#e2e8f0",
                     background: sel ? "#fff5f2" : "#fff",
                   }}
                 >
+                  {soon && (
+                    <span className="absolute right-1.5 top-1.5 rounded-full bg-ink/75 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+                      {t("comingSoon")}
+                    </span>
+                  )}
                   <span
                     className="flex h-9 w-9 items-center justify-center rounded-full text-white"
                     style={{ background: PM[id].color }}
@@ -326,7 +333,8 @@ export function CheckoutScreen() {
                       <PayMini
                         key={id}
                         id={id}
-                        label={tShort(id)}
+                        label={isComingSoon(id) ? t("comingSoon") : tShort(id)}
+                        soon={isComingSoon(id)}
                         onClick={() => setShare(idx, id)}
                       />
                     ))}
@@ -442,16 +450,19 @@ function PayMini({
   id,
   label,
   onClick,
+  soon,
 }: {
   id: PayId;
   label: string;
   onClick: () => void;
+  soon?: boolean;
 }) {
   return (
     <button
       type="button"
+      disabled={soon}
       onClick={onClick}
-      className="flex flex-col items-center gap-0.5 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] py-1.5"
+      className="flex flex-col items-center gap-0.5 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] py-1.5 disabled:opacity-50"
     >
       <Icon name={PM[id].icon} size={15} className="text-ink/70" />
       <span className="text-center text-[9px] leading-none text-ink/60">{label}</span>

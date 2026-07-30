@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import type { Order } from "@/lib/data/panel";
@@ -18,8 +19,19 @@ const pillStyle = (active: boolean) =>
     : { background: "#fff", color: "rgba(20,24,33,.6)" };
 
 export function PedidosSection() {
-  const { orders, orderFilter, setOrderFilter } = usePanel();
+  const {
+    orders,
+    orderFilter,
+    setOrderFilter,
+    ordersPeriod,
+    setOrdersPeriod,
+    dayStartSet,
+    setDayStartHour,
+    setTab,
+  } = usePanel();
   const t = useTranslations("panel.pedidos");
+  const [cFrom, setCFrom] = useState("");
+  const [cTo, setCTo] = useState("");
 
   // Pix expirado sai do "aguardando" (QR morto no MP) → não superlota a lista.
   const agu = orders.filter((o) => o.st === "aguardando" && !o.expired);
@@ -59,6 +71,92 @@ export function PedidosSection() {
 
   return (
     <div>
+      {/* Aviso: o dono ainda não confirmou o horário de funcionamento (importante
+          pro filtro Hoje/Ontem, principalmente em bar que vira a noite). */}
+      {!dayStartSet && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-3.5 py-2.5">
+          <Icon name="schedule" size={18} className="flex-none text-[#b45309]" />
+          <div className="min-w-0 flex-1">
+            <p className="m-0 text-sm font-bold text-[#92400e]">
+              {t("dayStartBannerTitle")}
+            </p>
+            <p className="m-0 text-xs leading-snug text-[#92400e]/80">
+              {t("dayStartBannerText")}
+            </p>
+          </div>
+          <div className="flex flex-none gap-2">
+            <button
+              type="button"
+              onClick={() => setDayStartHour(0)}
+              className="rounded-lg border border-[#fde68a] bg-white px-3 py-1.5 text-xs font-bold text-[#92400e]"
+            >
+              {t("dayStartBannerNormal")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("config")}
+              className="rounded-lg bg-[#b45309] px-3 py-1.5 text-xs font-bold text-white"
+            >
+              {t("dayStartBannerConfigure")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Filtro de período — respeita o "início do dia" configurado. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {(
+          [
+            ["hoje", "periodToday"],
+            ["ontem", "periodYesterday"],
+            ["d7", "period7d"],
+          ] as const
+        ).map(([k, key]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setOrdersPeriod({ kind: k })}
+            className="whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium"
+            style={pillStyle(ordersPeriod.kind === k)}
+          >
+            {t(key)}
+          </button>
+        ))}
+        <div
+          className="ml-1 flex items-center gap-1.5 rounded-full border-2 bg-white px-2.5 py-1"
+          style={{
+            borderColor: ordersPeriod.kind === "custom" ? "#141821" : "rgba(20,24,33,.12)",
+          }}
+        >
+          <Icon name="calendar_month" size={15} className="text-ink/40" />
+          <input
+            type="date"
+            value={cFrom}
+            onChange={(e) => setCFrom(e.target.value)}
+            aria-label={t("periodFrom")}
+            className="w-[112px] bg-transparent text-xs font-medium text-ink/70 outline-none"
+          />
+          <span className="text-xs text-ink/40">{t("periodTo")}</span>
+          <input
+            type="date"
+            value={cTo}
+            onChange={(e) => setCTo(e.target.value)}
+            aria-label={t("periodToDate")}
+            className="w-[112px] bg-transparent text-xs font-medium text-ink/70 outline-none"
+          />
+          <button
+            type="button"
+            disabled={!cFrom || !cTo}
+            onClick={() =>
+              cFrom && cTo && setOrdersPeriod({ kind: "custom", from: cFrom, to: cTo })
+            }
+            className="rounded-full bg-ink px-2.5 py-1 text-[11px] font-bold text-sand disabled:opacity-40"
+          >
+            {t("periodApply")}
+          </button>
+        </div>
+      </div>
+
       <div className="mb-4 flex gap-2 overflow-x-auto">
         {filters.map(([id, label, n]) => (
           <button

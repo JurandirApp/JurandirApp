@@ -290,9 +290,9 @@ export function ClientApp({
     };
 
     const finish = (sharesArg: Share[] | null) => {
-      const items = cart.map((c) => {
-        const m = menu.find((x) => x.id === c.id)!;
-        return { name: m.name, qty: c.qty, unitPrice: m.price };
+      const items = cart.flatMap((c) => {
+        const m = menu.find((x) => x.id === c.id);
+        return m ? [{ name: m.name, qty: c.qty, unitPrice: m.price }] : [];
       });
       const payment = sharesArg
         ? {
@@ -356,9 +356,9 @@ export function ClientApp({
     };
 
     const openCardPay = () => {
-      const items = cart.map((c) => {
-        const m = menu.find((x) => x.id === c.id)!;
-        return { name: m.name, qty: c.qty, unitPrice: m.price };
+      const items = cart.flatMap((c) => {
+        const m = menu.find((x) => x.id === c.id);
+        return m ? [{ name: m.name, qty: c.qty, unitPrice: m.price }] : [];
       });
       const input: OrderCreateInput = {
         establishmentId: est.id,
@@ -494,6 +494,11 @@ export function ClientApp({
             toastMsg(t("payError"));
           }
         })();
+      },
+
+      openOrder: (order) => {
+        setLastOrder(order);
+        setStep("done");
       },
 
       toast,

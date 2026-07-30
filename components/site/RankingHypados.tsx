@@ -326,9 +326,6 @@ export function RankingHypados({ establishments }: { establishments: Establishme
                       <span className="font-bold">{e.rating!.toFixed(1)}</span>
                     </>
                   )}
-                  <span className="text-ink/40">
-                    · {e.orders} {t("orders")}
-                  </span>
                 </div>
 
                 <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink/60">

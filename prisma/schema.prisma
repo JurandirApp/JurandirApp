@@ -60,6 +60,11 @@ model Establishment {
   plan           String
   platformFeePct Int                 @default(8)
   serviceFeePct  Int                 @default(10)
+  // Hora (0-23, fuso Brasília) em que o "dia operacional" começa. Ex.: 12 → o
+  // turno noturno (18h–6h) fica todo no mesmo "dia". 0 = dia do calendário.
+  dayStartHour   Int                 @default(0)
+  // O dono já confirmou o horário de funcionamento? (senão, mostra o aviso)
+  dayStartSet    Boolean             @default(false)
   cuisine        String?
   rating         Decimal?            @db.Decimal(2, 1)
   rankingOrders  Int                 @default(0)

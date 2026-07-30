@@ -18,6 +18,7 @@ import {
   toPanelQr,
   toProfileForm,
 } from "@/lib/panel/adapters";
+import { periodRange } from "@/lib/domain/period";
 import { PanelApp } from "@/components/panel/PanelApp";
 
 export async function generateMetadata({
@@ -47,14 +48,7 @@ export default async function PainelPage({
   }
 
   const estId = session.establishmentId;
-  const [est, dbOrders, dbMenu, dbQrs, dbStats, dbPrintJobs] = await Promise.all([
-    getEstablishment(estId),
-    listPanelOrders(estId),
-    listPanelMenu(estId),
-    listPanelQrSpots(estId),
-    listPanelStats(estId),
-    listPanelPrintJobs(estId),
-  ]);
+  const est = await getEstablishment(estId);
   if (!est) {
     redirect({ href: "/login", locale });
     return null;
@@ -65,10 +59,21 @@ export default async function PainelPage({
   // cookie), so reading the request-time clock here is intentional.
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
+  // Abre no dia operacional atual (respeita o "início do dia" do estabelecimento).
+  const todayRange = periodRange({ kind: "hoje" }, est.dayStartHour, now);
+  const [dbOrders, dbMenu, dbQrs, dbStats, dbPrintJobs] = await Promise.all([
+    listPanelOrders(estId, todayRange),
+    listPanelMenu(estId),
+    listPanelQrSpots(estId),
+    listPanelStats(estId),
+    listPanelPrintJobs(estId),
+  ]);
   return (
     <PanelApp
       now={now}
       slug={est.slug}
+      dayStartHour={est.dayStartHour}
+      dayStartSet={est.dayStartSet}
       profile={toProfileForm(est)}
       images={{ cover: est.coverImg, logo: est.logoImg }}
       orders={dbOrders.map(toPanelOrder)}

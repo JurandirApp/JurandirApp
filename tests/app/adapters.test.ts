@@ -20,15 +20,26 @@ describe("fees", () => {
 });
 
 describe("toAppMenuItem", () => {
-  it("uses sortOrder as the numeric id", () => {
-    const m = toAppMenuItem({
-      id: "cuid1", name: "Caipirinha", description: "d", price: 22, oldPrice: 28,
-      photo: "p", measure: 300, unit: "ml", category: "Bebidas", subcategory: "Drinks", sortOrder: 1,
+  const make = (id: string, sortOrder: number) =>
+    toAppMenuItem({
+      id, name: "Caipirinha", description: "d", price: 22, oldPrice: 28,
+      photo: "p", measure: 300, unit: "ml", category: "Bebidas", subcategory: "Drinks", sortOrder,
     } as never);
-    expect(m.id).toBe(1);
-    expect(m.dbId).toBe("cuid1");
-    expect(m.price).toBe(22);
-    expect(m.old).toBe(28);
+
+  it("id numérico é derivado do dbId (único e estável), não do sortOrder", () => {
+    const a = make("cuid1", 0);
+    expect(a.dbId).toBe("cuid1");
+    expect(a.price).toBe(22);
+    expect(a.old).toBe(28);
+    expect(typeof a.id).toBe("number");
+    // Estável: o mesmo dbId sempre gera o mesmo id.
+    expect(make("cuid1", 5).id).toBe(a.id);
+  });
+
+  it("itens com o MESMO sortOrder têm ids DIFERENTES (corrige a colisão do carrinho)", () => {
+    // Antes o id era o sortOrder (default 0) → todos colidiam no mesmo id, e
+    // adicionar um item ao carrinho fazia todos aparecerem como adicionados.
+    expect(make("cuidA", 0).id).not.toBe(make("cuidB", 0).id);
   });
 });
 

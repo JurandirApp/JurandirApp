@@ -7,6 +7,16 @@ import type { ClientOrder, Share } from "@/lib/app/helpers";
 
 const num = (v: unknown): number => Number(v ?? 0);
 
+/** Hash estável de string → número positivo. O `id` numérico do item (chave do
+ *  carrinho) precisa ser ÚNICO por item — antes usávamos `sortOrder`, que se
+ *  repete (default 0) e fazia todos os itens colidirem no mesmo id. O dbId (cuid)
+ *  é único e estável, então derivamos o id numérico dele. */
+function hashId(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
 const APP_TO_ENUM: Record<PayId, PaymentMethod> = {
   credito: "CREDIT", debito: "DEBIT", pix: "PIX", usdc: "USDC",
 };
@@ -50,7 +60,7 @@ type DbMenuItem = {
 };
 export function toAppMenuItem(m: DbMenuItem): MenuItem {
   return {
-    id: m.sortOrder,
+    id: hashId(m.id),
     dbId: m.id,
     name: m.name,
     desc: m.description ?? "",

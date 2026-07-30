@@ -24,6 +24,7 @@ import {
   printOrderAction,
   refreshOrdersAction,
   refreshPrintJobsAction,
+  saveDayStartAction,
   saveEstablishmentImageAction,
   savePrinterConfigAction,
   saveProfileAction,
@@ -31,6 +32,7 @@ import {
   testPrintAction,
   upsertMenuItemAction,
 } from "@/lib/actions/panel";
+import type { OrdersPeriod } from "@/lib/domain/period";
 import {
   PanelContext,
   type AuditFilters,
@@ -61,6 +63,8 @@ const EMPTY_PW: PwForm = { cur: "", nova: "", conf: "" };
 export function PanelApp({
   now,
   slug,
+  dayStartHour,
+  dayStartSet: dayStartSet0,
   profile: profile0,
   images,
   orders: orders0,
@@ -74,6 +78,8 @@ export function PanelApp({
 }: {
   now: number;
   slug: string;
+  dayStartHour: number;
+  dayStartSet: boolean;
   profile: ProfileForm;
   images: { cover: string | null; logo: string | null };
   orders: Order[];
@@ -97,6 +103,9 @@ export function PanelApp({
   const [tab, setTab] = useState<TabId>("pedidos");
   const [navOpen, setNavOpen] = useState(false); // sidebar mobile (hambúrguer)
   const [orderFilter, setOrderFilter] = useState("todos");
+  const [ordersPeriod, setOrdersPeriodState] = useState<OrdersPeriod>({ kind: "hoje" });
+  const [dayStart, setDayStart] = useState(dayStartHour);
+  const [dayStartSet, setDayStartSet] = useState(dayStartSet0);
   const [period, setPeriod] = useState("hoje");
   const [openPay, setOpenPay] = useState<string | null>(null);
   const [menuCat, setMenuCat] = useState("Todos");
@@ -140,6 +149,8 @@ export function PanelApp({
   const seenOrders = useRef<Set<string>>(
     new Set(orders0.map((o) => o.dbId).filter((x): x is string => Boolean(x))),
   );
+  // Período exibido, vivo para o poll de 15s decidir se dá ping de novo pedido.
+  const ordersPeriodRef = useRef<OrdersPeriod>({ kind: "hoje" });
 
   const toast = (msg: string) => {
     setToastText(msg);
@@ -153,8 +164,14 @@ export function PanelApp({
   useEffect(() => {
     const poll = async () => {
       try {
-        const fresh = await refreshOrdersAction();
-        const newOnes = fresh.filter((o) => o.dbId && !seenOrders.current.has(o.dbId));
+        const p = ordersPeriodRef.current;
+        const fresh = await refreshOrdersAction(p);
+        // Só toca o sininho de "novo pedido" na visão de hoje (a visão viva do
+        // balcão). Em períodos passados, só atualiza a lista, sem ping.
+        const newOnes =
+          p.kind === "hoje"
+            ? fresh.filter((o) => o.dbId && !seenOrders.current.has(o.dbId))
+            : [];
         fresh.forEach((o) => o.dbId && seenOrders.current.add(o.dbId));
         setOrders(fresh);
         if (newOnes.length > 0) {
@@ -196,6 +213,31 @@ export function PanelApp({
 
       orderFilter,
       setOrderFilter,
+      ordersPeriod,
+      setOrdersPeriod: (p: OrdersPeriod) => {
+        setOrdersPeriodState(p);
+        ordersPeriodRef.current = p;
+        // Refetch imediato; marca tudo como visto (sem ping — é troca de visão).
+        refreshOrdersAction(p)
+          .then((fresh) => {
+            fresh.forEach((o) => o.dbId && seenOrders.current.add(o.dbId));
+            setOrders(fresh);
+          })
+          .catch(() => {});
+      },
+      dayStartHour: dayStart,
+      dayStartSet,
+      setDayStartHour: (h: number) => {
+        setDayStart(h);
+        setDayStartSet(true);
+        (async () => {
+          await saveDayStartAction(h);
+          // Refaz a busca do período atual com a nova fronteira do dia.
+          const fresh = await refreshOrdersAction(ordersPeriodRef.current);
+          fresh.forEach((o) => o.dbId && seenOrders.current.add(o.dbId));
+          setOrders(fresh);
+        })().catch(() => {});
+      },
       deliverOrder: (id) => {
         const o = orders.find((x) => x.id === id);
         setOrders((prev) =>
@@ -431,7 +473,8 @@ export function PanelApp({
       },
     };
   }, [
-    t, beach, now, slug, orders, menu, qrs, stats, tab, orderFilter, period, openPay, menuCat,
+    t, beach, now, slug, orders, menu, qrs, stats, tab, orderFilter, ordersPeriod, dayStart,
+    dayStartSet, period, openPay, menuCat,
     itemCat, qrLabel, aud, audPage, profile, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpResult, coverImg, logoImg, uploadingImg,

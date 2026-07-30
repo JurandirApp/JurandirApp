@@ -25,9 +25,15 @@ export async function listPanelPrintJobs(establishmentId: string, limit = 10) {
     code: j.orderId ? (codeById.get(j.orderId) ?? "—") : "TESTE",
   }));
 }
-export function listPanelOrders(establishmentId: string) {
+export function listPanelOrders(
+  establishmentId: string,
+  range?: { from: Date; to: Date },
+) {
   return prisma.order.findMany({
-    where: { establishmentId },
+    where: {
+      establishmentId,
+      ...(range ? { createdAt: { gte: range.from, lt: range.to } } : {}),
+    },
     orderBy: { createdAt: "desc" },
     include: { items: true, payment: true, splitShares: true },
   });

@@ -83,6 +83,8 @@ export interface AppValue {
   exp: number | null;
   toggleExp: (id: number) => void;
   payShare: (orderId: number, idx: number, id: PayId) => void;
+  /** Abre a tela de um pedido (ex.: retomar o Pix aguardando, ver o QR). */
+  openOrder: (order: ClientOrder) => void;
 
   // Toast
   toast: string | null;

@@ -22,6 +22,11 @@ export const PM: Record<PayId, { color: string; icon: string }> = {
 
 export const PAY_IDS: PayId[] = ["credito", "debito", "pix", "usdc"];
 
+/** Métodos ainda não liberados — aparecem como "em breve" e não dá pra escolher.
+ *  (Débito: pendente de bandeiras no gateway; USDC: ainda não integrado.) */
+export const COMING_SOON: PayId[] = ["debito", "usdc"];
+export const isComingSoon = (id: PayId): boolean => COMING_SOON.includes(id);
+
 /** Real logos (in /public) for Pix and USDC on the "Pague com" strip. */
 export const PAY_LOGOS: Partial<Record<PayId, string>> = {
   pix: "/pix-logo.png",

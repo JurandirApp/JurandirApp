@@ -11,7 +11,7 @@ import { useApp } from "../context";
 export function MenuScreen() {
   const {
     est, loc, menu, popularNames, cart, cat, sub, query, setQuery,
-    pickCat, pickSub, addItem, decItem, openCart, goMyOrders, myOrders, toastMsg,
+    pickCat, pickSub, addItem, decItem, openCart, goMyOrders, myOrders,
   } = useApp();
   const t = useTranslations("app");
   // Platform taxonomy is translated via the shared panel maps (state still keys
@@ -119,15 +119,6 @@ export function MenuScreen() {
             {myOrders.length > 0 ? t("tabOrdersCount", { n: myOrders.length }) : t("tabOrders")}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => toastMsg(t("finderToast"))}
-          className="mt-2 box-border flex w-full items-center gap-2 rounded-xl border-2 border-ink/10 bg-white px-4 py-2.5 text-sm font-semibold text-ink"
-        >
-          <Icon name="search" size={16} style={{ color: "#FF6B4A" }} />
-          {t("finder")}
-          <span className="ml-auto text-ink/40">→</span>
-        </button>
       </div>
 
       {/* Carousels (only when not searching, and only the ones with items) */}

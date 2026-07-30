@@ -3,12 +3,12 @@
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { money, padId } from "@/lib/panel/helpers";
-import { PAY_IDS, PM } from "@/lib/data/app";
+import { PAY_IDS, PM, isComingSoon } from "@/lib/data/app";
 import { paidAmount, paidCount } from "@/lib/app/helpers";
 import { useApp } from "../context";
 
 export function MyOrdersScreen() {
-  const { est, loc, myOrders, exp, toggleExp, payShare, goMenu } = useApp();
+  const { est, loc, myOrders, exp, toggleExp, payShare, goMenu, openOrder } = useApp();
   const t = useTranslations("app");
   const tShort = useTranslations("app.payShort");
 
@@ -122,6 +122,18 @@ export function MyOrdersScreen() {
                 <span className="text-coral-emph">{money(o.total)}</span>
               </div>
 
+              {/* Pix cheio aguardando → botão pra retomar o pagamento (ver o QR). */}
+              {inc && !o.splits && (
+                <button
+                  type="button"
+                  onClick={() => openOrder(o)}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-coral py-2.5 text-sm font-semibold text-white"
+                >
+                  <Icon name="qr_code_2" size={16} />
+                  {t("moPayNow")}
+                </button>
+              )}
+
               {incomplete && o.splits && (
                 <div className="mt-3">
                   <div className="mb-1 flex justify-between text-xs text-[#64748b]">
@@ -163,19 +175,23 @@ export function MyOrdersScreen() {
                           </div>
                           {!s.m && (
                             <div className="grid grid-cols-4 gap-1.5">
-                              {PAY_IDS.map((id) => (
-                                <button
-                                  key={id}
-                                  type="button"
-                                  onClick={() => payShare(o.id, idx, id)}
-                                  className="flex flex-col items-center gap-0.5 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] py-1.5"
-                                >
-                                  <Icon name={PM[id].icon} size={15} className="text-[#475569]" />
-                                  <span className="text-center text-[9px] leading-none text-[#64748b]">
-                                    {tShort(id)}
-                                  </span>
-                                </button>
-                              ))}
+                              {PAY_IDS.map((id) => {
+                                const soon = isComingSoon(id);
+                                return (
+                                  <button
+                                    key={id}
+                                    type="button"
+                                    disabled={soon}
+                                    onClick={() => payShare(o.id, idx, id)}
+                                    className="flex flex-col items-center gap-0.5 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] py-1.5 disabled:opacity-50"
+                                  >
+                                    <Icon name={PM[id].icon} size={15} className="text-[#475569]" />
+                                    <span className="text-center text-[9px] leading-none text-[#64748b]">
+                                      {soon ? t("comingSoon") : tShort(id)}
+                                    </span>
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

@@ -13,6 +13,7 @@ import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState } from "@/lib/payments/mercadopago";
+import { periodRange, clampHour, type OrdersPeriod } from "@/lib/domain/period";
 import type { Order, PanelPrintJob, PanelPrinter, PrinterInput } from "@/lib/data/panel";
 
 // Roteamento simples: comida vs bebida. (Balcão é o toggle "pedido completo",
@@ -33,12 +34,29 @@ async function requireEst() {
   return s;
 }
 
-/** Re-fetch the session establishment's orders — the panel polls this to pick up
- *  new orders (created by customers in the app) and status changes. */
-export async function refreshOrdersAction(): Promise<Order[]> {
+/** Re-fetch the session establishment's orders do período pedido (default: hoje).
+ *  O painel usa isto no poll e ao trocar o filtro de período. */
+export async function refreshOrdersAction(period?: OrdersPeriod): Promise<Order[]> {
   const s = await requireEst();
-  const rows = await listPanelOrders(s.establishmentId!);
+  const est = await prisma.establishment.findUnique({
+    where: { id: s.establishmentId! },
+    select: { dayStartHour: true },
+  });
+  const range = periodRange(period ?? { kind: "hoje" }, est?.dayStartHour ?? 0, Date.now());
+  const rows = await listPanelOrders(s.establishmentId!, range);
   return rows.map(toPanelOrder);
+}
+
+/** Salva a hora (0-23, Brasília) em que o dia operacional começa + marca como
+ *  confirmado (some o aviso de "configure o horário"). */
+export async function saveDayStartAction(hour: number): Promise<{ ok: boolean }> {
+  const s = await requireEst();
+  await prisma.establishment.update({
+    where: { id: s.establishmentId! },
+    data: { dayStartHour: clampHour(hour), dayStartSet: true },
+  });
+  revalidatePath("/painel");
+  return { ok: true };
 }
 
 /** Status recente das comandas de impressão (para o card no painel). */

@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 import type { MenuItem, Order, PanelPrintJob, ProfileForm, Qr } from "@/lib/data/panel";
 import type { MonthlyStatLite } from "@/lib/admin/scale";
+import type { OrdersPeriod } from "@/lib/domain/period";
 
 export type TabId =
   | "pedidos"
@@ -35,6 +36,14 @@ export interface PanelValue {
   // Pedidos
   orderFilter: string;
   setOrderFilter: (f: string) => void;
+  /** Período exibido (Hoje/Ontem/7 dias/custom), buscado no servidor. */
+  ordersPeriod: OrdersPeriod;
+  setOrdersPeriod: (p: OrdersPeriod) => void;
+  /** Hora (0-23, Brasília) em que o dia operacional começa — Config. */
+  dayStartHour: number;
+  /** O dono já confirmou o horário? Senão, mostra o aviso nos Pedidos. */
+  dayStartSet: boolean;
+  setDayStartHour: (h: number) => void;
   deliverOrder: (id: number) => void;
   printOrder: (id: number) => void;
 
