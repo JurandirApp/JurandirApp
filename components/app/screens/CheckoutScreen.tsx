@@ -18,7 +18,7 @@ export function CheckoutScreen() {
   const tShort = useTranslations("app.payShort");
 
   const total = cartTotal(cart, menu);
-  const { grand } = fees(total, est.platformFeePct, est.serviceFeePct);
+  const { fee, grand } = fees(total, est.platformFeePct, est.serviceFeePct);
   const full = mode === "full";
 
   const lines = cart
@@ -122,9 +122,19 @@ export function CheckoutScreen() {
             </button>
           </div>
         ))}
-        <div className="mt-3 flex justify-between border-t border-[#f1f5f9] pt-3 font-bold">
-          <span>{t("totalToPay")}</span>
-          <span className="text-coral-emph">{money(grand)}</span>
+        <div className="mt-3 border-t border-[#f1f5f9] pt-3">
+          {fee > 0 && (
+            <div className="mb-1.5 flex flex-col gap-1.5">
+              {/* Subtotal = itens (+ taxa do garçom embutida, se houver). A "Taxa
+                  de serviço" mostra SÓ a comissão da plataforma. */}
+              <Row label={t("subtotal")} value={money(grand - fee)} />
+              <Row label={t("serviceFee")} value={money(fee)} />
+            </div>
+          )}
+          <div className="flex justify-between font-bold">
+            <span>{t("totalToPay")}</span>
+            <span className="text-coral-emph">{money(grand)}</span>
+          </div>
         </div>
       </div>
 
@@ -373,6 +383,15 @@ export function CheckoutScreen() {
           {payLabel}
         </button>
       </div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: React.ReactNode; value: string }) {
+  return (
+    <div className="flex justify-between text-sm text-ink/60">
+      <span>{label}</span>
+      <span>{value}</span>
     </div>
   );
 }
