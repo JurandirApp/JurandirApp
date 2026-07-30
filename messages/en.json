@@ -340,8 +340,8 @@
       "deleteQrBody": "The QR for <b>{label}</b> will be removed. Prints already made will stop opening the menu."
     },
     "qr": {
-      "titleBeach": "Generate QR Code per umbrella",
-      "titleTable": "Generate QR Code per table",
+      "titleBeach": "Generate QR Code",
+      "titleTable": "Generate QR Code",
       "description": "Each QR opens the menu already identifying the spot — so the order arrives with the right origin.",
       "placeholderBeach": "e.g. Umbrella #22, Deck 03…",
       "placeholderTable": "e.g. Table 12, Counter 02…",

@@ -340,8 +340,8 @@
       "deleteQrBody": "O QR de <b>{label}</b> será removido. Impressões já feitas deixam de abrir o cardápio."
     },
     "qr": {
-      "titleBeach": "Gerar QR Code por guarda-sol",
-      "titleTable": "Gerar QR Code por mesa",
+      "titleBeach": "Gerar QR Code",
+      "titleTable": "Gerar QR Code",
       "description": "Cada QR abre o cardápio já identificando o local — assim o pedido chega com a origem certa.",
       "placeholderBeach": "Ex: Guarda-sol nº 22, Deck 03…",
       "placeholderTable": "Ex: Mesa 12, Balcão 02…",
