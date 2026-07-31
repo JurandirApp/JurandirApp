@@ -170,6 +170,7 @@ export type PagarmeRecipientInput = {
   // endereço (register_information.address — exigido na criação)
   street?: string;
   streetNumber?: string;
+  complement?: string;
   neighborhood?: string;
   city?: string;
   state?: string;
@@ -186,6 +187,8 @@ function addressBody(i: PagarmeRecipientInput) {
   return {
     street: i.street || "",
     street_number: i.streetNumber || "",
+    // Pagar.me exige o campo complementary preenchido (não aceita vazio).
+    complementary: i.complement || "N/A",
     neighborhood: i.neighborhood || "",
     city: i.city || "",
     state: i.state || "",

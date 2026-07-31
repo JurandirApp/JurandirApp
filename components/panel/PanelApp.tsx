@@ -83,6 +83,8 @@ export function PanelApp({
   mpPixReady: mpPixReady0,
   mpResult = null,
   gatewayPix: gatewayPix0,
+  gatewayCredit: gatewayCredit0,
+  gatewayDebit: gatewayDebit0,
   pagarmeReady: pagarmeReady0,
   pagarmeStatus: pagarmeStatus0,
 }: {
@@ -103,6 +105,8 @@ export function PanelApp({
   mpPixReady: boolean | null;
   mpResult?: "ok" | "error" | null;
   gatewayPix: string;
+  gatewayCredit: string;
+  gatewayDebit: string;
   pagarmeReady: boolean;
   pagarmeStatus: string | null;
 }) {
@@ -149,6 +153,8 @@ export function PanelApp({
   const [mpConnected, setMpConnected] = useState(mpConnected0);
   const [mpPixReady, setMpPixReady] = useState<boolean | null>(mpPixReady0);
   const [gatewayPix, setGatewayPixState] = useState(gatewayPix0);
+  const [gatewayCredit, setGatewayCreditState] = useState(gatewayCredit0);
+  const [gatewayDebit, setGatewayDebitState] = useState(gatewayDebit0);
   const [pagarmeReady, setPagarmeReady] = useState(pagarmeReady0);
   const [pagarmeStatus, setPagarmeStatus] = useState<string | null>(pagarmeStatus0);
   const [prMsg, setPrMsg] = useState<string | null>(null);
@@ -497,13 +503,25 @@ export function PanelApp({
         });
       },
       gatewayPix,
-      setGatewayPix: (v: string) => {
-        const prev = gatewayPix;
-        setGatewayPixState(v);
+      gatewayCredit,
+      gatewayDebit,
+      setGateway: (method: "pix" | "credit" | "debit", v: string) => {
+        const prev = { pix: gatewayPix, credit: gatewayCredit, debit: gatewayDebit };
+        const next = { ...prev, [method]: v };
+        setGatewayPixState(next.pix);
+        setGatewayCreditState(next.credit);
+        setGatewayDebitState(next.debit);
         startTransition(async () => {
-          const r = await savePaymentRoutingAction({ pix: v });
-          if (!r.ok) {
-            setGatewayPixState(prev); // reverte se recusado (ex.: sem recebedor)
+          const r = await savePaymentRoutingAction(next);
+          if (r.ok) {
+            // O servidor pode ter feito fallback (ex.: gateway não pronto) → reflete.
+            setGatewayPixState(r.pix);
+            setGatewayCreditState(r.credit);
+            setGatewayDebitState(r.debit);
+          } else {
+            setGatewayPixState(prev.pix);
+            setGatewayCreditState(prev.credit);
+            setGatewayDebitState(prev.debit);
             toast(t("config.pixRoutingError"));
           }
         });
@@ -532,7 +550,7 @@ export function PanelApp({
     itemCat, qrLabel, aud, audPage, profile, weekly, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
-    gatewayPix, pagarmeReady, pagarmeStatus,
+    gatewayPix, gatewayCredit, gatewayDebit, pagarmeReady, pagarmeStatus,
   ]);
 
   const saveItem = (clean: MenuItem) => {

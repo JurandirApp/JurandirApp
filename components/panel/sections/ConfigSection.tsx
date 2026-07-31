@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
@@ -8,7 +8,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { usePanel } from "../context";
 import { PrintersManager } from "./PrintersManager";
 import { PrinterSetupGuide } from "./PrinterSetupGuide";
-import { PagarmeManager } from "./PagarmeManager";
+import { PaymentsManager } from "./PaymentsManager";
 
 const PRINT_STATUS_STYLE: Record<
   string,
@@ -32,21 +32,10 @@ export function ConfigSection() {
     hasPrintToken,
     printToken,
     generatePrintToken,
-    mpConnected,
-    mpPixReady,
-    checkPix,
-    mpResult,
-    connectMp,
-    disconnectMp,
     printJobs,
     refreshPrintJobs,
   } = usePanel();
   const t = useTranslations("panel.config");
-  const [pixChecking, setPixChecking] = useState(false);
-  const runPixCheck = () => {
-    setPixChecking(true);
-    checkPix().finally(() => setPixChecking(false));
-  };
 
   return (
     <div className="max-w-[1000px]">
@@ -127,90 +116,11 @@ export function ConfigSection() {
           </p>
         </Card>
 
-        {/* Pagamentos — Mercado Pago (marketplace connect) */}
+        {/* Pagamentos — matriz método × gateway + conexões (MP / Pagar.me / …) */}
         <Card className="md:col-span-2">
-          <CardTitle icon="account_balance_wallet">{t("payments")}</CardTitle>
-          <p className="m-0 mb-3 text-xs text-ink/50">{t("paymentsHint")}</p>
-
-          {mpResult === "ok" && (
-            <p className="m-0 mb-3 rounded-lg bg-[#ecfdf5] px-3 py-2 text-xs font-medium text-[#059669]">
-              {t("mpConnectedOk")}
-            </p>
-          )}
-          {mpResult === "error" && (
-            <p className="m-0 mb-3 rounded-lg bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#e11d48]">
-              {t("mpConnectError")}
-            </p>
-          )}
-
-          <div className="flex items-center justify-between gap-3 rounded-xl border-2 border-ink/10 p-3">
-            <span className="flex items-center gap-2 text-sm font-semibold text-ink/80">
-              <span
-                className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                style={{ background: mpConnected ? "#10b981" : "rgba(20,24,33,.25)" }}
-              />
-              {mpConnected ? t("mpStatusConnected") : t("mpStatusNot")}
-            </span>
-            {mpConnected ? (
-              <button
-                type="button"
-                onClick={disconnectMp}
-                className="flex-shrink-0 rounded-lg bg-ink/[0.06] px-3 py-2 text-xs font-bold text-ink/70"
-              >
-                {t("mpDisconnect")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={connectMp}
-                className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-[#009ee3] px-3.5 py-2 text-xs font-bold text-white"
-              >
-                <Icon name="link" size={14} />
-                {t("mpConnect")}
-              </button>
-            )}
-          </div>
-          <p className="m-0 mt-2 text-[11px] leading-relaxed text-ink/45">
-            {t("mpFeeNote")}
-          </p>
-
-          {/* Status do Pix da conta conectada — avisa se não tem chave Pix. */}
-          {mpConnected && (
-            <div className="mt-3 border-t border-ink/10 pt-3">
-              {mpPixReady === false && (
-                <div className="mb-2 flex flex-wrap items-start gap-2 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-xs text-[#b91c1c]">
-                  <Icon name="error" size={15} className="mt-px flex-none" />
-                  <span className="min-w-0 flex-1 font-medium leading-snug">
-                    {t("pixNoKey")}
-                  </span>
-                </div>
-              )}
-              {mpPixReady === true && (
-                <p className="m-0 mb-2 flex items-center gap-1.5 text-xs font-medium text-[#059669]">
-                  <Icon name="check_circle" size={14} />
-                  {t("pixReady")}
-                </p>
-              )}
-              {mpPixReady === null && (
-                <p className="m-0 mb-2 text-[11px] text-ink/45">{t("pixUnchecked")}</p>
-              )}
-              <button
-                type="button"
-                onClick={runPixCheck}
-                disabled={pixChecking}
-                className="rounded-lg bg-ink/[0.06] px-3 py-1.5 text-xs font-bold text-ink/70 disabled:opacity-50"
-              >
-                {pixChecking ? t("pixChecking") : t("pixCheck")}
-              </button>
-            </div>
-          )}
-        </Card>
-
-        {/* Gateways por método (MP/Pagar.me) + recebedor Pagar.me */}
-        <Card className="md:col-span-2">
-          <CardTitle icon="alt_route">{t("gatewaysTitle")}</CardTitle>
+          <CardTitle icon="account_balance_wallet">{t("gatewaysTitle")}</CardTitle>
           <p className="m-0 -mt-2 mb-3.5 text-xs text-ink/50">{t("gatewaysHint")}</p>
-          <PagarmeManager />
+          <PaymentsManager />
         </Card>
 
         {/* Impressão — card largo, 2 colunas: impressoras | agente + comandas */}

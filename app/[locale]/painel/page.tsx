@@ -92,6 +92,8 @@ export default async function PainelPage({
       mpPixReady={est.mpPixReady}
       mpResult={mp === "ok" ? "ok" : mp === "error" ? "error" : null}
       gatewayPix={est.gatewayPix}
+      gatewayCredit={est.gatewayCredit}
+      gatewayDebit={est.gatewayDebit}
       pagarmeReady={Boolean(est.pagarmeRecipientId)}
       pagarmeStatus={est.pagarmeRecipientStatus}
     />

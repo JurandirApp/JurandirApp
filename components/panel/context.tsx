@@ -119,11 +119,13 @@ export interface PanelValue {
   mpResult: "ok" | "error" | null;
   connectMp: () => void;
   disconnectMp: () => void;
-  // Pagamentos — roteamento por método + Pagar.me (recebedor/split)
-  /** Gateway do Pix: "MERCADO_PAGO" | "PAGARME". */
+  // Pagamentos — roteamento por método (Pix/Crédito/Débito) × gateways
+  /** Gateway de cada método: "MERCADO_PAGO" | "PAGARME" (| "INFINITEPAY" no futuro). */
   gatewayPix: string;
-  setGatewayPix: (v: string) => void;
-  /** O recebedor Pagar.me já foi cadastrado? (libera o Pix por Pagar.me). */
+  gatewayCredit: string;
+  gatewayDebit: string;
+  setGateway: (method: "pix" | "credit" | "debit", value: string) => void;
+  /** O recebedor Pagar.me já foi cadastrado? (libera o Pagar.me). */
   pagarmeReady: boolean;
   pagarmeStatus: string | null;
   createPagarmeRecipient: (

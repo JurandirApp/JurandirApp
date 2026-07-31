@@ -153,6 +153,7 @@ export const pagarmeRecipientSchema = z.object({
   accountType: z.enum(["checking", "savings"]),
   street: z.string().optional(),
   streetNumber: z.string().optional(),
+  complement: z.string().optional(),
   neighborhood: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),

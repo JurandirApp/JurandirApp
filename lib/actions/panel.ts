@@ -79,27 +79,41 @@ export async function checkPixReadyAction(): Promise<{
   return { ready: res.ready, reason: res.reason, connected: Boolean(est.mpAccessToken) };
 }
 
-/** Salva o gateway escolhido por método. Pagar.me só vale pro Pix (Fase 1) e
- *  exige recebedor cadastrado; crédito/débito ficam sempre no Mercado Pago. */
+// Matriz de capacidade: qual gateway implementa qual método hoje. Escolhas fora
+// da matriz (ou de um gateway não pronto) caem no Mercado Pago.
+const GATEWAY_CAP: Record<string, { pix: boolean; credit: boolean; debit: boolean }> = {
+  MERCADO_PAGO: { pix: true, credit: true, debit: true },
+  PAGARME: { pix: true, credit: false, debit: false },
+  INFINITEPAY: { pix: false, credit: false, debit: false },
+};
+
+/** Salva o gateway escolhido POR MÉTODO (Pix/Crédito/Débito), validando cada um
+ *  contra a matriz de capacidade + prontidão. Retorna os valores efetivos. */
 export async function savePaymentRoutingAction(routing: {
   pix: string;
-}): Promise<{ ok: boolean; error?: string }> {
+  credit: string;
+  debit: string;
+}): Promise<{ ok: boolean; error?: string; pix: string; credit: string; debit: string }> {
   const s = await requireEst();
   const est = await prisma.establishment.findUnique({
     where: { id: s.establishmentId! },
     select: { pagarmeRecipientId: true },
   });
-  const pix = routing.pix === "PAGARME" ? "PAGARME" : "MERCADO_PAGO";
-  if (pix === "PAGARME" && !est?.pagarmeRecipientId) {
-    return { ok: false, error: "no-recipient" };
-  }
+  const pagarmeReady = Boolean(est?.pagarmeRecipientId);
+  const resolve = (v: string, method: "pix" | "credit" | "debit"): "MERCADO_PAGO" | "PAGARME" => {
+    if (v !== "PAGARME") return "MERCADO_PAGO"; // MP faz tudo; INFINITEPAY ainda não
+    if (!GATEWAY_CAP.PAGARME[method] || !pagarmeReady) return "MERCADO_PAGO";
+    return "PAGARME";
+  };
+  const pix = resolve(routing.pix, "pix");
+  const credit = resolve(routing.credit, "credit");
+  const debit = resolve(routing.debit, "debit");
   await prisma.establishment.update({
     where: { id: s.establishmentId! },
-    // Crédito/Débito via Pagar.me ainda não implementados → forçados no MP.
-    data: { gatewayPix: pix, gatewayCredit: "MERCADO_PAGO", gatewayDebit: "MERCADO_PAGO" },
+    data: { gatewayPix: pix, gatewayCredit: credit, gatewayDebit: debit },
   });
   revalidatePath("/painel");
-  return { ok: true };
+  return { ok: true, pix, credit, debit };
 }
 
 /** Cria o recebedor Pagar.me do estabelecimento (dados bancários + KYC) e o vincula. */
