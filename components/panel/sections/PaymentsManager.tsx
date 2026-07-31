@@ -216,6 +216,10 @@ function PagarmeConnection({ onOpen }: { onOpen: () => void }) {
         <KycFinish />
       ) : (
         <>
+          <div className="mb-2 flex items-start gap-2 rounded-lg border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-[11px] leading-snug text-[#92400e]">
+            <Icon name="info" size={14} className="mt-px flex-none" />
+            <span className="min-w-0 flex-1">{t("pgPrereq")}</span>
+          </div>
           <p className="m-0 mb-2 text-[11px] leading-relaxed text-ink/45">{t("pgOnboardHint")}</p>
           <button
             type="button"
@@ -358,6 +362,27 @@ const EMPTY: Form = {
   zipCode: "",
 };
 
+// Campos obrigatórios (marcados com "*"). Ficam de fora só os que o Pagar.me
+// aceita vazio: Dígito da agência (muitos bancos não têm) e Complemento.
+const REQUIRED_FIELDS: (keyof Form)[] = [
+  "document",
+  "name",
+  "email",
+  "phone",
+  "birthdate",
+  "bank",
+  "branchNumber",
+  "accountNumber",
+  "accountCheckDigit",
+  "street",
+  "streetNumber",
+  "neighborhood",
+  "city",
+  "state",
+  "zipCode",
+];
+const REQUIRED_PF: (keyof Form)[] = ["motherName", "professionalOccupation", "monthlyIncome"];
+
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
 
 function formatDoc(v: string, type: "individual" | "corporation"): string {
@@ -412,7 +437,8 @@ function RecipientModal({
 
   const submit = async () => {
     setErr(null);
-    if (!form.name || !form.document || !form.email || !form.bank || !form.accountNumber) {
+    const required = isPF ? [...REQUIRED_FIELDS, ...REQUIRED_PF] : REQUIRED_FIELDS;
+    if (required.some((k) => !String(form[k]).trim())) {
       setErr(t("pgFillRequired"));
       return;
     }
@@ -446,7 +472,14 @@ function RecipientModal({
       toast(t("pgRecipientCreated"));
       onClose();
     } else {
-      setErr(r.error === "invalid" ? t("pgFillRequired") : r.error || t("pgError"));
+      const e = r.error || "";
+      setErr(
+        e === "invalid"
+          ? t("pgFillRequired")
+          : /split/i.test(e)
+            ? t("pgSplitDisabled")
+            : e || t("pgError"),
+      );
     }
   };
 
@@ -492,7 +525,7 @@ function RecipientModal({
                 ]}
               />
             </F>
-            <F label={t("pgDocument")}>
+            <F req label={t("pgDocument")}>
               <Input
                 value={form.document}
                 onChange={(e) => set("document", formatDoc(e.target.value, form.type))}
@@ -500,27 +533,27 @@ function RecipientModal({
                 placeholder={isPF ? "000.000.000-00" : "00.000.000/0000-00"}
               />
             </F>
-            <F className="col-span-2" label={t("pgName")}>
+            <F req className="col-span-2" label={t("pgName")}>
               <Input value={form.name} onChange={(e) => set("name", e.target.value)} />
             </F>
-            <F label={t("pgEmail")}>
+            <F req label={t("pgEmail")}>
               <Input value={form.email} onChange={(e) => set("email", e.target.value)} />
             </F>
-            <F label={t("pgPhone")}>
+            <F req label={t("pgPhone")}>
               <Input value={form.phone} onChange={(e) => set("phone", formatPhone(e.target.value))} inputMode="tel" placeholder="(47) 99999-9999" />
             </F>
-            <F label={isPF ? t("pgBirthdate") : t("pgFounding")}>
+            <F req label={isPF ? t("pgBirthdate") : t("pgFounding")}>
               <Input type="date" value={form.birthdate} onChange={(e) => set("birthdate", e.target.value)} />
             </F>
             {isPF && (
               <>
-                <F label={t("pgOccupation")}>
+                <F req label={t("pgOccupation")}>
                   <Input value={form.professionalOccupation} onChange={(e) => set("professionalOccupation", e.target.value)} />
                 </F>
-                <F className="col-span-2" label={t("pgMother")}>
+                <F req className="col-span-2" label={t("pgMother")}>
                   <Input value={form.motherName} onChange={(e) => set("motherName", e.target.value)} />
                 </F>
-                <F label={t("pgIncome")}>
+                <F req label={t("pgIncome")}>
                   <Input value={form.monthlyIncome} onChange={(e) => set("monthlyIncome", onlyDigits(e.target.value))} inputMode="numeric" placeholder="Ex: 5000" />
                 </F>
               </>
@@ -529,7 +562,7 @@ function RecipientModal({
 
           <p className="m-0 mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">{t("pgBankTitle")}</p>
           <div className="grid grid-cols-2 gap-2">
-            <F label={t("pgBank")}>
+            <F req label={t("pgBank")}>
               <Input value={form.bank} onChange={(e) => set("bank", onlyDigits(e.target.value).slice(0, 3))} inputMode="numeric" placeholder="Ex: 341" />
             </F>
             <F label={t("pgAccountType")}>
@@ -542,41 +575,41 @@ function RecipientModal({
                 ]}
               />
             </F>
-            <F label={t("pgBranch")}>
+            <F req label={t("pgBranch")}>
               <Input value={form.branchNumber} onChange={(e) => set("branchNumber", onlyDigits(e.target.value))} inputMode="numeric" placeholder="0001" />
             </F>
             <F label={t("pgBranchDigit")}>
               <Input value={form.branchCheckDigit} onChange={(e) => set("branchCheckDigit", e.target.value)} placeholder="—" />
             </F>
-            <F label={t("pgAccount")}>
+            <F req label={t("pgAccount")}>
               <Input value={form.accountNumber} onChange={(e) => set("accountNumber", onlyDigits(e.target.value))} inputMode="numeric" placeholder="12345" />
             </F>
-            <F label={t("pgAccountDigit")}>
+            <F req label={t("pgAccountDigit")}>
               <Input value={form.accountCheckDigit} onChange={(e) => set("accountCheckDigit", e.target.value)} placeholder="6" />
             </F>
           </div>
 
           <p className="m-0 mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">{t("pgAddressTitle")}</p>
           <div className="grid grid-cols-2 gap-2">
-            <F className="col-span-2" label={t("pgStreet")}>
+            <F req className="col-span-2" label={t("pgStreet")}>
               <Input value={form.street} onChange={(e) => set("street", e.target.value)} />
             </F>
-            <F label={t("pgStreetNumber")}>
+            <F req label={t("pgStreetNumber")}>
               <Input value={form.streetNumber} onChange={(e) => set("streetNumber", e.target.value)} />
             </F>
             <F label={t("pgComplement")}>
               <Input value={form.complement} onChange={(e) => set("complement", e.target.value)} placeholder={t("pgComplementPh")} />
             </F>
-            <F label={t("pgNeighborhood")}>
+            <F req label={t("pgNeighborhood")}>
               <Input value={form.neighborhood} onChange={(e) => set("neighborhood", e.target.value)} />
             </F>
-            <F label={t("pgCity")}>
+            <F req label={t("pgCity")}>
               <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
             </F>
-            <F label={t("pgState")}>
+            <F req label={t("pgState")}>
               <Input value={form.state} onChange={(e) => set("state", e.target.value.toUpperCase().slice(0, 2))} placeholder="SC" />
             </F>
-            <F label={t("pgZip")}>
+            <F req label={t("pgZip")}>
               <Input value={form.zipCode} onChange={(e) => set("zipCode", onlyDigits(e.target.value).slice(0, 8))} inputMode="numeric" placeholder="88300000" />
             </F>
           </div>
@@ -612,10 +645,23 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function F({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+function F({
+  label,
+  req,
+  children,
+  className,
+}: {
+  label: string;
+  req?: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <label className={`block ${className ?? ""}`}>
-      <span className="text-[11px] font-medium text-ink/55">{label}</span>
+      <span className="text-[11px] font-medium text-ink/55">
+        {label}
+        {req && <span className="text-coral"> *</span>}
+      </span>
       <div className="mt-1">{children}</div>
     </label>
   );
