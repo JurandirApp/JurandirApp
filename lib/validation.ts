@@ -133,28 +133,13 @@ export const passwordChangeSchema = z.object({
   next: z.string().min(6),
 });
 
-/** Cadastro de recebedor Pagar.me (dados bancários + KYC básico). */
+/** Cadastro MÍNIMO de recebedor Pagar.me — a conta bancária + identidade o dono
+ *  preenche no webapp hospedado do Pagar.me (não passam pela nossa plataforma). */
 export const pagarmeRecipientSchema = z.object({
   type: z.enum(["individual", "corporation"]),
   name: z.string().min(1),
   email: z.string().email(),
   document: z.string().min(11),
   phone: z.string().optional(),
-  birthdate: z.string().optional(),
-  motherName: z.string().optional(),
-  monthlyIncome: z.coerce.number().optional(),
-  professionalOccupation: z.string().optional(),
-  bank: z.string().min(1),
-  branchNumber: z.string().min(1),
-  branchCheckDigit: z.string().optional(),
-  accountNumber: z.string().min(1),
-  accountCheckDigit: z.string().min(1),
-  accountType: z.enum(["checking", "savings"]),
-  street: z.string().optional(),
-  streetNumber: z.string().optional(),
-  neighborhood: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
 });
 export type PagarmeRecipientForm = z.infer<typeof pagarmeRecipientSchema>;

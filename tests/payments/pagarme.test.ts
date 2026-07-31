@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { pagarmeProvider, createPagarmeRecipient } from "@/lib/payments/pagarme";
+import { pagarmeProvider, createPagarmeRecipient, getPagarmeKycLink } from "@/lib/payments/pagarme";
 import { PIX_EXPIRES_MIN } from "@/lib/domain/pricing";
 import type { Establishment } from "@prisma/client";
 
@@ -113,26 +113,43 @@ describe("pagarmeProvider.getChargeStatus", () => {
   });
 });
 
-describe("createPagarmeRecipient", () => {
-  it("cria recebedor PF com conta bancária e register_information", async () => {
+describe("createPagarmeRecipient (mínimo)", () => {
+  it("cria recebedor só com dados mínimos — sem conta bancária", async () => {
     const fn = seq([{ id: "rp_new", status: "registration" }]);
     const r = await createPagarmeRecipient({
       type: "individual",
       name: "Bar do Zé",
       email: "ze@bar.com",
       document: "123.456.789-00",
-      bank: "341",
-      branchNumber: "0001",
-      accountNumber: "12345",
-      accountCheckDigit: "6",
-      accountType: "checking",
+      phone: "47999998888",
     });
     expect(r).toEqual({ id: "rp_new", status: "registration" });
     const body = JSON.parse(fn.mock.calls[0][1].body as string);
     expect(body.type).toBe("individual");
     expect(body.document).toBe("12345678900"); // só dígitos
-    expect(body.default_bank_account.bank).toBe("341");
-    expect(body.default_bank_account.type).toBe("checking");
+    expect(body.default_bank_account).toBeUndefined(); // conta NÃO passa pela gente
     expect(body.register_information.type).toBe("individual");
+    expect(body.register_information.name).toBe("Bar do Zé");
+    expect(body.register_information.phone_numbers[0]).toEqual({
+      ddd: "47",
+      number: "999998888",
+      type: "mobile",
+    });
+  });
+});
+
+describe("getPagarmeKycLink", () => {
+  it("gera o link/QR do webapp hospedado do Pagar.me", async () => {
+    const fn = seq([
+      { url: "https://kyc.pagar.me/abc", base64: "iVBOR", expiration_date: "2026-01-01T00:00:00Z" },
+    ]);
+    const r = await getPagarmeKycLink("rp_new");
+    expect(r).toEqual({
+      url: "https://kyc.pagar.me/abc",
+      base64: "iVBOR",
+      expiresAt: "2026-01-01T00:00:00Z",
+    });
+    expect(fn.mock.calls[0][0]).toContain("/recipients/rp_new/kyc_link");
+    expect(fn.mock.calls[0][1].method).toBe("POST");
   });
 });

@@ -129,6 +129,13 @@ export interface PanelValue {
   createPagarmeRecipient: (
     form: PagarmeRecipientForm,
   ) => Promise<{ ok: boolean; error?: string }>;
+  /** Gera o link/QR do webapp do Pagar.me (dono completa conta + identidade lá). */
+  generatePagarmeKycLink: () => Promise<{
+    ok: boolean;
+    url?: string;
+    base64?: string;
+    error?: string;
+  }>;
   printJobs: PanelPrintJob[];
   refreshPrintJobs: () => void;
 }

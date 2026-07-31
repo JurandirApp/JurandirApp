@@ -4,6 +4,17 @@ import { getProviderByName } from "@/lib/payments";
 import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
 
+/** Sincroniza o status do recebedor Pagar.me (webhook recipient.updated). */
+export async function syncPagarmeRecipientStatus(
+  recipientId: string,
+  status: string,
+): Promise<void> {
+  await prisma.establishment.updateMany({
+    where: { pagarmeRecipientId: recipientId },
+    data: { pagarmeRecipientStatus: status },
+  });
+}
+
 /** Flip idempotente do pedido para IN_PRODUCTION quando a cobrança foi paga. */
 export async function confirmChargePaid(gatewayChargeId: string): Promise<void> {
   const payment = await prisma.payment.findUnique({

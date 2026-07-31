@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
-import { reconcileByChargeId } from "@/lib/db/payments";
+import { reconcileByChargeId, syncPagarmeRecipientStatus } from "@/lib/db/payments";
 
 /** Valida o X-Hub-Signature do Pagar.me quando PAGARME_WEBHOOK_SECRET está setado.
  *  Sem segredo, confiamos no re-fetch autoritativo em reconcileByChargeId (um
@@ -21,7 +21,7 @@ function signatureOk(raw: string, header: string | null): boolean {
 
 type PgEvent = {
   type?: string;
-  data?: { id?: string; charges?: { id?: string }[] };
+  data?: { id?: string; status?: string; charges?: { id?: string }[] };
 };
 
 /** Extrai o id da cobrança (ch_…) do evento — direto ou via o pedido. */
@@ -40,10 +40,19 @@ export async function POST(req: Request): Promise<Response> {
       return new Response("invalid signature", { status: 401 });
     }
     const ev = (raw ? JSON.parse(raw) : {}) as PgEvent;
-    const chargeId = chargeIdOf(ev);
-    // Só reage a eventos de cobrança paga/atualizada; o re-fetch decide de fato.
-    if (chargeId && (ev.type ?? "").startsWith("charge")) {
-      await reconcileByChargeId(chargeId);
+    const type = ev.type ?? "";
+    if (type.startsWith("charge")) {
+      // Cobrança: o re-fetch autoritativo decide se está paga.
+      const chargeId = chargeIdOf(ev);
+      if (chargeId) await reconcileByChargeId(chargeId);
+    } else if (type.startsWith("recipient")) {
+      // Recebedor: sincroniza o status (registration → affiliation → active).
+      // O evento já é de recipient, então data.id é o id do recebedor (re_…).
+      const rid = ev.data?.id;
+      const status = ev.data?.status;
+      if (rid && status) {
+        await syncPagarmeRecipientStatus(rid, status);
+      }
     }
   } catch {
     // ignora corpo inválido

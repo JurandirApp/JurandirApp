@@ -142,32 +142,20 @@ export const pagarmeProvider: PaymentProvider = {
   },
 };
 
-// ---- Recebedor (onboarding) ------------------------------------------------
+// ---- Recebedor (onboarding com KYC hospedado) ------------------------------
+//
+// Fluxo "prova de vida": criamos o recebedor com o MÍNIMO (nome/documento/
+// contato) → nasce em `registration`. A conta bancária + identidade + biometria
+// o DONO preenche direto no webapp hospedado do Pagar.me (kyc_link) — esses
+// dados nunca passam pelo nosso servidor. Status evolui registration →
+// affiliation → active (avisado pelo webhook recipient.updated).
 
 export type PagarmeRecipientInput = {
   type: "individual" | "corporation";
   name: string;
   email: string;
-  document: string; // CPF/CNPJ (só dígitos)
-  phone?: string; // só dígitos (DDD + número)
-  birthdate?: string; // PF: "YYYY-MM-DD"
-  motherName?: string;
-  monthlyIncome?: number;
-  professionalOccupation?: string;
-  // conta bancária
-  bank: string;
-  branchNumber: string;
-  branchCheckDigit?: string;
-  accountNumber: string;
-  accountCheckDigit: string;
-  accountType: "checking" | "savings";
-  // endereço
-  street?: string;
-  streetNumber?: string;
-  neighborhood?: string;
-  city?: string;
-  state?: string; // UF
-  zipCode?: string; // só dígitos
+  document: string; // CPF/CNPJ
+  phone?: string;
 };
 
 function splitPhone(phone?: string): { ddd: string; number: string; type: "mobile" } | null {
@@ -176,19 +164,7 @@ function splitPhone(phone?: string): { ddd: string; number: string; type: "mobil
   return { ddd: d.slice(0, 2), number: d.slice(2), type: "mobile" };
 }
 
-function addressBody(i: PagarmeRecipientInput) {
-  return {
-    street: i.street || "",
-    street_number: i.streetNumber || "",
-    neighborhood: i.neighborhood || "",
-    city: i.city || "",
-    state: i.state || "",
-    zip_code: (i.zipCode ?? "").replace(/\D/g, ""),
-    reference_point: "N/A",
-  };
-}
-
-/** Cria um recebedor Pagar.me para o estabelecimento e devolve id + status. */
+/** Cria um recebedor com dados mínimos (sem conta bancária). Devolve id + status. */
 export async function createPagarmeRecipient(
   input: PagarmeRecipientInput,
 ): Promise<{ id: string; status: string }> {
@@ -198,46 +174,24 @@ export async function createPagarmeRecipient(
     input.type === "individual"
       ? {
           type: "individual",
+          name: input.name,
           email: input.email,
           document: doc,
-          name: input.name,
-          mother_name: input.motherName || input.name,
-          birthdate: input.birthdate || "1990-01-01",
-          monthly_income: input.monthlyIncome ?? 5000,
-          professional_occupation: input.professionalOccupation || "Empresário",
-          address: addressBody(input),
           ...(phone ? { phone_numbers: [phone] } : {}),
         }
       : {
           type: "corporation",
+          company_name: input.name,
           email: input.email,
           document: doc,
-          company_name: input.name,
-          trading_name: input.name,
-          annual_revenue: input.monthlyIncome ? input.monthlyIncome * 12 : 100000,
-          founding_date: input.birthdate || "2015-01-01",
-          main_address: addressBody(input),
           ...(phone ? { phone_numbers: [phone] } : {}),
         };
-
   const body = {
     name: input.name,
     email: input.email,
-    description: `Recebedor Jurandir — ${input.name}`,
     document: doc,
     type: input.type,
-    default_bank_account: {
-      holder_name: input.name,
-      holder_type: input.type === "individual" ? "individual" : "company",
-      holder_document: doc,
-      bank: input.bank,
-      branch_number: input.branchNumber,
-      ...(input.branchCheckDigit ? { branch_check_digit: input.branchCheckDigit } : {}),
-      account_number: input.accountNumber,
-      account_check_digit: input.accountCheckDigit,
-      type: input.accountType,
-    },
-    transfer_settings: { transfer_enabled: true, transfer_interval: "Daily", transfer_day: 0 },
+    description: `Recebedor Jurandir — ${input.name}`,
     register_information: register,
   };
   const r = await call<{ id: string; status: string }>("/recipients", {
@@ -245,4 +199,17 @@ export async function createPagarmeRecipient(
     body: JSON.stringify(body),
   });
   return { id: r.id, status: r.status };
+}
+
+/** Gera o link/QR do webapp hospedado onde o dono completa conta + identidade.
+ *  Só fica disponível quando o recebedor atinge `affiliation` (senão o Pagar.me
+ *  recusa e devolvemos url/base64 vazios). */
+export async function getPagarmeKycLink(
+  recipientId: string,
+): Promise<{ url: string; base64: string; expiresAt: string }> {
+  const r = await call<{ url?: string; base64?: string; expiration_date?: string }>(
+    `/recipients/${recipientId}/kyc_link`,
+    { method: "POST" },
+  );
+  return { url: r.url ?? "", base64: r.base64 ?? "", expiresAt: r.expiration_date ?? "" };
 }

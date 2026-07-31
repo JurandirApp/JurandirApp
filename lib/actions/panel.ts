@@ -13,7 +13,7 @@ import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
-import { createPagarmeRecipient } from "@/lib/payments/pagarme";
+import { createPagarmeRecipient, getPagarmeKycLink } from "@/lib/payments/pagarme";
 import { periodRange, type OrdersPeriod } from "@/lib/domain/period";
 import {
   normalizeWeekly,
@@ -119,6 +119,30 @@ export async function createPagarmeRecipientAction(
     return { ok: true, status: r.status };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message.slice(0, 200) : "error" };
+  }
+}
+
+/** Gera o link/QR do webapp hospedado do Pagar.me pra o dono completar conta
+ *  bancária + identidade (prova de vida) — esses dados não passam pela gente. */
+export async function generatePagarmeKycLinkAction(): Promise<{
+  ok: boolean;
+  url?: string;
+  base64?: string;
+  error?: string;
+}> {
+  const s = await requireEst();
+  const est = await prisma.establishment.findUnique({
+    where: { id: s.establishmentId! },
+    select: { pagarmeRecipientId: true },
+  });
+  if (!est?.pagarmeRecipientId) return { ok: false, error: "no-recipient" };
+  try {
+    const link = await getPagarmeKycLink(est.pagarmeRecipientId);
+    // Só fica pronto quando o recebedor chega em `affiliation`.
+    if (!link.url && !link.base64) return { ok: false, error: "not-ready" };
+    return { ok: true, url: link.url, base64: link.base64 };
+  } catch {
+    return { ok: false, error: "not-ready" };
   }
 }
 

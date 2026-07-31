@@ -17,6 +17,7 @@ import {
   changePasswordAction,
   checkPixReadyAction,
   createPagarmeRecipientAction,
+  generatePagarmeKycLinkAction,
   deleteMenuItemAction,
   deleteQrSpotAction,
   deliverOrderAction,
@@ -517,6 +518,7 @@ export function PanelApp({
         }
         return { ok: r.ok, error: r.error };
       },
+      generatePagarmeKycLink: () => generatePagarmeKycLinkAction(),
       printJobs,
       refreshPrintJobs: () => {
         refreshPrintJobsAction()
