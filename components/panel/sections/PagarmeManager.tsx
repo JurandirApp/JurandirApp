@@ -18,6 +18,33 @@ type Form = {
 
 const EMPTY: Form = { type: "individual", name: "", document: "", email: "", phone: "" };
 
+const onlyDigits = (v: string) => v.replace(/\D/g, "");
+
+/** Máscara de CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00) conforme o tipo. */
+function formatDoc(v: string, type: "individual" | "corporation"): string {
+  const d = onlyDigits(v).slice(0, type === "individual" ? 11 : 14);
+  if (type === "individual") {
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+  }
+  return d
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4")
+    .replace(/(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
+}
+
+/** Máscara de telefone BR: (00) 00000-0000. */
+function formatPhone(v: string): string {
+  const d = onlyDigits(v).slice(0, 11);
+  if (d.length <= 2) return d.replace(/(\d*)/, "($1");
+  if (d.length <= 6) return d.replace(/(\d{2})(\d*)/, "($1) $2");
+  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d*)/, "($1) $2-$3");
+  return d.replace(/(\d{2})(\d{5})(\d*)/, "($1) $2-$3");
+}
+
 export function PagarmeManager() {
   const { gatewayPix, setGatewayPix, pagarmeReady, createPagarmeRecipient, mpConnected, toast } =
     usePanel();
@@ -216,7 +243,13 @@ function RecipientModal({
             <F label={t("pgType")}>
               <MiniDd
                 value={form.type}
-                onChange={(v) => set("type", v)}
+                onChange={(v) =>
+                  setForm((f) => ({
+                    ...f,
+                    type: v as Form["type"],
+                    document: formatDoc(f.document, v as Form["type"]),
+                  }))
+                }
                 options={[
                   { value: "individual", label: t("pgIndividual") },
                   { value: "corporation", label: t("pgCorporation") },
@@ -226,8 +259,9 @@ function RecipientModal({
             <F label={t("pgDocument")}>
               <Input
                 value={form.document}
-                onChange={(e) => set("document", e.target.value)}
-                placeholder={form.type === "individual" ? "CPF" : "CNPJ"}
+                onChange={(e) => set("document", formatDoc(e.target.value, form.type))}
+                inputMode="numeric"
+                placeholder={form.type === "individual" ? "000.000.000-00" : "00.000.000/0000-00"}
               />
             </F>
             <F className="col-span-2" label={t("pgName")}>
@@ -239,7 +273,8 @@ function RecipientModal({
             <F label={t("pgPhone")}>
               <Input
                 value={form.phone}
-                onChange={(e) => set("phone", e.target.value)}
+                onChange={(e) => set("phone", formatPhone(e.target.value))}
+                inputMode="tel"
                 placeholder="(47) 99999-9999"
               />
             </F>
