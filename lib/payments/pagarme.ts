@@ -156,6 +156,24 @@ export type PagarmeRecipientInput = {
   email: string;
   document: string; // CPF/CNPJ
   phone?: string;
+  birthdate?: string; // "YYYY-MM-DD" (PF) / abertura (PJ)
+  motherName?: string;
+  monthlyIncome?: number;
+  professionalOccupation?: string;
+  // conta bancária (exigida pelo Pagar.me na criação)
+  bank: string;
+  branchNumber: string;
+  branchCheckDigit?: string;
+  accountNumber: string;
+  accountCheckDigit: string;
+  accountType: "checking" | "savings";
+  // endereço (register_information.address — exigido na criação)
+  street?: string;
+  streetNumber?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
 };
 
 function splitPhone(phone?: string): { ddd: string; number: string; type: "mobile" } | null {
@@ -164,7 +182,20 @@ function splitPhone(phone?: string): { ddd: string; number: string; type: "mobil
   return { ddd: d.slice(0, 2), number: d.slice(2), type: "mobile" };
 }
 
-/** Cria um recebedor com dados mínimos (sem conta bancária). Devolve id + status. */
+function addressBody(i: PagarmeRecipientInput) {
+  return {
+    street: i.street || "",
+    street_number: i.streetNumber || "",
+    neighborhood: i.neighborhood || "",
+    city: i.city || "",
+    state: i.state || "",
+    zip_code: (i.zipCode ?? "").replace(/\D/g, ""),
+    reference_point: "N/A",
+  };
+}
+
+/** Cria um recebedor (conta bancária + KYC). A biometria/prova de vida o dono
+ *  conclui depois no webapp hospedado (getPagarmeKycLink). Devolve id + status. */
 export async function createPagarmeRecipient(
   input: PagarmeRecipientInput,
 ): Promise<{ id: string; status: string }> {
@@ -177,13 +208,22 @@ export async function createPagarmeRecipient(
           name: input.name,
           email: input.email,
           document: doc,
+          mother_name: input.motherName || input.name,
+          birthdate: input.birthdate || "1990-01-01",
+          monthly_income: input.monthlyIncome ?? 5000,
+          professional_occupation: input.professionalOccupation || "Empresário",
+          address: addressBody(input),
           ...(phone ? { phone_numbers: [phone] } : {}),
         }
       : {
           type: "corporation",
           company_name: input.name,
+          trading_name: input.name,
           email: input.email,
           document: doc,
+          annual_revenue: input.monthlyIncome ? input.monthlyIncome * 12 : 100000,
+          founding_date: input.birthdate || "2015-01-01",
+          main_address: addressBody(input),
           ...(phone ? { phone_numbers: [phone] } : {}),
         };
   const body = {
@@ -192,6 +232,18 @@ export async function createPagarmeRecipient(
     document: doc,
     type: input.type,
     description: `Recebedor Jurandir — ${input.name}`,
+    default_bank_account: {
+      holder_name: input.name,
+      holder_type: input.type === "individual" ? "individual" : "company",
+      holder_document: doc,
+      bank: input.bank,
+      branch_number: input.branchNumber,
+      ...(input.branchCheckDigit ? { branch_check_digit: input.branchCheckDigit } : {}),
+      account_number: input.accountNumber,
+      account_check_digit: input.accountCheckDigit,
+      type: input.accountType,
+    },
+    transfer_settings: { transfer_enabled: true, transfer_interval: "Daily", transfer_day: 0 },
     register_information: register,
   };
   const r = await call<{ id: string; status: string }>("/recipients", {

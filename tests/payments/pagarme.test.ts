@@ -113,23 +113,30 @@ describe("pagarmeProvider.getChargeStatus", () => {
   });
 });
 
-describe("createPagarmeRecipient (mínimo)", () => {
-  it("cria recebedor só com dados mínimos — sem conta bancária", async () => {
-    const fn = seq([{ id: "rp_new", status: "registration" }]);
+describe("createPagarmeRecipient", () => {
+  it("cria recebedor PF com conta bancária + register_information", async () => {
+    const fn = seq([{ id: "re_new", status: "registration" }]);
     const r = await createPagarmeRecipient({
       type: "individual",
       name: "Bar do Zé",
       email: "ze@bar.com",
       document: "123.456.789-00",
       phone: "47999998888",
+      bank: "341",
+      branchNumber: "0001",
+      accountNumber: "12345",
+      accountCheckDigit: "6",
+      accountType: "checking",
+      city: "Itajaí",
     });
-    expect(r).toEqual({ id: "rp_new", status: "registration" });
+    expect(r).toEqual({ id: "re_new", status: "registration" });
     const body = JSON.parse(fn.mock.calls[0][1].body as string);
     expect(body.type).toBe("individual");
     expect(body.document).toBe("12345678900"); // só dígitos
-    expect(body.default_bank_account).toBeUndefined(); // conta NÃO passa pela gente
+    expect(body.default_bank_account.bank).toBe("341");
+    expect(body.default_bank_account.type).toBe("checking");
     expect(body.register_information.type).toBe("individual");
-    expect(body.register_information.name).toBe("Bar do Zé");
+    expect(body.register_information.address.city).toBe("Itajaí");
     expect(body.register_information.phone_numbers[0]).toEqual({
       ddd: "47",
       number: "999998888",

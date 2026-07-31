@@ -566,7 +566,7 @@
       "pgOnboardHint": "Register the bar's bank details. Pagar.me creates a recipient and the split sends the amount (minus commission) straight to it.",
       "pgCreateRecipient": "Register recipient",
       "pgModalTitle": "Register Pagar.me recipient",
-      "pgModalHint": "Just name, document and contact to create the recipient. Bank details and identity verification are filled in later, directly on Pagar.me — that data never touches our platform.",
+      "pgModalHint": "Pagar.me requires the bank account + recipient data at signup. We don't store any of it — we only forward it and keep the recipient id. Identity verification (biometrics) is completed later, directly on Pagar.me.",
       "pgStatusActive": "Recipient active — can receive and withdraw.",
       "pgStatusPending": "Recipient created ({status}). Finish registration to activate.",
       "pgKycHint": "Bank details + identity (liveness proof) still need to be completed on Pagar.me to activate the recipient and enable withdrawals.",

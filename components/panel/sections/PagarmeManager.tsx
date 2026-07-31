@@ -14,9 +14,47 @@ type Form = {
   document: string;
   email: string;
   phone: string;
+  birthdate: string;
+  motherName: string;
+  professionalOccupation: string;
+  monthlyIncome: string;
+  bank: string;
+  branchNumber: string;
+  branchCheckDigit: string;
+  accountNumber: string;
+  accountCheckDigit: string;
+  accountType: "checking" | "savings";
+  street: string;
+  streetNumber: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  zipCode: string;
 };
 
-const EMPTY: Form = { type: "individual", name: "", document: "", email: "", phone: "" };
+const EMPTY: Form = {
+  type: "individual",
+  name: "",
+  document: "",
+  email: "",
+  phone: "",
+  birthdate: "",
+  motherName: "",
+  professionalOccupation: "",
+  monthlyIncome: "",
+  bank: "",
+  branchNumber: "",
+  branchCheckDigit: "",
+  accountNumber: "",
+  accountCheckDigit: "",
+  accountType: "checking",
+  street: "",
+  streetNumber: "",
+  neighborhood: "",
+  city: "",
+  state: "",
+  zipCode: "",
+};
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
 
@@ -71,7 +109,7 @@ export function PagarmeManager() {
         />
       </div>
 
-      {/* Recebedor Pagar.me — status + finalização no webapp, ou CTA de criação */}
+      {/* Recebedor Pagar.me — status + finalização, ou CTA de criação */}
       <div className="mt-4 border-t border-ink/10 pt-3">
         <SectionLabel>{t("pgSectionTitle")}</SectionLabel>
         {pagarmeReady ? (
@@ -96,7 +134,7 @@ export function PagarmeManager() {
   );
 }
 
-/** Status do recebedor + botão que abre o cadastro hospedado (conta + identidade). */
+/** Status do recebedor + botão que abre a biometria (prova de vida) no Pagar.me. */
 function KycFinish() {
   const { generatePagarmeKycLink, pagarmeStatus } = usePanel();
   const t = useTranslations("panel.config");
@@ -164,7 +202,7 @@ function KycFinish() {
   );
 }
 
-/** Modal de cadastro MÍNIMO do recebedor (nome/documento/contato). */
+/** Modal de cadastro do recebedor (conta bancária + KYC exigidos pelo Pagar.me). */
 function RecipientModal({
   onClose,
   onDone,
@@ -179,6 +217,7 @@ function RecipientModal({
   const [err, setErr] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
   const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const isPF = form.type === "individual";
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -193,7 +232,7 @@ function RecipientModal({
 
   const submit = async () => {
     setErr(null);
-    if (!form.name || !form.document || !form.email) {
+    if (!form.name || !form.document || !form.email || !form.bank || !form.accountNumber) {
       setErr(t("pgFillRequired"));
       return;
     }
@@ -204,6 +243,22 @@ function RecipientModal({
       email: form.email,
       document: form.document,
       phone: form.phone || undefined,
+      birthdate: form.birthdate || undefined,
+      motherName: form.motherName || undefined,
+      professionalOccupation: form.professionalOccupation || undefined,
+      monthlyIncome: form.monthlyIncome ? Number(form.monthlyIncome) : undefined,
+      bank: form.bank,
+      branchNumber: form.branchNumber,
+      branchCheckDigit: form.branchCheckDigit || undefined,
+      accountNumber: form.accountNumber,
+      accountCheckDigit: form.accountCheckDigit,
+      accountType: form.accountType,
+      street: form.street || undefined,
+      streetNumber: form.streetNumber || undefined,
+      neighborhood: form.neighborhood || undefined,
+      city: form.city || undefined,
+      state: form.state || undefined,
+      zipCode: form.zipCode || undefined,
     });
     setSaving(false);
     if (r.ok) {
@@ -220,7 +275,7 @@ function RecipientModal({
       onClick={() => !saving && onClose()}
     >
       <div
-        className="max-h-[92vh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl bg-white p-5 md:rounded-2xl"
+        className="max-h-[92vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl bg-white p-5 md:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between">
@@ -261,7 +316,7 @@ function RecipientModal({
                 value={form.document}
                 onChange={(e) => set("document", formatDoc(e.target.value, form.type))}
                 inputMode="numeric"
-                placeholder={form.type === "individual" ? "000.000.000-00" : "00.000.000/0000-00"}
+                placeholder={isPF ? "000.000.000-00" : "00.000.000/0000-00"}
               />
             </F>
             <F className="col-span-2" label={t("pgName")}>
@@ -276,6 +331,109 @@ function RecipientModal({
                 onChange={(e) => set("phone", formatPhone(e.target.value))}
                 inputMode="tel"
                 placeholder="(47) 99999-9999"
+              />
+            </F>
+            <F label={isPF ? t("pgBirthdate") : t("pgFounding")}>
+              <Input type="date" value={form.birthdate} onChange={(e) => set("birthdate", e.target.value)} />
+            </F>
+            {isPF && (
+              <>
+                <F label={t("pgOccupation")}>
+                  <Input
+                    value={form.professionalOccupation}
+                    onChange={(e) => set("professionalOccupation", e.target.value)}
+                  />
+                </F>
+                <F className="col-span-2" label={t("pgMother")}>
+                  <Input value={form.motherName} onChange={(e) => set("motherName", e.target.value)} />
+                </F>
+                <F label={t("pgIncome")}>
+                  <Input
+                    value={form.monthlyIncome}
+                    onChange={(e) => set("monthlyIncome", onlyDigits(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="Ex: 5000"
+                  />
+                </F>
+              </>
+            )}
+          </div>
+
+          <p className="m-0 mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">
+            {t("pgBankTitle")}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <F label={t("pgBank")}>
+              <Input
+                value={form.bank}
+                onChange={(e) => set("bank", onlyDigits(e.target.value).slice(0, 3))}
+                inputMode="numeric"
+                placeholder="Ex: 341"
+              />
+            </F>
+            <F label={t("pgAccountType")}>
+              <MiniDd
+                value={form.accountType}
+                onChange={(v) => set("accountType", v)}
+                options={[
+                  { value: "checking", label: t("pgChecking") },
+                  { value: "savings", label: t("pgSavings") },
+                ]}
+              />
+            </F>
+            <F label={t("pgBranch")}>
+              <Input
+                value={form.branchNumber}
+                onChange={(e) => set("branchNumber", onlyDigits(e.target.value))}
+                inputMode="numeric"
+                placeholder="0001"
+              />
+            </F>
+            <F label={t("pgBranchDigit")}>
+              <Input value={form.branchCheckDigit} onChange={(e) => set("branchCheckDigit", e.target.value)} placeholder="—" />
+            </F>
+            <F label={t("pgAccount")}>
+              <Input
+                value={form.accountNumber}
+                onChange={(e) => set("accountNumber", onlyDigits(e.target.value))}
+                inputMode="numeric"
+                placeholder="12345"
+              />
+            </F>
+            <F label={t("pgAccountDigit")}>
+              <Input value={form.accountCheckDigit} onChange={(e) => set("accountCheckDigit", e.target.value)} placeholder="6" />
+            </F>
+          </div>
+
+          <p className="m-0 mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">
+            {t("pgAddressTitle")}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <F className="col-span-2" label={t("pgStreet")}>
+              <Input value={form.street} onChange={(e) => set("street", e.target.value)} />
+            </F>
+            <F label={t("pgStreetNumber")}>
+              <Input value={form.streetNumber} onChange={(e) => set("streetNumber", e.target.value)} />
+            </F>
+            <F label={t("pgNeighborhood")}>
+              <Input value={form.neighborhood} onChange={(e) => set("neighborhood", e.target.value)} />
+            </F>
+            <F label={t("pgCity")}>
+              <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
+            </F>
+            <F label={t("pgState")}>
+              <Input
+                value={form.state}
+                onChange={(e) => set("state", e.target.value.toUpperCase().slice(0, 2))}
+                placeholder="SC"
+              />
+            </F>
+            <F label={t("pgZip")}>
+              <Input
+                value={form.zipCode}
+                onChange={(e) => set("zipCode", onlyDigits(e.target.value).slice(0, 8))}
+                inputMode="numeric"
+                placeholder="88300000"
               />
             </F>
           </div>

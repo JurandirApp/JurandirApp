@@ -566,7 +566,7 @@
       "pgOnboardHint": "Cadastre os dados bancários do bar. O Pagar.me cria um recebedor e o split manda o valor (menos a comissão) direto pra ele.",
       "pgCreateRecipient": "Cadastrar recebedor",
       "pgModalTitle": "Cadastrar recebedor Pagar.me",
-      "pgModalHint": "Só nome, documento e contato pra criar o recebedor. A conta bancária e a verificação de identidade você preenche depois, direto no Pagar.me — esses dados não passam pela nossa plataforma.",
+      "pgModalHint": "O Pagar.me exige conta bancária + dados do recebedor no cadastro. A gente NÃO salva nada disso — só repassa e guarda o id do recebedor. A verificação de identidade (biometria) você conclui depois, direto no Pagar.me.",
       "pgStatusActive": "Recebedor ativo — pode receber e sacar.",
       "pgStatusPending": "Recebedor criado ({status}). Finalize o cadastro pra ativar.",
       "pgKycHint": "Falta preencher conta bancária + identidade (prova de vida) direto no Pagar.me pra ativar o recebedor e liberar os saques.",
