@@ -131,11 +131,15 @@ describe("createPagarmeRecipient", () => {
     });
     expect(r).toEqual({ id: "re_new", status: "registration" });
     const body = JSON.parse(fn.mock.calls[0][1].body as string);
-    expect(body.type).toBe("individual");
-    expect(body.document).toBe("12345678900"); // só dígitos
+    // Identidade só em register_information (Pagar.me recusa se duplicar no topo).
+    expect(body.type).toBeUndefined();
+    expect(body.name).toBeUndefined();
+    expect(body.document).toBeUndefined();
     expect(body.default_bank_account.bank).toBe("341");
     expect(body.default_bank_account.type).toBe("checking");
+    expect(body.default_bank_account.holder_document).toBe("12345678900"); // só dígitos
     expect(body.register_information.type).toBe("individual");
+    expect(body.register_information.document).toBe("12345678900");
     expect(body.register_information.address.city).toBe("Itajaí");
     expect(body.register_information.phone_numbers[0]).toEqual({
       ddd: "47",

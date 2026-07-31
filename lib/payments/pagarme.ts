@@ -229,11 +229,9 @@ export async function createPagarmeRecipient(
           main_address: addressBody(input),
           ...(phone ? { phone_numbers: [phone] } : {}),
         };
+  // Identidade (name/email/document/type) vai SÓ dentro de register_information —
+  // o Pagar.me recusa (422) se esses campos também vierem no topo.
   const body = {
-    name: input.name,
-    email: input.email,
-    document: doc,
-    type: input.type,
     description: `Recebedor Jurandir — ${input.name}`,
     default_bank_account: {
       holder_name: input.name,
