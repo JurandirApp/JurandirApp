@@ -8,7 +8,7 @@ import {
   splitToEstablishment,
 } from "../domain/pricing";
 import { orderCreateSchema, type OrderCreateInput } from "../validation";
-import { getProvider, type PixCharge } from "@/lib/payments";
+import { getProvider, resolveGateway, type PixCharge } from "@/lib/payments";
 import { enqueuePrintJob } from "./print";
 
 const ORDER_INCLUDE = { items: true, payment: true, splitShares: true } as const;
@@ -51,9 +51,12 @@ export async function createOrder(input: OrderCreateInput) {
     payment.kind === "full" &&
     (payment.method === "CREDIT" || payment.method === "DEBIT");
   const useGateway = isPixGateway || isCardGateway;
+  // Gateway resolvido pelo método (Pix/Crédito/Débito) escolhido no app.
+  const providerName =
+    payment.kind === "full" ? resolveGateway(est, payment.method) : null;
   let pix: PixCharge | null = null;
   if (isPixGateway) {
-    pix = await getProvider().createPixCharge({
+    pix = await getProvider(est, "PIX").createPixCharge({
       est,
       reference: code,
       total,
@@ -98,7 +101,7 @@ export async function createOrder(input: OrderCreateInput) {
                 installments: payment.installments,
                 gatewayFeePct: new Prisma.Decimal(GATEWAY_FEE_PCT[payment.method]),
                 cardMask: payment.cardMask ?? null,
-                provider: useGateway ? est.paymentProvider : null,
+                provider: useGateway ? providerName : null,
                 gatewayChargeId: pix?.chargeId ?? null,
                 pixPayload: pix?.pixPayload ?? null,
                 pixQrImage: pix?.pixQrImage ?? null,

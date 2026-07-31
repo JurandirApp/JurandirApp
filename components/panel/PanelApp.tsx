@@ -16,6 +16,7 @@ import {
   addQrSpotAction,
   changePasswordAction,
   checkPixReadyAction,
+  createPagarmeRecipientAction,
   deleteMenuItemAction,
   deleteQrSpotAction,
   deliverOrderAction,
@@ -26,6 +27,7 @@ import {
   refreshOrdersAction,
   refreshPrintJobsAction,
   saveEstablishmentImageAction,
+  savePaymentRoutingAction,
   savePrinterConfigAction,
   saveProfileAction,
   signEstablishmentImageUploadAction,
@@ -34,6 +36,7 @@ import {
 } from "@/lib/actions/panel";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
+import type { PagarmeRecipientForm } from "@/lib/validation";
 import {
   PanelContext,
   type AuditFilters,
@@ -78,6 +81,9 @@ export function PanelApp({
   mpConnected: mpConnected0,
   mpPixReady: mpPixReady0,
   mpResult = null,
+  gatewayPix: gatewayPix0,
+  pagarmeReady: pagarmeReady0,
+  pagarmeStatus: pagarmeStatus0,
 }: {
   now: number;
   slug: string;
@@ -95,6 +101,9 @@ export function PanelApp({
   mpConnected: boolean;
   mpPixReady: boolean | null;
   mpResult?: "ok" | "error" | null;
+  gatewayPix: string;
+  pagarmeReady: boolean;
+  pagarmeStatus: string | null;
 }) {
   const t = useTranslations("panel");
   const beach = true; // Quiosque do Mar (mock)
@@ -138,6 +147,9 @@ export function PanelApp({
   const [printToken, setPrintToken] = useState<string | null>(null);
   const [mpConnected, setMpConnected] = useState(mpConnected0);
   const [mpPixReady, setMpPixReady] = useState<boolean | null>(mpPixReady0);
+  const [gatewayPix, setGatewayPixState] = useState(gatewayPix0);
+  const [pagarmeReady, setPagarmeReady] = useState(pagarmeReady0);
+  const [pagarmeStatus, setPagarmeStatus] = useState<string | null>(pagarmeStatus0);
   const [prMsg, setPrMsg] = useState<string | null>(null);
   const [toggles, setToggles] = useState<Toggles>({ auto: true, wa: true, em: true });
 
@@ -483,6 +495,28 @@ export function PanelApp({
           setMpPixReady(null);
         });
       },
+      gatewayPix,
+      setGatewayPix: (v: string) => {
+        const prev = gatewayPix;
+        setGatewayPixState(v);
+        startTransition(async () => {
+          const r = await savePaymentRoutingAction({ pix: v });
+          if (!r.ok) {
+            setGatewayPixState(prev); // reverte se recusado (ex.: sem recebedor)
+            toast(t("config.pixRoutingError"));
+          }
+        });
+      },
+      pagarmeReady,
+      pagarmeStatus,
+      createPagarmeRecipient: async (form: PagarmeRecipientForm) => {
+        const r = await createPagarmeRecipientAction(form);
+        if (r.ok) {
+          setPagarmeReady(true);
+          setPagarmeStatus(r.status ?? "registration");
+        }
+        return { ok: r.ok, error: r.error };
+      },
       printJobs,
       refreshPrintJobs: () => {
         refreshPrintJobsAction()
@@ -496,6 +530,7 @@ export function PanelApp({
     itemCat, qrLabel, aud, audPage, profile, weekly, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
+    gatewayPix, pagarmeReady, pagarmeStatus,
   ]);
 
   const saveItem = (clean: MenuItem) => {

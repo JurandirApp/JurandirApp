@@ -34,6 +34,7 @@ enum EstablishmentStatus {
 enum PaymentProvider {
   ASAAS
   MERCADO_PAGO
+  PAGARME
 }
 
 enum PrintJobStatus {
@@ -84,6 +85,11 @@ model Establishment {
   instagram      String?
   paymentProvider  PaymentProvider @default(ASAAS)
   paymentOnboarded Boolean         @default(false)
+  // Gateway escolhido POR MÉTODO (Pix/Crédito/Débito). Default = Mercado Pago,
+  // que é o comportamento efetivo atual.
+  gatewayPix       PaymentProvider @default(MERCADO_PAGO)
+  gatewayCredit    PaymentProvider @default(MERCADO_PAGO)
+  gatewayDebit     PaymentProvider @default(MERCADO_PAGO)
   ownerCpfCnpj     String?
   asaasAccountId   String?
   asaasWalletId    String?
@@ -91,6 +97,10 @@ model Establishment {
   mpAccessToken    String?
   mpRefreshToken   String?
   mpPublicKey      String?
+  // Pagar.me (modelo marketplace): a plataforma tem a conta; cada bar é um
+  // recebedor. Split manda total−comissão pro recebedor do bar.
+  pagarmeRecipientId     String?
+  pagarmeRecipientStatus String?
   // Conta MP conectada consegue gerar QR Pix? (null = não verificado). Se false,
   // o painel avisa o dono pra cadastrar uma chave Pix no Mercado Pago dele.
   mpPixReady       Boolean?

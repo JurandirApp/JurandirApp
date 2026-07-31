@@ -1,6 +1,6 @@
 import { OrderStatus } from "@prisma/client";
 import { prisma } from "./prisma";
-import { getProvider } from "@/lib/payments";
+import { getProviderByName } from "@/lib/payments";
 import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
 
@@ -34,7 +34,7 @@ export async function reconcileByChargeId(gatewayChargeId: string): Promise<void
     include: { order: { include: { establishment: true } } },
   });
   if (!payment?.order || payment.order.status !== OrderStatus.AWAITING_PAYMENT) return;
-  const status = await getProvider().getChargeStatus(
+  const status = await getProviderByName(payment.provider ?? "MERCADO_PAGO").getChargeStatus(
     payment.order.establishment,
     gatewayChargeId,
   );
@@ -54,7 +54,7 @@ export async function reconcileOrder(orderId: string): Promise<void> {
   }
   // Checkout Pro (cartão): o id do pagamento só existe depois que o cliente paga —
   // procura pelo external_reference (código do pedido) e confirma se aprovado.
-  const provider = getProvider();
+  const provider = getProviderByName(order.payment.provider ?? "MERCADO_PAGO");
   if (!provider.findApprovedPayment) return;
   const found = await provider.findApprovedPayment(order.establishment, order.code);
   if (found) {
@@ -95,7 +95,7 @@ export async function payOrderWithCard(
   if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) {
     return { status: "failed" };
   }
-  const provider = getProvider();
+  const provider = getProviderByName(order.payment.provider ?? "MERCADO_PAGO");
   if (!provider.createCardPayment) return { status: "failed" };
   let res;
   try {
@@ -129,7 +129,7 @@ export async function createCardCheckout(orderId: string): Promise<string | null
   });
   if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) return null;
   if (order.payment.method !== "CREDIT" && order.payment.method !== "DEBIT") return null;
-  const provider = getProvider();
+  const provider = getProviderByName(order.payment.provider ?? "MERCADO_PAGO");
   if (!provider.createCheckoutPreference) return null;
   const pref = await provider.createCheckoutPreference({
     est: order.establishment,

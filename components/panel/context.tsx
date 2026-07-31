@@ -5,6 +5,7 @@ import type { MenuItem, Order, PanelPrintJob, ProfileForm, Qr } from "@/lib/data
 import type { MonthlyStatLite } from "@/lib/admin/scale";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
+import type { PagarmeRecipientForm } from "@/lib/validation";
 
 export type TabId =
   | "pedidos"
@@ -118,6 +119,16 @@ export interface PanelValue {
   mpResult: "ok" | "error" | null;
   connectMp: () => void;
   disconnectMp: () => void;
+  // Pagamentos — roteamento por método + Pagar.me (recebedor/split)
+  /** Gateway do Pix: "MERCADO_PAGO" | "PAGARME". */
+  gatewayPix: string;
+  setGatewayPix: (v: string) => void;
+  /** O recebedor Pagar.me já foi cadastrado? (libera o Pix por Pagar.me). */
+  pagarmeReady: boolean;
+  pagarmeStatus: string | null;
+  createPagarmeRecipient: (
+    form: PagarmeRecipientForm,
+  ) => Promise<{ ok: boolean; error?: string }>;
   printJobs: PanelPrintJob[];
   refreshPrintJobs: () => void;
 }

@@ -11,7 +11,7 @@ export function CheckoutScreen() {
   const {
     est, loc, menu, cart, addItem, decItem, removeItem, goMenu,
     note, setNote, mode, setMode, selPay, pickPay,
-    people, pplPlus, pplMinus, paid, setShare, undoShare, paying, finish, openCardPay,
+    people, pplPlus, pplMinus, paid, setShare, undoShare, paying, finish,
   } = useApp();
   const t = useTranslations("app");
   const tPay = useTranslations("app.pay");
@@ -45,10 +45,11 @@ export function CheckoutScreen() {
       ? t("payProcessing")
       : t("payFull", { amount: money(grand) });
     payBg = can ? "#FF6B4A" : "#cbd5e1";
-    // Cartão → Payment Brick (checkout transparente). Pix/USDC → fluxo direto.
-    if (can)
-      onPay = () =>
-        selPay === "credito" || selPay === "debito" ? openCardPay() : finish(null);
+    // Todos os métodos passam pelo fluxo direto. Cartão (crédito/débito) cria o
+    // pedido e redireciona pro Checkout Pro do MP — lá o cliente usa carteira,
+    // Google Pay / Apple Pay e cartões salvos (login em 1 toque), com autofill
+    // nativo, em vez de digitar tudo à mão no Brick transparente.
+    if (can) onPay = () => finish(null);
   } else {
     const can = nPaid > 0 && !paying;
     payLabel = paying

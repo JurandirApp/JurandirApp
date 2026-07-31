@@ -91,6 +91,9 @@ export default async function PainelPage({
       mpConnected={Boolean(est.mpAccessToken)}
       mpPixReady={est.mpPixReady}
       mpResult={mp === "ok" ? "ok" : mp === "error" ? "error" : null}
+      gatewayPix={est.gatewayPix}
+      pagarmeReady={Boolean(est.pagarmeRecipientId)}
+      pagarmeStatus={est.pagarmeRecipientStatus}
     />
   );
 }

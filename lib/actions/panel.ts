@@ -13,6 +13,7 @@ import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
+import { createPagarmeRecipient } from "@/lib/payments/pagarme";
 import { periodRange, type OrdersPeriod } from "@/lib/domain/period";
 import {
   normalizeWeekly,
@@ -30,10 +31,12 @@ const DIAS_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const PRINT_CATEGORIES = ["Alimentos", "Bebidas"];
 import {
   menuItemUpsertSchema,
+  pagarmeRecipientSchema,
   passwordChangeSchema,
   profileSaveSchema,
   qrSpotCreateSchema,
   type MenuItemUpsertInput,
+  type PagarmeRecipientForm,
   type ProfileSaveInput,
 } from "@/lib/validation";
 
@@ -74,6 +77,49 @@ export async function checkPixReadyAction(): Promise<{
   });
   revalidatePath("/painel");
   return { ready: res.ready, reason: res.reason, connected: Boolean(est.mpAccessToken) };
+}
+
+/** Salva o gateway escolhido por método. Pagar.me só vale pro Pix (Fase 1) e
+ *  exige recebedor cadastrado; crédito/débito ficam sempre no Mercado Pago. */
+export async function savePaymentRoutingAction(routing: {
+  pix: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const s = await requireEst();
+  const est = await prisma.establishment.findUnique({
+    where: { id: s.establishmentId! },
+    select: { pagarmeRecipientId: true },
+  });
+  const pix = routing.pix === "PAGARME" ? "PAGARME" : "MERCADO_PAGO";
+  if (pix === "PAGARME" && !est?.pagarmeRecipientId) {
+    return { ok: false, error: "no-recipient" };
+  }
+  await prisma.establishment.update({
+    where: { id: s.establishmentId! },
+    // Crédito/Débito via Pagar.me ainda não implementados → forçados no MP.
+    data: { gatewayPix: pix, gatewayCredit: "MERCADO_PAGO", gatewayDebit: "MERCADO_PAGO" },
+  });
+  revalidatePath("/painel");
+  return { ok: true };
+}
+
+/** Cria o recebedor Pagar.me do estabelecimento (dados bancários + KYC) e o vincula. */
+export async function createPagarmeRecipientAction(
+  input: PagarmeRecipientForm,
+): Promise<{ ok: boolean; error?: string; status?: string }> {
+  const s = await requireEst();
+  const parsed = pagarmeRecipientSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  try {
+    const r = await createPagarmeRecipient(parsed.data);
+    await prisma.establishment.update({
+      where: { id: s.establishmentId! },
+      data: { pagarmeRecipientId: r.id, pagarmeRecipientStatus: r.status },
+    });
+    revalidatePath("/painel");
+    return { ok: true, status: r.status };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message.slice(0, 200) : "error" };
+  }
 }
 
 /** Status recente das comandas de impressão (para o card no painel). */

@@ -8,6 +8,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { usePanel } from "../context";
 import { PrintersManager } from "./PrintersManager";
 import { PrinterSetupGuide } from "./PrinterSetupGuide";
+import { PagarmeManager } from "./PagarmeManager";
 
 const PRINT_STATUS_STYLE: Record<
   string,
@@ -203,6 +204,13 @@ export function ConfigSection() {
               </button>
             </div>
           )}
+        </Card>
+
+        {/* Gateways por método (MP/Pagar.me) + recebedor Pagar.me */}
+        <Card className="md:col-span-2">
+          <CardTitle icon="alt_route">{t("gatewaysTitle")}</CardTitle>
+          <p className="m-0 -mt-2 mb-3.5 text-xs text-ink/50">{t("gatewaysHint")}</p>
+          <PagarmeManager />
         </Card>
 
         {/* Impressão — card largo, 2 colunas: impressoras | agente + comandas */}

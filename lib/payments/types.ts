@@ -66,7 +66,7 @@ export type CardPaymentResult = {
 export type FoundPayment = { paymentId: string; status: ChargeStatus };
 
 export interface PaymentProvider {
-  readonly name: "ASAAS" | "MERCADO_PAGO";
+  readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME";
   createPixCharge(input: PixChargeInput): Promise<PixCharge>;
   getChargeStatus(est: Establishment, chargeId: string): Promise<ChargeStatus>;
   /** Cria a preferência do checkout hospedado e devolve a URL de redirecionamento. */
