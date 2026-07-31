@@ -9,6 +9,7 @@ import { deliverOrder } from "@/lib/db/orders";
 import { upsertMenuItem, deleteMenuItem } from "@/lib/db/menu";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
 import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
+import { reconcileOrder } from "@/lib/db/payments";
 import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
@@ -54,8 +55,22 @@ export async function refreshOrdersAction(period?: OrdersPeriod): Promise<Order[
     where: { id: s.establishmentId! },
     select: { dayStartHour: true },
   });
-  const range = periodRange(period ?? { kind: "hoje" }, est?.dayStartHour ?? 0, Date.now());
-  const rows = await listPanelOrders(s.establishmentId!, range);
+  const p = period ?? { kind: "hoje" };
+  const range = periodRange(p, est?.dayStartHour ?? 0, Date.now());
+  let rows = await listPanelOrders(s.establishmentId!, range);
+  // Auto-reconciliação (só na visão viva "hoje"): confirma pagamentos que já
+  // caíram no Mercado Pago mas não foram marcados como pagos — cliente não
+  // voltou ao app / webhook ausente ou que não cobre cartão. Idempotente; usa o
+  // token do próprio estabelecimento. Teto de 25 (mais recentes) por atualização.
+  if (p.kind === "hoje") {
+    const awaiting = rows
+      .filter((o) => o.status === "AWAITING_PAYMENT" && o.payment)
+      .slice(0, 25);
+    if (awaiting.length) {
+      await Promise.all(awaiting.map((o) => reconcileOrder(o.id).catch(() => {})));
+      rows = await listPanelOrders(s.establishmentId!, range);
+    }
+  }
   return rows.map(toPanelOrder);
 }
 
