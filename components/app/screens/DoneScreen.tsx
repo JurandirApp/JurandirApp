@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { money } from "@/lib/panel/helpers";
@@ -11,6 +12,19 @@ export function DoneScreen() {
   const t = useTranslations("app");
   const tPay = useTranslations("app.pay");
   const L = lastOrder!;
+  const [copied, setCopied] = useState(false);
+
+  // Copia o Pix copia-e-cola e mostra o retorno "Copiado!" por 2s.
+  const copyPix = () => {
+    if (!L.pixPayload) return;
+    try {
+      navigator.clipboard?.writeText(L.pixPayload);
+    } catch {
+      /* clipboard indisponível — segue mostrando o feedback mesmo assim */
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
 
   // Pix cheio que passou dos 15 min: QR morto no MP → estado "expirado".
   const expired = Boolean(L.expired);
@@ -150,10 +164,15 @@ export function DoneScreen() {
           )}
           <button
             type="button"
-            onClick={() => navigator.clipboard?.writeText(L.pixPayload!)}
-            className="mt-3 w-full rounded-xl bg-ink py-3 text-[14px] font-bold text-sand"
+            onClick={copyPix}
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-3 text-[14px] font-bold transition-colors"
+            style={{
+              background: copied ? "#10b981" : "#141821",
+              color: copied ? "#fff" : "#EDD8A3",
+            }}
           >
-            {t("pixCopy")}
+            <Icon name={copied ? "check" : "content_copy"} size={16} />
+            {copied ? t("pixCopied") : t("pixCopy")}
           </button>
           <p className="m-0 mt-3 text-[13px] text-[#d97706]">{t("pixWaiting")}</p>
         </div>
