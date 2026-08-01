@@ -113,6 +113,61 @@ describe("pagarmeProvider.getChargeStatus", () => {
   });
 });
 
+describe("pagarmeProvider.createCheckoutPreference (cartão)", () => {
+  it("crédito: cria checkout hospedado com split e devolve a URL", async () => {
+    const fn = seq([
+      { id: "or_c", status: "pending", checkouts: [{ id: "co_1", payment_url: "https://checkout.pagar.me/xyz" }] },
+    ]);
+    const r = await pagarmeProvider.createCheckoutPreference!({
+      est,
+      reference: "PED-9",
+      total: 100,
+      platformFee: 8,
+      items: [{ title: "Pedido PED-9", quantity: 1, unitPrice: 100 }],
+      description: "Pedido PED-9",
+      method: "CREDIT",
+    });
+    expect(r).toEqual({ preferenceId: "co_1", checkoutUrl: "https://checkout.pagar.me/xyz" });
+    const body = JSON.parse(fn.mock.calls[0][1].body as string);
+    expect(body.code).toBe("PED-9");
+    const pay = body.payments[0];
+    expect(pay.payment_method).toBe("checkout");
+    expect(pay.checkout.accepted_payment_methods).toEqual(["credit_card"]);
+    expect(pay.split[0].recipient_id).toBe("rp_bar");
+    expect(pay.split[0].amount + pay.split[1].amount).toBe(10000);
+  });
+
+  it("débito: restringe a debit_card e não manda credit_card", async () => {
+    const fn = seq([{ id: "or_d", checkouts: [{ id: "co_2", payment_url: "u" }] }]);
+    await pagarmeProvider.createCheckoutPreference!({
+      est,
+      reference: "PED-10",
+      total: 50,
+      platformFee: 4,
+      items: [{ title: "x", quantity: 1, unitPrice: 50 }],
+      description: "x",
+      method: "DEBIT",
+    });
+    const body = JSON.parse(fn.mock.calls[0][1].body as string);
+    expect(body.payments[0].checkout.accepted_payment_methods).toEqual(["debit_card"]);
+    expect(body.payments[0].checkout.credit_card).toBeUndefined();
+  });
+});
+
+describe("pagarmeProvider.findApprovedPayment", () => {
+  it("acha a cobrança paga pelo code do pedido", async () => {
+    seq([{ data: [{ id: "or_1", status: "paid", charges: [{ id: "ch_9", status: "paid" }] }] }]);
+    expect(await pagarmeProvider.findApprovedPayment!(est, "PED-9")).toEqual({
+      paymentId: "ch_9",
+      status: "paid",
+    });
+  });
+  it("devolve null quando nenhuma cobrança pagou", async () => {
+    seq([{ data: [] }]);
+    expect(await pagarmeProvider.findApprovedPayment!(est, "PED-9")).toBeNull();
+  });
+});
+
 describe("createPagarmeRecipient", () => {
   it("cria recebedor PF com conta bancária + register_information", async () => {
     const fn = seq([{ id: "re_new", status: "registration" }]);

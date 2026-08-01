@@ -5,6 +5,9 @@ import type {
   PixCharge,
   PixChargeInput,
   ChargeStatus,
+  CheckoutPreferenceInput,
+  CheckoutPreference,
+  FoundPayment,
 } from "./types";
 
 // Pagar.me v5 (modelo marketplace): a PLATAFORMA tem a conta (secret key). Cada
@@ -13,6 +16,9 @@ import type {
 const baseUrl = () => process.env.PAGARME_BASE_URL ?? "https://api.pagar.me/core/v5";
 const secretKey = () => process.env.PAGARME_SECRET_KEY ?? "";
 const platformRecipient = () => process.env.PAGARME_PLATFORM_RECIPIENT_ID ?? "";
+/** Base pública do app (success_url do checkout hospedado). */
+const appBase = () =>
+  (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 /** Basic auth do Pagar.me: usuário = secret key, senha vazia. */
 function authHeader(): string {
@@ -139,6 +145,64 @@ export const pagarmeProvider: PaymentProvider = {
   async getChargeStatus(_est: Establishment, chargeId: string): Promise<ChargeStatus> {
     const c = await call<PgCharge>(`/charges/${chargeId}`);
     return mapStatus(c.status);
+  },
+  // Cartão (crédito/débito) via CHECKOUT HOSPEDADO do Pagar.me: cria um pedido de
+  // checkout com split e devolve a URL pro cliente pagar (3DS do débito acontece
+  // lá). Mesmo padrão de redirect do Checkout Pro do MP.
+  async createCheckoutPreference(input: CheckoutPreferenceInput): Promise<CheckoutPreference> {
+    const { est, reference, total, platformFee, items, method } = input;
+    if (!est.pagarmeRecipientId) {
+      throw new PagarmeError(400, "estabelecimento sem recebedor Pagar.me");
+    }
+    const totalCents = cents(total);
+    const accepted = method === "DEBIT" ? ["debit_card"] : ["credit_card"];
+    const body = {
+      code: reference,
+      items: items.map((i) => ({
+        amount: cents(i.unitPrice),
+        description: i.title,
+        quantity: i.quantity,
+        code: reference,
+      })),
+      customer: {
+        name: "Cliente Jurandir",
+        email: "comprador@jurandir.app.br",
+        type: "individual",
+      },
+      payments: [
+        {
+          payment_method: "checkout",
+          checkout: {
+            accepted_payment_methods: accepted,
+            success_url: `${appBase()}/pt/${est.slug}?paid=1`,
+            expires_in: 3600,
+            // Crédito à vista (1x). Parcelamento pode entrar depois.
+            ...(method === "DEBIT"
+              ? {}
+              : { credit_card: { installments: [{ number: 1, total: totalCents }] } }),
+          },
+          split: buildSplit(est, totalCents, cents(platformFee)),
+        },
+      ],
+    };
+    const order = await call<PgOrder & { checkouts?: { id?: string; payment_url?: string }[] }>(
+      "/orders",
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    const co = order.checkouts?.[0];
+    return { preferenceId: co?.id ?? order.id, checkoutUrl: co?.payment_url ?? "" };
+  },
+  // Reconciliação do checkout (o id da cobrança só existe depois que o cliente
+  // paga): busca o pedido pelo nosso `code` e confirma se alguma cobrança pagou.
+  async findApprovedPayment(_est: Establishment, reference: string): Promise<FoundPayment | null> {
+    const r = await call<{ data?: PgOrder[] }>(
+      `/orders?code=${encodeURIComponent(reference)}`,
+    );
+    for (const o of r.data ?? []) {
+      const paid = (o.charges ?? []).find((c) => mapStatus(c.status) === "paid");
+      if (paid?.id) return { paymentId: paid.id, status: "paid" };
+    }
+    return null;
   },
 };
 

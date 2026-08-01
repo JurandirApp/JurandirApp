@@ -19,7 +19,7 @@ const GATEWAYS = [
 // Qual gateway implementa qual método hoje (o resto aparece como "em breve").
 const CAP: Record<string, Record<MethodKey, boolean>> = {
   MERCADO_PAGO: { pix: true, credit: true, debit: true },
-  PAGARME: { pix: true, credit: false, debit: false },
+  PAGARME: { pix: true, credit: true, debit: true },
   INFINITEPAY: { pix: false, credit: false, debit: false },
 };
 
