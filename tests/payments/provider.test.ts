@@ -31,5 +31,6 @@ describe("getProvider", () => {
   it("resolve o provider pelo método configurado", () => {
     expect(getProvider(est(), "PIX").name).toBe("MERCADO_PAGO");
     expect(getProvider(est({ gatewayPix: "PAGARME" }), "PIX").name).toBe("PAGARME");
+    expect(getProvider(est({ gatewayPix: "ASAAS" }), "PIX").name).toBe("ASAAS");
   });
 });

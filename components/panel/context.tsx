@@ -138,6 +138,10 @@ export interface PanelValue {
     base64?: string;
     error?: string;
   }>;
+  /** A subconta Asaas já foi criada? (libera o Pix por Asaas na matriz). */
+  asaasReady: boolean;
+  /** Cria a subconta Asaas com o CPF/CNPJ informado (split self-serve). */
+  connectAsaas: (cpfCnpj: string) => Promise<{ ok: boolean; error?: string }>;
   printJobs: PanelPrintJob[];
   refreshPrintJobs: () => void;
 }

@@ -16,6 +16,7 @@ import {
   addQrSpotAction,
   changePasswordAction,
   checkPixReadyAction,
+  connectAsaasAction,
   createPagarmeRecipientAction,
   generatePagarmeKycLinkAction,
   deleteMenuItemAction,
@@ -87,6 +88,7 @@ export function PanelApp({
   gatewayDebit: gatewayDebit0,
   pagarmeReady: pagarmeReady0,
   pagarmeStatus: pagarmeStatus0,
+  asaasReady: asaasReady0,
 }: {
   now: number;
   slug: string;
@@ -109,6 +111,7 @@ export function PanelApp({
   gatewayDebit: string;
   pagarmeReady: boolean;
   pagarmeStatus: string | null;
+  asaasReady: boolean;
 }) {
   const t = useTranslations("panel");
   const beach = true; // Quiosque do Mar (mock)
@@ -157,6 +160,7 @@ export function PanelApp({
   const [gatewayDebit, setGatewayDebitState] = useState(gatewayDebit0);
   const [pagarmeReady, setPagarmeReady] = useState(pagarmeReady0);
   const [pagarmeStatus, setPagarmeStatus] = useState<string | null>(pagarmeStatus0);
+  const [asaasReady, setAsaasReady] = useState(asaasReady0);
   const [prMsg, setPrMsg] = useState<string | null>(null);
   const [toggles, setToggles] = useState<Toggles>({ auto: true, wa: true, em: true });
 
@@ -537,6 +541,12 @@ export function PanelApp({
         return { ok: r.ok, error: r.error };
       },
       generatePagarmeKycLink: () => generatePagarmeKycLinkAction(),
+      asaasReady,
+      connectAsaas: async (cpfCnpj: string) => {
+        const r = await connectAsaasAction(cpfCnpj);
+        if (r.ok) setAsaasReady(true);
+        return r;
+      },
       printJobs,
       refreshPrintJobs: () => {
         refreshPrintJobsAction()
@@ -550,7 +560,7 @@ export function PanelApp({
     itemCat, qrLabel, aud, audPage, profile, weekly, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
-    gatewayPix, gatewayCredit, gatewayDebit, pagarmeReady, pagarmeStatus,
+    gatewayPix, gatewayCredit, gatewayDebit, pagarmeReady, pagarmeStatus, asaasReady,
   ]);
 
   const saveItem = (clean: MenuItem) => {

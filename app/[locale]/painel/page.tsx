@@ -96,6 +96,7 @@ export default async function PainelPage({
       gatewayDebit={est.gatewayDebit}
       pagarmeReady={Boolean(est.pagarmeRecipientId)}
       pagarmeStatus={est.pagarmeRecipientStatus}
+      asaasReady={Boolean(est.asaasWalletId)}
     />
   );
 }

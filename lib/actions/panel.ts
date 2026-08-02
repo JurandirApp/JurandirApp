@@ -15,6 +15,7 @@ import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adap
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
 import { createPagarmeRecipient, getPagarmeKycLink } from "@/lib/payments/pagarme";
+import { createSubaccount } from "@/lib/payments/asaas";
 import { periodRange, type OrdersPeriod } from "@/lib/domain/period";
 import {
   normalizeWeekly,
@@ -99,6 +100,7 @@ export async function checkPixReadyAction(): Promise<{
 const GATEWAY_CAP: Record<string, { pix: boolean; credit: boolean; debit: boolean }> = {
   MERCADO_PAGO: { pix: true, credit: true, debit: true },
   PAGARME: { pix: true, credit: true, debit: true },
+  ASAAS: { pix: true, credit: false, debit: false },
   INFINITEPAY: { pix: false, credit: false, debit: false },
 };
 
@@ -112,13 +114,20 @@ export async function savePaymentRoutingAction(routing: {
   const s = await requireEst();
   const est = await prisma.establishment.findUnique({
     where: { id: s.establishmentId! },
-    select: { pagarmeRecipientId: true },
+    select: { pagarmeRecipientId: true, asaasWalletId: true },
   });
-  const pagarmeReady = Boolean(est?.pagarmeRecipientId);
-  const resolve = (v: string, method: "pix" | "credit" | "debit"): "MERCADO_PAGO" | "PAGARME" => {
-    if (v !== "PAGARME") return "MERCADO_PAGO"; // MP faz tudo; INFINITEPAY ainda não
-    if (!GATEWAY_CAP.PAGARME[method] || !pagarmeReady) return "MERCADO_PAGO";
-    return "PAGARME";
+  const ready: Record<string, boolean> = {
+    PAGARME: Boolean(est?.pagarmeRecipientId),
+    ASAAS: Boolean(est?.asaasWalletId),
+  };
+  const resolve = (
+    v: string,
+    method: "pix" | "credit" | "debit",
+  ): "MERCADO_PAGO" | "PAGARME" | "ASAAS" => {
+    // MP faz tudo (fallback). Os demais só se implementam o método E estão prontos.
+    if (v !== "PAGARME" && v !== "ASAAS") return "MERCADO_PAGO";
+    if (!GATEWAY_CAP[v]?.[method] || !ready[v]) return "MERCADO_PAGO";
+    return v;
   };
   const pix = resolve(routing.pix, "pix");
   const credit = resolve(routing.credit, "credit");
@@ -172,6 +181,29 @@ export async function generatePagarmeKycLinkAction(): Promise<{
     return { ok: true, url: link.url, base64: link.base64 };
   } catch {
     return { ok: false, error: "not-ready" };
+  }
+}
+
+/** Cria a subconta Asaas do estabelecimento (self-serve, split via wallet). Usa
+ *  o CPF/CNPJ informado + os dados do Perfil. Libera o Pix por Asaas na matriz. */
+export async function connectAsaasAction(
+  cpfCnpj: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const s = await requireEst();
+  const doc = (cpfCnpj ?? "").replace(/\D/g, "");
+  if (doc.length !== 11 && doc.length !== 14) return { ok: false, error: "cpf" };
+  const est = await prisma.establishment.findUnique({ where: { id: s.establishmentId! } });
+  if (!est) return { ok: false, error: "error" };
+  try {
+    const { accountId, walletId } = await createSubaccount({ ...est, ownerCpfCnpj: doc });
+    await prisma.establishment.update({
+      where: { id: est.id },
+      data: { ownerCpfCnpj: doc, asaasAccountId: accountId, asaasWalletId: walletId },
+    });
+    revalidatePath("/painel");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message.slice(0, 200) : "error" };
   }
 }
 

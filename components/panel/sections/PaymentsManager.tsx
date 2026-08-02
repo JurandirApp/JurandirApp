@@ -13,6 +13,7 @@ type MethodKey = "pix" | "credit" | "debit";
 const GATEWAYS = [
   { id: "MERCADO_PAGO", label: "Mercado Pago" },
   { id: "PAGARME", label: "Pagar.me" },
+  { id: "ASAAS", label: "Asaas" },
   { id: "INFINITEPAY", label: "InfinitePay" },
 ] as const;
 
@@ -20,6 +21,7 @@ const GATEWAYS = [
 const CAP: Record<string, Record<MethodKey, boolean>> = {
   MERCADO_PAGO: { pix: true, credit: true, debit: true },
   PAGARME: { pix: true, credit: true, debit: true },
+  ASAAS: { pix: true, credit: false, debit: false },
   INFINITEPAY: { pix: false, credit: false, debit: false },
 };
 
@@ -37,6 +39,7 @@ export function PaymentsManager() {
     setGateway,
     mpConnected,
     pagarmeReady,
+    asaasReady,
     createPagarmeRecipient,
     toast,
   } = usePanel();
@@ -48,8 +51,13 @@ export function PaymentsManager() {
     credit: gatewayCredit,
     debit: gatewayDebit,
   };
-  const isReady = (g: string) =>
-    g === "MERCADO_PAGO" ? true : g === "PAGARME" ? pagarmeReady : false;
+  const readyMap: Record<string, boolean> = {
+    MERCADO_PAGO: true,
+    PAGARME: pagarmeReady,
+    ASAAS: asaasReady,
+    INFINITEPAY: false,
+  };
+  const isReady = (g: string) => readyMap[g] ?? false;
 
   return (
     <div>
@@ -63,7 +71,7 @@ export function PaymentsManager() {
               <Icon name={m.icon} size={14} className="text-ocean-700" />
               {t(`method_${m.key}`)}
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {GATEWAYS.map((g) => {
                 const impl = CAP[g.id][m.key];
                 const ready = isReady(g.id);
@@ -71,13 +79,13 @@ export function PaymentsManager() {
                 const selected = current[m.key] === g.id;
                 const note = !impl
                   ? t("soon")
-                  : g.id === "PAGARME"
-                    ? ready
-                      ? t("pgRecipientReady")
-                      : t("needsSetup")
-                    : mpConnected
+                  : g.id === "MERCADO_PAGO"
+                    ? mpConnected
                       ? t("pgConnected")
-                      : t("pgSingleAccount");
+                      : t("pgSingleAccount")
+                    : ready
+                      ? t("pgRecipientReady")
+                      : t("needsSetup");
                 return (
                   <GatewayCell
                     key={g.id}
@@ -100,6 +108,7 @@ export function PaymentsManager() {
         <div className="flex flex-col gap-2">
           <MpConnection />
           <PagarmeConnection onOpen={() => setModal(true)} />
+          <AsaasConnection />
           <SoonConnection />
         </div>
       </div>
@@ -229,6 +238,67 @@ function PagarmeConnection({ onOpen }: { onOpen: () => void }) {
             <Icon name="add_business" size={15} />
             {t("pgCreateRecipient")}
           </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Conexão do Asaas — cria a subconta (split self-serve) com o CPF/CNPJ. */
+function AsaasConnection() {
+  const { asaasReady, connectAsaas, toast } = usePanel();
+  const t = useTranslations("panel.config");
+  const [cpf, setCpf] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const connect = async () => {
+    setErr(null);
+    const digits = onlyDigits(cpf).length;
+    if (digits !== 11 && digits !== 14) {
+      setErr(t("asaasCpfInvalid"));
+      return;
+    }
+    setLoading(true);
+    const r = await connectAsaas(cpf);
+    setLoading(false);
+    if (r.ok) toast(t("asaasConnected"));
+    else setErr(r.error === "cpf" ? t("asaasCpfInvalid") : r.error || t("asaasError"));
+  };
+
+  return (
+    <div className="rounded-xl border-2 border-ink/10 p-3">
+      <p className="m-0 mb-2 text-sm font-semibold text-ink/80">Asaas</p>
+      {asaasReady ? (
+        <p className="m-0 flex items-center gap-1.5 text-xs font-medium text-[#059669]">
+          <Icon name="check_circle" size={14} />
+          {t("asaasConnected")}
+        </p>
+      ) : (
+        <>
+          <p className="m-0 mb-2 text-[11px] leading-relaxed text-ink/45">{t("asaasHint")}</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block min-w-[160px] flex-1">
+              <span className="text-[11px] font-medium text-ink/55">{t("asaasCpf")}</span>
+              <Input
+                value={cpf}
+                onChange={(e) => setCpf(maskDoc(e.target.value))}
+                inputMode="numeric"
+                placeholder="CPF ou CNPJ"
+                className="mt-1"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={connect}
+              disabled={loading}
+              className="flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2.5 text-xs font-bold text-sand disabled:opacity-50"
+            >
+              <Icon name={loading ? "hourglass_empty" : "link"} size={15} />
+              {loading ? t("asaasConnecting") : t("asaasConnect")}
+            </button>
+          </div>
+          {err && <p className="m-0 mt-2 text-xs font-medium text-[#e11d48]">{err}</p>}
         </>
       )}
     </div>
@@ -407,6 +477,10 @@ function formatPhone(v: string): string {
   if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d*)/, "($1) $2-$3");
   return d.replace(/(\d{2})(\d{5})(\d*)/, "($1) $2-$3");
 }
+
+/** Máscara que alterna CPF/CNPJ pelo tamanho (≤11 = CPF). */
+const maskDoc = (v: string) =>
+  formatDoc(v, onlyDigits(v).length > 11 ? "corporation" : "individual");
 
 function RecipientModal({
   onClose,
