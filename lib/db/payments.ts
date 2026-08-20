@@ -1,4 +1,4 @@
-import { OrderStatus } from "@prisma/client";
+import { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getProviderByName } from "@/lib/payments";
 import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
@@ -55,9 +55,15 @@ export async function reconcileByChargeId(gatewayChargeId: string): Promise<void
 export async function reconcileOrder(orderId: string): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { establishment: true, payment: true },
+    include: { establishment: true, payment: true, splitShares: true },
   });
-  if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) return;
+  if (!order || order.status !== OrderStatus.AWAITING_PAYMENT) return;
+  // Split real: reconcilia cada parte (Pix por pessoa).
+  if (order.splitShares.length > 0) {
+    await reconcileSplitShares(order);
+    return;
+  }
+  if (!order.payment) return;
   // Pix (ou cobrança com id já conhecido): reconcilia pelo id do gateway.
   if (order.payment.gatewayChargeId) {
     await reconcileByChargeId(order.payment.gatewayChargeId);
@@ -74,6 +80,39 @@ export async function reconcileOrder(orderId: string): Promise<void> {
       data: { gatewayChargeId: found.paymentId },
     });
     await confirmChargePaid(found.paymentId);
+  }
+}
+
+/** Reconcilia as partes de um pedido dividido: consulta cada cobrança Pix, marca
+ *  as pagas e, quando TODAS caem, o pedido vai pra produção (+ impressão). */
+async function reconcileSplitShares(
+  order: Prisma.OrderGetPayload<{ include: { establishment: true; splitShares: true } }>,
+): Promise<void> {
+  let changed = false;
+  for (const sh of order.splitShares) {
+    if (sh.paid || !sh.gatewayChargeId) continue;
+    const status = await getProviderByName(sh.provider ?? "PAGARME").getChargeStatus(
+      order.establishment,
+      sh.gatewayChargeId,
+    );
+    if (status === "paid") {
+      await prisma.splitShare.update({
+        where: { id: sh.id },
+        data: { paid: true, paidAt: new Date() },
+      });
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  const remaining = await prisma.splitShare.count({
+    where: { orderId: order.id, paid: false },
+  });
+  if (remaining === 0) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: OrderStatus.IN_PRODUCTION },
+    });
+    await enqueuePrintJob(order.id);
   }
 }
 
@@ -123,6 +162,44 @@ export async function payOrderWithCard(
     return { status: "failed", statusDetail: mpErrorDetail(e) };
   }
   // Guarda o id do pagamento (permite reconciliar pending depois, se for o caso).
+  await prisma.payment.update({
+    where: { id: order.payment.id },
+    data: { gatewayChargeId: res.chargeId },
+  });
+  if (res.status === "paid") await confirmChargePaid(res.chargeId);
+  return { status: res.status, statusDetail: res.statusDetail };
+}
+
+/** Cobra o pedido via carteira nativa (Google Pay / Apple Pay) usando o token do
+ *  app. Aprovado → confirma e vai pra produção. */
+export async function payOrderWithWallet(
+  orderId: string,
+  walletType: "google_pay" | "apple_pay",
+  token: string,
+): Promise<{ status: ChargeStatus; statusDetail?: string }> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { establishment: true, payment: true },
+  });
+  if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) {
+    return { status: "failed" };
+  }
+  const provider = getProviderByName(order.payment.provider ?? "PAGARME");
+  if (!provider.createWalletPayment) return { status: "failed", statusDetail: "gateway sem wallet" };
+  let res;
+  try {
+    res = await provider.createWalletPayment({
+      est: order.establishment,
+      reference: order.code,
+      total: Number(order.total),
+      platformFee: Number(order.platformFee),
+      description: `Pedido ${order.code}`,
+      walletType,
+      token,
+    });
+  } catch (e) {
+    return { status: "failed", statusDetail: e instanceof Error ? e.message.slice(0, 160) : "erro" };
+  }
   await prisma.payment.update({
     where: { id: order.payment.id },
     data: { gatewayChargeId: res.chargeId },

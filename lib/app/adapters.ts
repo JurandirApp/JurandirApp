@@ -82,11 +82,24 @@ type DbOrder = {
   createdAt: Date; subtotal: unknown; platformFee: unknown; serviceFee: unknown;
   items: { qty: number; name: string; unitPrice: unknown }[];
   payment: { method: string; installments: number; pixPayload: string | null; pixQrImage: string | null } | null;
-  splitShares: { personIndex: number; method: string | null; paid: boolean; amount: unknown }[];
+  splitShares: {
+    personIndex: number;
+    method: string | null;
+    paid: boolean;
+    amount: unknown;
+    pixPayload?: string | null;
+    pixQrImage?: string | null;
+  }[];
 };
 export function toClientOrder(o: DbOrder): ClientOrder {
   const splits: Share[] | null = o.splitShares.length
-    ? o.splitShares.map((s) => ({ m: s.method ? ENUM_TO_APP[s.method] : null, amount: num(s.amount) }))
+    ? o.splitShares.map((s) => ({
+        m: s.method ? ENUM_TO_APP[s.method] : null,
+        amount: num(s.amount),
+        paid: s.paid,
+        pixPayload: s.pixPayload ?? undefined,
+        pixQrImage: s.pixQrImage ?? undefined,
+      }))
     : null;
   return {
     id: o.number,

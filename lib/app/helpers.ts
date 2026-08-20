@@ -9,8 +9,16 @@ export const EST_FEE_PCT = 10;
 
 export type CartLine = { id: number; qty: number };
 
-/** A friend's share in a split bill: their payment method (or unpaid) + amount. */
-export type Share = { m: PayId | null; amount: number };
+/** A friend's share in a split bill: their payment method (or unpaid) + amount.
+ *  No split REAL por Pix, cada parte é uma cobrança Pix própria: `paid` diz se já
+ *  caiu, `pixPayload`/`pixQrImage` são o copia-e-cola + QR daquela pessoa. */
+export type Share = {
+  m: PayId | null;
+  amount: number;
+  paid?: boolean;
+  pixPayload?: string;
+  pixQrImage?: string;
+};
 
 export type ClientOrder = {
   id: number;
@@ -89,10 +97,14 @@ export function makeOrderCode(): string {
   );
 }
 
+/** "Pago" = flag `paid` (split real por Pix) com fallback pro método escolhido
+ *  (compatibilidade com o modelo antigo de simulação). */
+const isSharePaid = (s: Share): boolean => s.paid ?? !!s.m;
+
 export function paidCount(splits: Share[]): number {
-  return splits.filter((s) => s.m).length;
+  return splits.filter(isSharePaid).length;
 }
 
 export function paidAmount(splits: Share[]): number {
-  return splits.reduce((s, x) => s + (x.m ? x.amount : 0), 0);
+  return splits.reduce((s, x) => s + (isSharePaid(x) ? x.amount : 0), 0);
 }

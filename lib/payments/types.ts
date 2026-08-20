@@ -65,6 +65,18 @@ export type CardPaymentResult = {
 /** Pagamento aprovado localizado por referência externa (Checkout Pro não devolve o id na criação). */
 export type FoundPayment = { paymentId: string; status: ChargeStatus };
 
+/** Cobrança de carteira nativa (Google Pay / Apple Pay) — token vindo do app. */
+export type WalletPaymentInput = {
+  est: Establishment;
+  reference: string; // order.code
+  total: number;
+  platformFee: number;
+  description: string;
+  walletType: "google_pay" | "apple_pay";
+  /** Token bruto da carteira (JSON), como o `pay` plugin devolve em tokenizationData.token. */
+  token: string;
+};
+
 export interface PaymentProvider {
   readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME";
   createPixCharge(input: PixChargeInput): Promise<PixCharge>;
@@ -73,6 +85,8 @@ export interface PaymentProvider {
   createCheckoutPreference?(input: CheckoutPreferenceInput): Promise<CheckoutPreference>;
   /** Cobra um cartão via token (checkout transparente / Payment Brick) — sem redirect. */
   createCardPayment?(input: CardPaymentInput): Promise<CardPaymentResult>;
+  /** Cobra via carteira nativa (Google Pay / Apple Pay) usando o token do app. */
+  createWalletPayment?(input: WalletPaymentInput): Promise<CardPaymentResult>;
   /** Busca um pagamento aprovado pela referência externa (order.code). */
   findApprovedPayment?(est: Establishment, reference: string): Promise<FoundPayment | null>;
 }

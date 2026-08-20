@@ -38,22 +38,24 @@ export async function createOrder(input: OrderCreateInput) {
   const payment = data.payment;
   const amounts =
     payment.kind === "split" ? splitShares(total, payment.shares.length) : [];
-  const allPaid =
-    payment.kind === "split" ? payment.shares.every((s) => s.method !== null) : true;
 
-  // Mercado Pago é o gateway FIXO: todo pagamento cheio (Pix/cartão) gera
-  // cobrança real, sem depender de "onboarding".
-  //  - Pix  → cobrança direta (QR na hora, aqui).
+  // Gateway FIXO por método; toda cobrança cheia (Pix/cartão) é real.
+  //  - Pix (cheio)  → cobrança direta (QR na hora, aqui).
+  //  - Split        → uma cobrança Pix POR PESSOA (compartilhável); o pedido vai
+  //    pra produção quando TODAS as partes forem pagas (reconcile).
   //  - Cartão (crédito/débito) → Checkout Pro; aqui o pedido só nasce
   //    AWAITING_PAYMENT e a preferência/URL é criada na action (createCardCheckout).
   const isPixGateway = payment.kind === "full" && payment.method === "PIX";
   const isCardGateway =
     payment.kind === "full" &&
     (payment.method === "CREDIT" || payment.method === "DEBIT");
+  const isSplit = payment.kind === "split";
   const useGateway = isPixGateway || isCardGateway;
-  // Gateway resolvido pelo método (Pix/Crédito/Débito) escolhido no app.
+  // Gateway resolvido pelo método escolhido (split é sempre Pix).
   const providerName =
     payment.kind === "full" ? resolveGateway(est, payment.method) : null;
+  const splitProvider = isSplit ? resolveGateway(est, "PIX") : null;
+
   let pix: PixCharge | null = null;
   if (isPixGateway) {
     pix = await getProvider(est, "PIX").createPixCharge({
@@ -66,11 +68,29 @@ export async function createOrder(input: OrderCreateInput) {
     });
   }
 
-  const status = useGateway
-    ? OrderStatus.AWAITING_PAYMENT
-    : allPaid
-      ? OrderStatus.IN_PRODUCTION
-      : OrderStatus.AWAITING_PAYMENT;
+  // Split: uma cobrança Pix por parte (o valor de cada pessoa).
+  let shareCharges: (PixCharge | null)[] = [];
+  if (isSplit) {
+    const provider = getProvider(est, "PIX");
+    shareCharges = await Promise.all(
+      amounts.map((amt, i) =>
+        provider
+          .createPixCharge({
+            est,
+            reference: `${code}-P${i + 1}`,
+            total: amt,
+            platformFee: 0,
+            customerName: data.customerName ?? undefined,
+            description: `Pedido ${code} — parte ${i + 1}/${amounts.length}`,
+          })
+          .catch(() => null),
+      ),
+    );
+  }
+
+  // Split fica AWAITING até todas as partes caírem (reconcile).
+  const status =
+    useGateway || isSplit ? OrderStatus.AWAITING_PAYMENT : OrderStatus.IN_PRODUCTION;
 
   const created = await prisma.order.create({
     data: {
@@ -113,12 +133,16 @@ export async function createOrder(input: OrderCreateInput) {
           }
         : {
             splitShares: {
-              create: payment.shares.map((s, idx) => ({
+              create: payment.shares.map((_s, idx) => ({
                 personIndex: idx,
                 amount: amounts[idx],
-                method: s.method,
-                paid: s.method !== null,
-                paidAt: s.method !== null ? new Date() : null,
+                method: "PIX" as PaymentMethod,
+                paid: false,
+                paidAt: null,
+                provider: splitProvider,
+                gatewayChargeId: shareCharges[idx]?.chargeId ?? null,
+                pixPayload: shareCharges[idx]?.pixPayload ?? null,
+                pixQrImage: shareCharges[idx]?.pixQrImage ?? null,
               })),
             },
           }),

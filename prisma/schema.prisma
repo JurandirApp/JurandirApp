@@ -263,6 +263,11 @@ model SplitShare {
   method      PaymentMethod?
   paid        Boolean        @default(false)
   paidAt      DateTime?
+  // Split REAL por Pix: cada parte é uma cobrança Pix própria (Pagar.me).
+  provider        PaymentProvider?
+  gatewayChargeId String?
+  pixPayload      String?
+  pixQrImage      String?
 
   @@unique([orderId, personIndex])
 }

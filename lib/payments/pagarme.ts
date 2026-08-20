@@ -8,6 +8,8 @@ import type {
   CheckoutPreferenceInput,
   CheckoutPreference,
   FoundPayment,
+  WalletPaymentInput,
+  CardPaymentResult,
 } from "./types";
 
 // Pagar.me v5 (modelo marketplace): a PLATAFORMA tem a conta (secret key). Cada
@@ -16,6 +18,32 @@ import type {
 const baseUrl = () => process.env.PAGARME_BASE_URL ?? "https://api.pagar.me/core/v5";
 const secretKey = () => process.env.PAGARME_SECRET_KEY ?? "";
 const platformRecipient = () => process.env.PAGARME_PLATFORM_RECIPIENT_ID ?? "";
+/** CPF do pagador. O Pix (e cartão) da Pagar.me exige `customer.document`.
+ *  Enquanto o checkout não coleta o CPF do cliente, usa um CPF de TESTE válido
+ *  (env PAGARME_TEST_CPF). PRODUÇÃO: coletar o CPF real do pagador no app. */
+const payerDocument = () => (process.env.PAGARME_TEST_CPF ?? "11144477735").replace(/\D/g, "");
+
+/** Customer da Pagar.me. O Pix exige `document` (CPF) e ao menos um `phone`.
+ *  Enquanto o checkout não coleta esses dados do cliente anônimo, usa valores de
+ *  TESTE válidos (envs PAGARME_TEST_CPF / PAGARME_TEST_PHONE, este com DDI+DDD+nº).
+ *  E-mail único por pedido evita a Pagar.me reusar um customer antigo sem CPF.
+ *  PRODUÇÃO: coletar CPF e telefone reais do pagador no app. */
+function buildCustomer(reference: string, name?: string) {
+  const phone = (process.env.PAGARME_TEST_PHONE ?? "5547999990000").replace(/\D/g, "");
+  return {
+    name: name || "Cliente Jurandir",
+    email: `pedido-${reference.toLowerCase()}@jurandir.app.br`,
+    type: "individual" as const,
+    document: payerDocument(),
+    phones: {
+      mobile_phone: {
+        country_code: phone.slice(0, 2) || "55",
+        area_code: phone.slice(2, 4) || "47",
+        number: phone.slice(4) || "999990000",
+      },
+    },
+  };
+}
 /** Base pública do app (success_url do checkout hospedado). */
 const appBase = () =>
   (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
@@ -82,45 +110,125 @@ async function qrImageBase64(url: string | undefined): Promise<string> {
   }
 }
 
-/** Regras de split: bar recebe total−comissão (arca com a taxa do gateway) + plataforma. */
+/** Recebedor do estabelecimento; cai no recebedor da PLATAFORMA quando o estab.
+ *  ainda não tem recebedor próprio — permite testar cobranças reais só com as
+ *  credenciais do `.env`, antes de cada bar concluir o KYC na Pagar.me. */
+function recipientFor(est: Establishment): string {
+  const id = est.pagarmeRecipientId ?? platformRecipient();
+  if (!id) throw new PagarmeError(400, "sem recebedor Pagar.me (estabelecimento e plataforma)");
+  return id;
+}
+
+/** Regras de split: bar recebe total−comissão (arca com a taxa do gateway) + plataforma.
+ *  Sem recebedor PRÓPRIO do bar → devolve `undefined` (SEM split): a cobrança cai
+ *  direto na conta da plataforma. Split exige marketplace habilitado + recebedor do
+ *  bar; a Pagar.me rejeita split_rules apontando só pra própria conta. O
+ *  `split: undefined` é removido automaticamente pelo JSON.stringify. */
 function buildSplit(est: Establishment, totalCents: number, feeCents: number) {
+  if (!est.pagarmeRecipientId) return undefined;
+  const platform = platformRecipient();
   const barLeg = {
     amount: 0,
     recipient_id: est.pagarmeRecipientId,
     type: "flat" as const,
     options: { charge_processing_fee: true, liable: true, charge_remainder_fee: true },
   };
-  // Sem recebedor da plataforma configurado ou sem comissão → tudo pro bar.
-  if (!platformRecipient() || feeCents <= 0) {
+  // Sem plataforma, sem comissão, ou bar == plataforma → um leg só.
+  if (!platform || feeCents <= 0 || est.pagarmeRecipientId === platform) {
     return [{ ...barLeg, amount: totalCents }];
   }
   return [
     { ...barLeg, amount: totalCents - feeCents },
     {
       amount: feeCents,
-      recipient_id: platformRecipient(),
+      recipient_id: platform,
       type: "flat" as const,
       options: { charge_processing_fee: false, liable: false, charge_remainder_fee: false },
     },
   ];
 }
 
+// ---- Carteiras nativas (Google Pay / Apple Pay) ----------------------------
+//
+// O app (plugin `pay`) devolve o token em tokenizationData.token — um JSON. Pro
+// Google Pay o Pagar.me espera o mesmo conteúdo com os nomes em snake_case dentro
+// de credit_card.payload.google_pay. `merchant_identifier` = id do Google Pay que
+// a Pagar.me libera (env PAGARME_GOOGLE_PAY_MERCHANT_ID).
+
+type GooglePayRaw = {
+  signature: string;
+  intermediateSigningKey?: { signedKey: string; signatures: string[] };
+  protocolVersion: string;
+  signedMessage: string;
+};
+
+function mapGooglePay(raw: string): Record<string, unknown> {
+  const t = JSON.parse(raw) as GooglePayRaw;
+  const sm = JSON.parse(t.signedMessage) as {
+    encryptedMessage: string;
+    ephemeralPublicKey: string;
+    tag: string;
+  };
+  return {
+    signature: t.signature,
+    intermediate_signing_key: {
+      signed_key: t.intermediateSigningKey?.signedKey ?? "",
+      signatures: t.intermediateSigningKey?.signatures ?? [],
+    },
+    version: t.protocolVersion,
+    signed_message: sm,
+    merchant_identifier: process.env.PAGARME_GOOGLE_PAY_MERCHANT_ID ?? "",
+  };
+}
+
+/** Apple Pay: token vem no PKPaymentToken.paymentData. Estrutura finalizada
+ *  quando o iOS estiver de pé (Merchant ID Apple + certificado). */
+function mapApplePay(raw: string): Record<string, unknown> {
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return { data: raw };
+  }
+}
+
 export const pagarmeProvider: PaymentProvider = {
   name: "PAGARME",
+  async createWalletPayment(input: WalletPaymentInput): Promise<CardPaymentResult> {
+    const { est, reference, total, platformFee, description, walletType, token } = input;
+    recipientFor(est); // valida recebedor (estabelecimento ou plataforma p/ testes)
+    const totalCents = cents(total);
+    const payload =
+      walletType === "google_pay"
+        ? { type: "google_pay", google_pay: mapGooglePay(token) }
+        : { type: "apple_pay", apple_pay: mapApplePay(token) };
+    const body = {
+      code: reference,
+      items: [{ amount: totalCents, description, quantity: 1, code: reference }],
+      customer: buildCustomer(reference),
+      payments: [
+        {
+          payment_method: "credit_card",
+          credit_card: { statement_descriptor: "JURANDIR", payload },
+          split: buildSplit(est, totalCents, cents(platformFee)),
+        },
+      ],
+    };
+    const order = await call<PgOrder>("/orders", { method: "POST", body: JSON.stringify(body) });
+    const charge = order.charges?.[0];
+    return {
+      chargeId: charge?.id ?? order.id,
+      status: mapStatus(charge?.status ?? order.status),
+      statusDetail: charge?.last_transaction?.status,
+    };
+  },
   async createPixCharge(input: PixChargeInput): Promise<PixCharge> {
     const { est, reference, total, platformFee, customerName, description } = input;
-    if (!est.pagarmeRecipientId) {
-      throw new PagarmeError(400, "estabelecimento sem recebedor Pagar.me");
-    }
+    recipientFor(est); // valida recebedor (estabelecimento ou plataforma p/ testes)
     const totalCents = cents(total);
     const body = {
       code: reference,
       items: [{ amount: totalCents, description, quantity: 1, code: reference }],
-      customer: {
-        name: customerName || "Cliente Jurandir",
-        email: "comprador@jurandir.app.br",
-        type: "individual",
-      },
+      customer: buildCustomer(reference, customerName),
       payments: [
         {
           payment_method: "pix",
@@ -151,9 +259,7 @@ export const pagarmeProvider: PaymentProvider = {
   // lá). Mesmo padrão de redirect do Checkout Pro do MP.
   async createCheckoutPreference(input: CheckoutPreferenceInput): Promise<CheckoutPreference> {
     const { est, reference, total, platformFee, items, method } = input;
-    if (!est.pagarmeRecipientId) {
-      throw new PagarmeError(400, "estabelecimento sem recebedor Pagar.me");
-    }
+    recipientFor(est); // valida recebedor (estabelecimento ou plataforma p/ testes)
     const totalCents = cents(total);
     const accepted = method === "DEBIT" ? ["debit_card"] : ["credit_card"];
     const body = {
@@ -164,11 +270,7 @@ export const pagarmeProvider: PaymentProvider = {
         quantity: i.quantity,
         code: reference,
       })),
-      customer: {
-        name: "Cliente Jurandir",
-        email: "comprador@jurandir.app.br",
-        type: "individual",
-      },
+      customer: buildCustomer(reference),
       payments: [
         {
           payment_method: "checkout",
