@@ -45,24 +45,56 @@ export function Footer() {
           </Link>
         </p>
 
-        <div className="mt-14 flex flex-col items-center gap-3 border-t border-white/10 pt-6 text-sm text-white/60 sm:flex-row sm:justify-between">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/jurandir-logo-horizontal.svg"
-            alt="Jurandir"
-            className="h-9 w-auto rounded-lg"
-          />
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-            <Link
-              href="/privacidade"
-              className="underline underline-offset-2 transition-colors hover:text-white"
-            >
+        <div className="mt-14 border-t border-white/10 pt-8 text-left text-sm text-white/60">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <div className="max-w-[400px]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/jurandir-logo-horizontal.svg"
+                alt="Jurandir"
+                className="h-9 w-auto rounded-lg"
+              />
+              <p className="mt-3">
+                Jurandir é uma plataforma tecnológica desenvolvida e operada pela LMD TRANSPORTES LTDA,
+                responsável pelo desenvolvimento, administração, operação e suporte da plataforma.
+              </p>
+            </div>
+            <div className="leading-relaxed">
+              <p className="font-bold text-white">LMD TRANSPORTES LTDA</p>
+              CNPJ: 63.503.188/0001-00
+              <br />
+              Inscrição Estadual: 91184840-69
+              <br />
+              Av. Bento Munhoz da Rocha Netto, 632 – 19º andar, Sala 1905
+              <br />
+              Bloco Torre Norte – Zona Industrial – Maringá/PR – CEP 87030-010
+              <br />
+              contato@jurandir.app.br · (43) 99617-6666
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 pt-6">
+            <Link href="/sobre" className="font-semibold text-white hover:underline">
+              Sobre Nós
+            </Link>
+            <span className="text-white/30">|</span>
+            <Link href="/termos" className="font-semibold text-white hover:underline">
+              Termos de Uso
+            </Link>
+            <span className="text-white/30">|</span>
+            <Link href="/privacidade" className="font-semibold text-white hover:underline">
               Política de Privacidade
             </Link>
-            <span>
-              {t("tagline")} · {t("copyright")}
-            </span>
+            <span className="text-white/30">|</span>
+            <a href="mailto:contato@jurandir.app.br" className="font-semibold text-white hover:underline">
+              Contato
+            </a>
           </div>
+
+          <p className="mt-5 text-white/50">
+            © 2026 LMD TRANSPORTES LTDA. Todos os direitos reservados. · Jurandir é uma marca e plataforma
+            operada pela LMD TRANSPORTES LTDA.
+          </p>
         </div>
       </div>
     </footer>
