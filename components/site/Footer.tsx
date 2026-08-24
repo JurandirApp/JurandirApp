@@ -45,16 +45,24 @@ export function Footer() {
           </Link>
         </p>
 
-        <div className="mt-14 flex items-center justify-between gap-4 border-t border-white/10 pt-6 text-sm text-white/60">
+        <div className="mt-14 flex flex-col items-center gap-3 border-t border-white/10 pt-6 text-sm text-white/60 sm:flex-row sm:justify-between">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/jurandir-logo-horizontal.svg"
             alt="Jurandir"
             className="h-9 w-auto rounded-lg"
           />
-          <span>
-            {t("tagline")} · {t("copyright")}
-          </span>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <Link
+              href="/privacidade"
+              className="underline underline-offset-2 transition-colors hover:text-white"
+            >
+              Política de Privacidade
+            </Link>
+            <span>
+              {t("tagline")} · {t("copyright")}
+            </span>
+          </div>
         </div>
       </div>
     </footer>
