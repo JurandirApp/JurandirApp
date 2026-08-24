@@ -52,7 +52,7 @@ export function Footer() {
               <img
                 src="/jurandir-logo-horizontal.svg"
                 alt="Jurandir"
-                className="h-9 w-auto rounded-lg"
+                className="mx-auto block h-9 w-auto rounded-lg sm:mx-0"
               />
               <p className="mt-3">
                 Jurandir é uma plataforma tecnológica desenvolvida e operada pela LMD TRANSPORTES LTDA,

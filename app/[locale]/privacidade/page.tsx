@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import { LegalShell, LegalSection, CompanyCard } from "@/components/site/LegalShell";
+import { LegalShell, LegalSection, LegalLead, CompanyCard } from "@/components/site/LegalShell";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade",
@@ -17,15 +17,19 @@ export default async function PrivacidadePage({
 
   return (
     <LegalShell title="Política de Privacidade" updated="agosto de 2026">
-      <p style={{ fontSize: 15.5, marginTop: 20 }}>
-        A <strong>LMD TRANSPORTES LTDA</strong>, inscrita no CNPJ nº 63.503.188/0001-00, responsável pela
-        plataforma Jurandir, respeita a privacidade de seus usuários e clientes e está comprometida com a
-        proteção dos dados pessoais tratados através de seus serviços.
-      </p>
+      <LegalLead>
+        <p>
+          A <strong>LMD TRANSPORTES LTDA</strong>, inscrita no CNPJ nº 63.503.188/0001-00, responsável
+          pela plataforma Jurandir, respeita a privacidade de seus usuários e clientes e está comprometida
+          com a proteção dos dados pessoais tratados através de seus serviços.
+        </p>
+      </LegalLead>
 
       <LegalSection n="1" title="Responsável pela plataforma">
-        A plataforma Jurandir é desenvolvida e operada pela LMD TRANSPORTES LTDA, pessoa jurídica
-        responsável por sua administração, operação e suporte.
+        <p>
+          A plataforma Jurandir é desenvolvida e operada pela LMD TRANSPORTES LTDA, pessoa jurídica
+          responsável por sua administração, operação e suporte.
+        </p>
         <CompanyCard />
       </LegalSection>
 
@@ -66,13 +70,16 @@ export default async function PrivacidadePage({
       </LegalSection>
 
       <LegalSection n="8" title="Contato">
-        Para dúvidas ou solicitações relacionadas à privacidade e proteção de dados:
-        <div style={{ marginTop: 10, fontSize: 14.5 }}>
-          <strong>LMD TRANSPORTES LTDA</strong>
+        <p>Para dúvidas ou solicitações relacionadas à privacidade e proteção de dados:</p>
+        <div className="rounded-2xl border border-ink/10 bg-[#F8EFDA] p-5 text-[14.5px] leading-relaxed text-ink/80">
+          <span className="font-display text-base font-extrabold text-ink">LMD TRANSPORTES LTDA</span>
           <br />
           CNPJ: 63.503.188/0001-00
           <br />
-          E-mail: <strong>contato@jurandir.app.br</strong>
+          E-mail:{" "}
+          <a href="mailto:contato@jurandir.app.br" className="font-semibold text-coral hover:underline">
+            contato@jurandir.app.br
+          </a>
           <br />
           Telefone: (43) 99617-6666
         </div>
