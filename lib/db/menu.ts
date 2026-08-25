@@ -9,6 +9,29 @@ export function listMenu(establishmentId: string) {
   });
 }
 
+/** Itens com desconto real (oldPrice > price) de bares ativos — alimenta a
+ *  seção "Ofertas do dia" da Home do app. Cada item traz slug/nome do bar.
+ *  Ordena pelo maior desconto; vazio se ninguém tem promoção no momento. */
+export async function listOffers(limit = 12) {
+  const rows = await prisma.menuItem.findMany({
+    where: {
+      active: true,
+      oldPrice: { not: null },
+      establishment: { status: "ACTIVE" },
+    },
+    include: { establishment: { select: { slug: true, name: true } } },
+    orderBy: { updatedAt: "desc" },
+    take: 60,
+  });
+  return rows
+    .filter((m) => m.oldPrice != null && Number(m.oldPrice) > Number(m.price))
+    .sort(
+      (a, b) =>
+        1 - Number(b.price) / Number(b.oldPrice) - (1 - Number(a.price) / Number(a.oldPrice)),
+    )
+    .slice(0, limit);
+}
+
 /** Nomes dos itens mais pedidos (por quantidade somada), considerando apenas
  *  pedidos confirmados (em produção ou entregues). Agrega por `name` porque os
  *  OrderItems guardam o nome (o `menuItemId` fica null no fluxo do cliente).
