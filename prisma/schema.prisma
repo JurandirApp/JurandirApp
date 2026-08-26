@@ -75,6 +75,10 @@ model Establishment {
   tagline        String?
   description    String?
   address        String?
+  // Coordenadas geocodificadas do endereço (Google Geocoding) — usadas pra
+  // ordenar "perto de você" por distância no app. Null = ainda não geocodificado.
+  lat            Float?
+  lng            Float?
   hours          String?
   coverImg       String?
   logoImg        String?

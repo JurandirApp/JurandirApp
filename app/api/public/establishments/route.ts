@@ -33,6 +33,12 @@ export async function GET(): Promise<Response> {
       // Taxas reais do bar (o checkout do app usa pra mostrar o total certo).
       platformFeePct: e.platformFeePct,
       serviceFeePct: e.serviceFeePct,
+      // Coordenadas p/ ordenar por proximidade no app (null = sem geocode ainda).
+      lat: e.lat ?? null,
+      lng: e.lng ?? null,
+      // Imagens do bar (thumb dos cards). logo = quadrado; cover = capa.
+      logo: e.logoImg ?? null,
+      cover: e.coverImg ?? null,
     }));
 
   return Response.json({ establishments }, { headers: CORS });

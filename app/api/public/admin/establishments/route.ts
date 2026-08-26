@@ -2,6 +2,22 @@ import { authAdmin } from "@/lib/auth/bearer";
 import { prisma } from "@/lib/db/prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { establishmentUpsertSchema } from "@/lib/validation";
+import { establishmentAddressQuery, geocodeAddress } from "@/lib/geo/geocode";
+
+/** Geocodifica o endereço do bar e grava lat/lng (best-effort; nunca falha o
+ *  cadastro se o Google não responder ou não houver chave). */
+async function geocodeEstablishment(
+  id: string,
+  loc: { neighborhood?: string | null; city?: string | null },
+): Promise<void> {
+  const coords = await geocodeAddress(establishmentAddressQuery(loc));
+  if (coords) {
+    await prisma.establishment.update({
+      where: { id },
+      data: { lat: coords.lat, lng: coords.lng },
+    });
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +100,7 @@ export async function POST(req: Request): Promise<Response> {
         establishmentId: est.id,
       },
     });
+    await geocodeEstablishment(est.id, { neighborhood: data.neighborhood, city: data.city });
     return Response.json({ ok: true, id: est.id }, { status: 201, headers: CORS });
   }
 
@@ -125,5 +142,6 @@ export async function POST(req: Request): Promise<Response> {
       },
     });
   }
+  await geocodeEstablishment(data.id, { neighborhood: data.neighborhood, city: data.city });
   return Response.json({ ok: true, id: data.id }, { headers: CORS });
 }
