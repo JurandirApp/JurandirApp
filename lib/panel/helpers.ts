@@ -26,6 +26,12 @@ export function fmtDateTime(ts: number): string {
   });
 }
 
+/** "14:32" (timeline rows — hour only, no date). Accepts epoch ms or a Date
+ *  (order events come back from the server action as real Date instances). */
+export function fmtTime(ts: number | Date): string {
+  return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
 /** "24/07/26 14:32" (audit table) */
 export function fmtFull(ts: number): string {
   return new Date(ts).toLocaleString("pt-BR", {

@@ -221,7 +221,7 @@ export function PedidosSection() {
 }
 
 function OrderCard({ order: o }: { order: Order }) {
-  const { deliverOrder, printOrder, beach } = usePanel();
+  const { deliverOrder, printOrder, openTimeline, beach } = usePanel();
   const t = useTranslations("panel.pedidos");
   const ts = useTranslations("panel.status");
   const tp = useTranslations("panel.pay");
@@ -369,25 +369,39 @@ function OrderCard({ order: o }: { order: Order }) {
             </>
           )}
         </div>
-        {!inc && !o.expired && (
+        {(o.dbId || (!inc && !o.expired)) && (
           <div className="flex flex-shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={() => printOrder(o.id)}
-              className="flex items-center gap-1 rounded-lg bg-dune-50 px-3 py-1.5 text-xs font-medium text-ink/70"
-            >
-              <Icon name="print" size={14} />
-              {t("print")}
-            </button>
-            {o.st === "producao" && (
+            {o.dbId && (
               <button
                 type="button"
-                onClick={() => deliverOrder(o.id)}
-                className="flex items-center gap-1 rounded-lg bg-[#10b981] px-3 py-1.5 text-xs font-medium text-white"
+                onClick={() => openTimeline(o.dbId!)}
+                className="flex items-center gap-1 rounded-lg bg-dune-50 px-3 py-1.5 text-xs font-medium text-ink/70"
               >
-                <Icon name="check" size={14} />
-                {t("deliver")}
+                <Icon name="history" size={14} />
+                {t("history")}
               </button>
+            )}
+            {!inc && !o.expired && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => printOrder(o.id)}
+                  className="flex items-center gap-1 rounded-lg bg-dune-50 px-3 py-1.5 text-xs font-medium text-ink/70"
+                >
+                  <Icon name="print" size={14} />
+                  {t("print")}
+                </button>
+                {o.st === "producao" && (
+                  <button
+                    type="button"
+                    onClick={() => deliverOrder(o.id)}
+                    className="flex items-center gap-1 rounded-lg bg-[#10b981] px-3 py-1.5 text-xs font-medium text-white"
+                  >
+                    <Icon name="check" size={14} />
+                    {t("deliver")}
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}

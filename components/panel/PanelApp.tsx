@@ -27,6 +27,7 @@ import {
   generatePrintTokenAction,
   getMpConnectUrlForMeAction,
   markItemReadyAction,
+  orderTimelineAction,
   printOrderAction,
   refreshOrdersAction,
   refreshPrintJobsAction,
@@ -46,6 +47,7 @@ import type { PagarmeRecipientForm } from "@/lib/validation";
 import {
   PanelContext,
   type AuditFilters,
+  type OrderTimelineEvent,
   type PanelValue,
   type PrinterForm,
   type PwForm,
@@ -68,6 +70,7 @@ import { ItemEditorModal } from "./modals/ItemEditorModal";
 import { WaiterEditorModal } from "./modals/WaiterEditorModal";
 import { ConfirmDialog } from "./modals/ConfirmDialog";
 import { QrZoomModal } from "./modals/QrZoomModal";
+import { TimelineModal } from "./modals/TimelineModal";
 
 const EMPTY_AUD: AuditFilters = { from: "", to: "", mesa: "", method: "" };
 const EMPTY_PW: PwForm = { cur: "", nova: "", conf: "" };
@@ -183,6 +186,10 @@ export function PanelApp({
   const [delWaiter, setDelWaiter] = useState<Waiter | null>(null);
   const [delQr, setDelQr] = useState<Qr | null>(null);
   const [qrZoom, setQrZoom] = useState<Qr | null>(null);
+  const [timeline, setTimeline] = useState<{
+    id: number;
+    events: OrderTimelineEvent[];
+  } | null>(null);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -306,6 +313,17 @@ export function PanelApp({
               .catch(() => {});
           } else {
             toast(t("toasts.markReadyError"));
+          }
+        });
+      },
+      openTimeline: (orderDbId) => {
+        startTransition(async () => {
+          try {
+            const events = await orderTimelineAction(orderDbId);
+            const o = orders.find((x) => x.dbId === orderDbId);
+            setTimeline({ id: o?.id ?? 0, events });
+          } catch {
+            toast(t("toasts.timelineError"));
           }
         });
       },
@@ -773,6 +791,13 @@ export function PanelApp({
             restName={profile.name}
             onClose={() => setQrZoom(null)}
             onPrint={() => toast(t("toasts.qrPrint"))}
+          />
+        )}
+        {timeline && (
+          <TimelineModal
+            orderId={timeline.id}
+            events={timeline.events}
+            onClose={() => setTimeline(null)}
           />
         )}
 

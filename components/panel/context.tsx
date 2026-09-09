@@ -6,6 +6,11 @@ import type { MonthlyStatLite } from "@/lib/admin/scale";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
 import type { PagarmeRecipientForm } from "@/lib/validation";
+import type { orderTimelineAction } from "@/lib/actions/panel";
+
+/** Um evento de rastreio do pedido (Módulo do Garçom) — o shape exato que
+ *  `orderTimelineAction` devolve (Prisma `OrderEvent` + nome do garçom). */
+export type OrderTimelineEvent = Awaited<ReturnType<typeof orderTimelineAction>>[number];
 
 export type TabId =
   | "pedidos"
@@ -50,6 +55,9 @@ export interface PanelValue {
   printOrder: (id: number) => void;
   /** Bar marca N unidades de um item (por `orderItemId`) como prontas. */
   markItemReady: (orderItemId: string, qty: number) => void;
+  /** Busca a timeline (`orderTimelineAction`) do pedido (por `dbId`) e abre o
+   *  `TimelineModal` com o resultado. */
+  openTimeline: (orderDbId: string) => void;
 
   // Cardápio
   menuCat: string;

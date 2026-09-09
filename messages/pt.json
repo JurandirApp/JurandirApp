@@ -265,7 +265,8 @@
       "profileError": "Não foi possível salvar o perfil.",
       "markReadyError": "Não foi possível marcar como pronto. Tente de novo.",
       "waiterSaved": "Garçom salvo",
-      "waiterError": "Não foi possível salvar o garçom."
+      "waiterError": "Não foi possível salvar o garçom.",
+      "timelineError": "Não foi possível carregar o histórico do pedido."
     },
     "pedidos": {
       "periodToday": "Hoje",
@@ -298,6 +299,7 @@
       "splitPayment": "Conta dividida",
       "print": "Imprimir",
       "deliver": "Entregue",
+      "history": "Ver histórico",
       "itemPreparing": "Falta preparar {n}",
       "itemBreakdown": "{ready} prontas · {out} a caminho · {delivered} entregues",
       "markReady": "Marcar {n} pronto",
@@ -376,6 +378,19 @@
       "passwordTooShort": "A senha precisa ter ao menos 4 caracteres.",
       "save": "Salvar garçom",
       "close": "Fechar"
+    },
+    "timeline": {
+      "title": "Histórico do pedido #{id}",
+      "close": "Fechar",
+      "empty": "Nenhum evento registrado ainda.",
+      "byWaiter": "— Garçom {name}",
+      "types": {
+        "PAID": "Pago",
+        "IN_PRODUCTION": "Em produção",
+        "READY": "Pronto",
+        "PICKED": "Retirado",
+        "DELIVERED": "Entregue"
+      }
     },
     "confirm": {
       "cancel": "Cancelar",

@@ -265,7 +265,8 @@
       "profileError": "Could not save the profile.",
       "markReadyError": "Could not mark as ready. Try again.",
       "waiterSaved": "Waiter saved",
-      "waiterError": "Could not save the waiter."
+      "waiterError": "Could not save the waiter.",
+      "timelineError": "Could not load the order history."
     },
     "pedidos": {
       "periodToday": "Today",
@@ -298,6 +299,7 @@
       "splitPayment": "Split bill",
       "print": "Print",
       "deliver": "Delivered",
+      "history": "View history",
       "itemPreparing": "{n} left to prepare",
       "itemBreakdown": "{ready} ready · {out} out for delivery · {delivered} delivered",
       "markReady": "Mark {n} ready",
@@ -376,6 +378,19 @@
       "passwordTooShort": "The password must be at least 4 characters.",
       "save": "Save waiter",
       "close": "Close"
+    },
+    "timeline": {
+      "title": "Order #{id} history",
+      "close": "Close",
+      "empty": "No events recorded yet.",
+      "byWaiter": "— Waiter {name}",
+      "types": {
+        "PAID": "Paid",
+        "IN_PRODUCTION": "In production",
+        "READY": "Ready",
+        "PICKED": "Picked up",
+        "DELIVERED": "Delivered"
+      }
     },
     "confirm": {
       "cancel": "Cancel",
