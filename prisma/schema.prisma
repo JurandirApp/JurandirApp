@@ -11,6 +11,7 @@ datasource db {
 enum Role {
   ADMIN
   ESTABLISHMENT
+  WAITER
 }
 
 enum OrderStatus {
@@ -134,6 +135,8 @@ model User {
   establishment   Establishment? @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+
+  deliveredEvents OrderEvent[] @relation("WaiterEvents")
 }
 
 model MenuItem {
@@ -209,6 +212,8 @@ model Order {
   locationLabel   String
   posto           String?
   customerName    String?
+  customerPhone   String?
+  clientId        String?
   note            String?
   subtotal        Decimal       @db.Decimal(10, 2)
   platformFee     Decimal       @db.Decimal(10, 2)
@@ -220,6 +225,7 @@ model Order {
   items       OrderItem[]
   payment     Payment?
   splitShares SplitShare[]
+  events      OrderEvent[]
 
   @@index([establishmentId, status])
 }
@@ -235,6 +241,45 @@ model OrderItem {
   // Snapshot das opções escolhidas: [{ group, name, priceDelta }]. `unitPrice`
   // já é o preço final por unidade (base + adicionais).
   options    Json?
+  // Entrega parcial por quantidade (o restante está "preparando").
+  qtyReady          Int @default(0)
+  qtyOutForDelivery Int @default(0)
+  qtyDelivered      Int @default(0)
+}
+
+enum OrderEventType {
+  PAID
+  IN_PRODUCTION
+  READY
+  PICKED
+  DELIVERED
+}
+
+model OrderEvent {
+  id          String         @id @default(cuid())
+  orderId     String
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId String?
+  type        OrderEventType
+  qty         Int?
+  waiterId    String?
+  waiter      User?          @relation("WaiterEvents", fields: [waiterId], references: [id], onDelete: SetNull)
+  at          DateTime       @default(now())
+
+  @@index([orderId])
+}
+
+model DeviceToken {
+  id              String   @id @default(cuid())
+  token           String   @unique
+  userId          String?
+  clientId        String?
+  establishmentId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([establishmentId])
+  @@index([clientId])
 }
 
 model Payment {
