@@ -19,11 +19,19 @@ export const leadCreateSchema = z.object({
   type: z.string().max(120).optional(),
 });
 
+const orderItemOption = z.object({
+  group: z.string(),
+  name: z.string(),
+  priceDelta: z.number().default(0),
+});
+
 const orderItemInput = z.object({
   menuItemId: z.string().optional(),
   name: z.string().min(1),
   qty: z.number().int().positive(),
+  // Preço final por unidade (base + adicionais escolhidos).
   unitPrice: z.number().nonnegative(),
+  options: z.array(orderItemOption).optional(),
 });
 
 export const orderCreateSchema = z.object({
@@ -51,6 +59,22 @@ export const orderCreateSchema = z.object({
 });
 export type OrderCreateInput = z.infer<typeof orderCreateSchema>;
 
+const menuOptionInput = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  priceDelta: z.number().default(0),
+  active: z.boolean().default(true),
+});
+
+const menuOptionGroupInput = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  required: z.boolean().default(false),
+  minSelect: z.number().int().min(0).default(0),
+  maxSelect: z.number().int().min(1).default(1),
+  options: z.array(menuOptionInput).default([]),
+});
+
 export const menuItemUpsertSchema = z.object({
   id: z.string().optional(),
   establishmentId: z.string().min(1),
@@ -64,6 +88,7 @@ export const menuItemUpsertSchema = z.object({
   category: z.string().min(1),
   subcategory: z.string().min(1),
   active: z.boolean().default(true),
+  optionGroups: z.array(menuOptionGroupInput).optional(),
 });
 export type MenuItemUpsertInput = z.infer<typeof menuItemUpsertSchema>;
 

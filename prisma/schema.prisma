@@ -154,7 +154,39 @@ model MenuItem {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  optionGroups    MenuItemOptionGroup[]
+
   @@index([establishmentId])
+}
+
+/// Grupo de adicionais/opções de um item (ex.: "Tamanho", "Adicionais").
+/// `required` + `minSelect`/`maxSelect` controlam a obrigatoriedade e a quantidade.
+model MenuItemOptionGroup {
+  id         String   @id @default(cuid())
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  name       String
+  required   Boolean  @default(false)
+  minSelect  Int      @default(0)
+  maxSelect  Int      @default(1)
+  sortOrder  Int      @default(0)
+
+  options MenuItemOption[]
+
+  @@index([menuItemId])
+}
+
+/// Opção dentro de um grupo (ex.: "Grande +R$5", "Bacon +R$3").
+model MenuItemOption {
+  id         String              @id @default(cuid())
+  groupId    String
+  group      MenuItemOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name       String
+  priceDelta Decimal             @default(0) @db.Decimal(10, 2)
+  sortOrder  Int                 @default(0)
+  active     Boolean             @default(true)
+
+  @@index([groupId])
 }
 
 model QrSpot {
@@ -200,6 +232,9 @@ model OrderItem {
   name       String
   qty        Int
   unitPrice  Decimal @db.Decimal(10, 2)
+  // Snapshot das opções escolhidas: [{ group, name, priceDelta }]. `unitPrice`
+  // já é o preço final por unidade (base + adicionais).
+  options    Json?
 }
 
 model Payment {

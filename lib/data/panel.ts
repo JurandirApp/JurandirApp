@@ -45,6 +45,24 @@ export type PrinterInput = {
   active: boolean;
 };
 
+/** Opção de um grupo de adicionais (ex.: "Bacon +R$3"). */
+export type MenuOption = {
+  id: string;
+  name: string;
+  priceDelta: number;
+  active: boolean;
+};
+
+/** Grupo de adicionais de um item (ex.: "Tamanho", "Escolha o ponto"). */
+export type MenuOptionGroup = {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelect: number;
+  maxSelect: number;
+  options: MenuOption[];
+};
+
 export type MenuItem = {
   id: number;
   dbId?: string;
@@ -57,6 +75,7 @@ export type MenuItem = {
   unit: string | null;
   cat: string;
   sub: string;
+  groups?: MenuOptionGroup[];
 };
 
 /** [quantity, item name, unit price] */
@@ -78,6 +97,8 @@ export type Order = {
   /** epoch ms */
   ts: number;
   items: OrderLine[];
+  /** Adicionais escolhidos por item (mesmos índices de `items`); [] = sem. */
+  itemOpts?: string[][];
   note?: string;
   card?: string;
   splits?: Split;

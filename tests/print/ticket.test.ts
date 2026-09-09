@@ -18,7 +18,35 @@ describe("orderToTicket", () => {
       establishment: { name: "Quiosque" },
     });
     expect(t.establishment).toBe("Quiosque");
-    expect(t.items[0]).toEqual({ qty: 2, name: "Coco", total: 16 });
+    expect(t.items[0]).toEqual({ qty: 2, name: "Coco", total: 16, options: [] });
     expect(t.total).toBe(18.88);
+  });
+
+  it("inclui os nomes dos adicionais escolhidos em cada item", () => {
+    const t = orderToTicket({
+      code: "PED-2",
+      number: 8,
+      locationLabel: "Mesa 5",
+      customerName: null,
+      note: null,
+      createdAt: new Date("2026-09-01T14:00:00"),
+      subtotal: 33,
+      platformFee: 0,
+      serviceFee: 0,
+      total: 33,
+      items: [
+        {
+          qty: 1,
+          name: "Burger",
+          unitPrice: 33,
+          options: [
+            { group: "Ponto", name: "Bem passado", priceDelta: 0 },
+            { group: "Extras", name: "Bacon", priceDelta: 3 },
+          ],
+        },
+      ],
+      establishment: { name: "Quiosque" },
+    });
+    expect(t.items[0].options).toEqual(["Bem passado", "Bacon"]);
   });
 });

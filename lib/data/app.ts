@@ -64,6 +64,9 @@ export type AppEstablishment = {
   platformFeePct: number;
   serviceFeePct: number;
   posto: string;
+  /** O bar aceita carteira nativa (Apple/Google Pay via Pagar.me)? Só então o
+   *  checkout mostra o botão — senão o token não teria como ser cobrado. */
+  walletPay: boolean;
   whatsapp: string;
   instagram: { url: string; handle: string };
   phone: { tel: string; display: string };
@@ -83,6 +86,7 @@ export const APP_EST: AppEstablishment = {
   platformFeePct: 8,
   serviceFeePct: 10,
   posto: "Posto 3",
+  walletPay: false,
   whatsapp: "https://wa.me/5547999990000",
   instagram: { url: "https://instagram.com/quiosquedomar", handle: "@quiosquedomar" },
   phone: { tel: "4733445566", display: "(47) 3344-5566" },

@@ -1,4 +1,4 @@
-import { createOrder, getOrdersByIds } from "@/lib/db/orders";
+import { createOrder, getOrdersByIds, cancelPendingOrder } from "@/lib/db/orders";
 import { reconcileOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // API pública (cliente anônimo do QR) — liberada p/ o app Flutter.
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
@@ -62,4 +62,17 @@ export async function GET(req: Request): Promise<Response> {
   await Promise.allSettled(ids.map((id) => reconcileOrder(id)));
   const rows = await getOrdersByIds(ids);
   return Response.json({ orders: rows.map(toClientOrder) }, { headers: CORS });
+}
+
+/**
+ * DELETE /api/public/orders?id=xxx
+ * Cancela um pedido AINDA não pago (AWAITING_PAYMENT) — o app chama isto quando
+ * o cliente edita o pedido: o antigo é descartado e um novo criado no lugar.
+ * `ok:false` se já não estava aguardando (ex.: já foi pago).
+ */
+export async function DELETE(req: Request): Promise<Response> {
+  const id = new URL(req.url).searchParams.get("id") ?? "";
+  if (!id) return Response.json({ ok: false, error: "invalid" }, { status: 422, headers: CORS });
+  const ok = await cancelPendingOrder(id);
+  return Response.json({ ok }, { headers: CORS });
 }

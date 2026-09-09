@@ -109,11 +109,16 @@ export function MyOrdersScreen() {
 
               <div className="mb-2 flex flex-col gap-1">
                 {o.items.map((i, k) => (
-                  <div key={k} className="flex justify-between text-sm">
-                    <span>
-                      {i.qty}× {i.name}
-                    </span>
-                    <span className="text-[#94a3b8]">{money(i.price * i.qty)}</span>
+                  <div key={k} className="text-sm">
+                    <div className="flex justify-between">
+                      <span>
+                        {i.qty}× {i.name}
+                      </span>
+                      <span className="text-[#94a3b8]">{money(i.price * i.qty)}</span>
+                    </div>
+                    {i.options?.length ? (
+                      <span className="block pl-4 text-xs text-[#94a3b8]">+ {i.options.join(", ")}</span>
+                    ) : null}
                   </div>
                 ))}
               </div>

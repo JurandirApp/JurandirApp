@@ -1,4 +1,5 @@
 import { isPixExpired } from "@/lib/domain/pricing";
+import { optionLabels } from "@/lib/print/escpos";
 import type { MonthlyStatLite } from "@/lib/admin/scale";
 import type {
   MenuItem,
@@ -43,13 +44,14 @@ const STATUS: Record<string, Order["st"]> = {
 type DbOrder = {
   id: string; number: number; code: string; status: string; locationLabel: string;
   posto: string | null; customerName: string | null; note: string | null; createdAt: Date;
-  items: { qty: number; name: string; unitPrice: unknown }[];
+  items: { qty: number; name: string; unitPrice: unknown; options?: unknown }[];
   payment: { method: string; cardMask: string | null } | null;
   splitShares: { method: string | null; paid: boolean; amount: unknown }[];
 };
 
 export function toPanelOrder(o: DbOrder): Order {
   const items: OrderLine[] = o.items.map((i) => [i.qty, i.name, num(i.unitPrice)]);
+  const itemOpts = o.items.map((i) => optionLabels(i.options));
   const hasSplit = o.splitShares.length > 0;
   const firstPaid = o.splitShares.find((s) => s.method);
   const pay: PayMethod = o.payment
@@ -81,15 +83,21 @@ export function toPanelOrder(o: DbOrder): Order {
     cust: o.customerName ?? undefined,
     ts: o.createdAt.getTime(),
     items,
+    itemOpts,
     note: o.note ?? undefined,
     card: o.payment?.cardMask ?? undefined,
     splits,
   };
 }
 
+type DbOptionGroup = {
+  id: string; name: string; required: boolean; minSelect: number; maxSelect: number;
+  options: { id: string; name: string; priceDelta: unknown; active: boolean }[];
+};
 type DbMenuItem = {
   id: string; name: string; description: string | null; price: unknown; oldPrice: unknown;
   photo: string | null; measure: number | null; unit: string | null; category: string; subcategory: string;
+  optionGroups?: DbOptionGroup[];
 };
 export function toPanelMenuItem(m: DbMenuItem): MenuItem {
   return {
@@ -104,6 +112,20 @@ export function toPanelMenuItem(m: DbMenuItem): MenuItem {
     unit: m.unit,
     cat: m.category,
     sub: m.subcategory,
+    // Dono vê tudo (ativas ou não) pra poder editar.
+    groups: (m.optionGroups ?? []).map((g) => ({
+      id: g.id,
+      name: g.name,
+      required: g.required,
+      minSelect: g.minSelect,
+      maxSelect: g.maxSelect,
+      options: g.options.map((o) => ({
+        id: o.id,
+        name: o.name,
+        priceDelta: num(o.priceDelta),
+        active: o.active,
+      })),
+    })),
   };
 }
 

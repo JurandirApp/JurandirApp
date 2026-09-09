@@ -5,13 +5,26 @@ export type TicketData = {
   location: string;
   customer?: string;
   timeLabel: string;
-  items: { qty: number; name: string; total: number }[];
+  items: { qty: number; name: string; total: number; options?: string[] }[];
   subtotal: number;
   platformFee: number;
   serviceFee: number;
   total: number;
   note?: string;
 };
+
+/** Nomes das opções escolhidas a partir do snapshot `OrderItem.options`
+ *  ([{group,name,priceDelta}]). Usado nas comandas e nas telas de pedido. */
+export function optionLabels(options: unknown): string[] {
+  if (!Array.isArray(options)) return [];
+  return options
+    .map((o) =>
+      o && typeof o === "object" && "name" in o
+        ? String((o as { name: unknown }).name ?? "").trim()
+        : "",
+    )
+    .filter((s) => s.length > 0);
+}
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -64,7 +77,10 @@ export function renderTicket(t: TicketData): Uint8Array {
   b.line("Local: " + t.location + "   " + t.timeLabel);
   if (t.customer) b.line("Cliente: " + t.customer);
   b.line("-".repeat(WIDTH));
-  for (const it of t.items) b.line(row(it.qty + "x " + it.name, brl(it.total)));
+  for (const it of t.items) {
+    b.line(row(it.qty + "x " + it.name, brl(it.total)));
+    for (const o of it.options ?? []) b.line("   + " + o);
+  }
   b.line("-".repeat(WIDTH));
   b.line(row("Subtotal", brl(t.subtotal)));
   b.line(row("Taxa Jurandir", brl(t.platformFee)));
@@ -91,7 +107,7 @@ export type PrepTicketData = {
   location: string;
   customer?: string;
   timeLabel: string;
-  items: { qty: number; name: string }[];
+  items: { qty: number; name: string; options?: string[] }[];
   note?: string;
 };
 
@@ -110,8 +126,16 @@ export function renderPrepTicket(t: PrepTicketData): Uint8Array {
   if (t.customer) b.line("Cliente: " + t.customer);
   b.line("-".repeat(WIDTH));
   // Itens com altura dobrada pra leitura rápida na produção. Sem preço.
+  // Adicionais entram em altura normal, indentados sob o item.
   b.raw(GS, 0x21, 0x01); // double height
-  for (const it of t.items) b.line(it.qty + "x " + it.name);
+  for (const it of t.items) {
+    b.line(it.qty + "x " + it.name);
+    if (it.options && it.options.length) {
+      b.raw(GS, 0x21, 0x00); // normal p/ os adicionais
+      for (const o of it.options) b.line("   + " + o);
+      b.raw(GS, 0x21, 0x01); // volta pra altura dobrada
+    }
+  }
   b.raw(GS, 0x21, 0x00); // normal
   if (t.note) {
     b.line("-".repeat(WIDTH));

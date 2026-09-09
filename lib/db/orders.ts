@@ -111,6 +111,11 @@ export async function createOrder(input: OrderCreateInput) {
           name: i.name,
           qty: i.qty,
           unitPrice: i.unitPrice,
+          // Snapshot dos adicionais escolhidos (o unitPrice já embute o preço deles).
+          options:
+            i.options && i.options.length > 0
+              ? (i.options as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
         })),
       },
       ...(payment.kind === "full"
@@ -175,6 +180,18 @@ export async function payShare(
   });
   if (order?.status === OrderStatus.IN_PRODUCTION) await enqueuePrintJob(orderId);
   return order;
+}
+
+/** Cancela (remove) um pedido AINDA não pago. Usado quando o cliente edita o
+ *  pedido no app: o antigo AWAITING_PAYMENT é descartado e um novo é criado no
+ *  lugar. `deleteMany` com o guard de status é atômico — só apaga se ainda está
+ *  aguardando (o cascade remove itens/pagamento/partes). Retorna false se o
+ *  pedido não existe ou já saiu de AWAITING_PAYMENT (ex.: já foi pago). */
+export async function cancelPendingOrder(orderId: string): Promise<boolean> {
+  const r = await prisma.order.deleteMany({
+    where: { id: orderId, status: OrderStatus.AWAITING_PAYMENT },
+  });
+  return r.count > 0;
 }
 
 export function deliverOrder(orderId: string) {

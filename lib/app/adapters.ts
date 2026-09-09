@@ -1,5 +1,6 @@
 import type { PaymentMethod } from "@prisma/client";
 import { isPixExpired, round2 } from "@/lib/domain/pricing";
+import { optionLabels } from "@/lib/print/escpos";
 import type { AppEstablishment, PayId } from "@/lib/data/app";
 import { COVER_IMG } from "@/lib/data/panel";
 import type { MenuItem } from "@/lib/data/panel";
@@ -32,6 +33,7 @@ type DbEst = {
   id: string; slug: string; name: string; tagline: string | null; coverImg: string | null; logoImg: string | null;
   address: string | null; hours: string | null; posto: string | null;
   platformFeePct: number; serviceFeePct: number;
+  gatewayCredit: string; pagarmeRecipientId: string | null;
   whatsapp: string | null; instagram: string | null; phone: string | null; website: string | null;
 };
 export function toAppEstablishment(e: DbEst): AppEstablishment {
@@ -47,6 +49,9 @@ export function toAppEstablishment(e: DbEst): AppEstablishment {
     platformFeePct: e.platformFeePct,
     serviceFeePct: e.serviceFeePct,
     posto: e.posto ?? "",
+    // Carteira nativa só quando o crédito é Pagar.me E o bar tem recebedor próprio
+    // (senão o split não paga o bar / o token não é cobrável).
+    walletPay: e.gatewayCredit === "PAGARME" && Boolean(e.pagarmeRecipientId),
     whatsapp: e.whatsapp || "https://wa.me/5547999990000",
     instagram: { url: e.instagram ? `https://instagram.com/${e.instagram.replace(/^@/, "")}` : "#", handle: e.instagram ?? "" },
     phone: { tel: (e.phone ?? "").replace(/\D/g, ""), display: e.phone ?? "" },
@@ -54,11 +59,29 @@ export function toAppEstablishment(e: DbEst): AppEstablishment {
   };
 }
 
+type DbOptionGroup = {
+  id: string; name: string; required: boolean; minSelect: number; maxSelect: number;
+  options: { id: string; name: string; priceDelta: unknown; active: boolean }[];
+};
 type DbMenuItem = {
   id: string; name: string; description: string | null; price: unknown; oldPrice: unknown;
   photo: string | null; measure: number | null; unit: string | null; category: string; subcategory: string; sortOrder: number;
+  optionGroups?: DbOptionGroup[];
 };
 export function toAppMenuItem(m: DbMenuItem): MenuItem {
+  // Cliente só vê opções ativas; grupo que ficou sem opção ativa é omitido.
+  const groups = (m.optionGroups ?? [])
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      required: g.required,
+      minSelect: g.minSelect,
+      maxSelect: g.maxSelect,
+      options: g.options
+        .filter((o) => o.active)
+        .map((o) => ({ id: o.id, name: o.name, priceDelta: num(o.priceDelta), active: o.active })),
+    }))
+    .filter((g) => g.options.length > 0);
   return {
     id: hashId(m.id),
     dbId: m.id,
@@ -71,6 +94,7 @@ export function toAppMenuItem(m: DbMenuItem): MenuItem {
     unit: m.unit,
     cat: m.category,
     sub: m.subcategory,
+    groups,
   };
 }
 
@@ -80,7 +104,7 @@ const STATUS: Record<string, ClientOrder["status"]> = {
 type DbOrder = {
   id: string; number: number; code: string; status: string; customerName: string | null; note: string | null;
   createdAt: Date; subtotal: unknown; platformFee: unknown; serviceFee: unknown;
-  items: { qty: number; name: string; unitPrice: unknown }[];
+  items: { qty: number; name: string; unitPrice: unknown; options?: unknown }[];
   payment: { method: string; installments: number; pixPayload: string | null; pixQrImage: string | null } | null;
   splitShares: {
     personIndex: number;
@@ -106,7 +130,7 @@ export function toClientOrder(o: DbOrder): ClientOrder {
     dbId: o.id,
     code: o.code,
     ts: o.createdAt.getTime(),
-    items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: num(i.unitPrice) })),
+    items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: num(i.unitPrice), options: optionLabels(i.options) })),
     total: num(o.subtotal),
     fee: num(o.platformFee),
     est: num(o.serviceFee),

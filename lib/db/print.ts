@@ -1,11 +1,11 @@
 import { prisma } from "./prisma";
-import { renderPrepTicket, type PrepTicketData } from "@/lib/print/escpos";
+import { renderPrepTicket, optionLabels, type PrepTicketData } from "@/lib/print/escpos";
 
 const toB64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64");
 const timeLabel = (d: Date): string =>
   d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-type OrderItemRow = { menuItemId: string | null; name: string; qty: number };
+type OrderItemRow = { menuItemId: string | null; name: string; qty: number; options?: unknown };
 type PrinterRow = {
   id: string;
   name: string;
@@ -100,7 +100,7 @@ async function createOrderJobs(
       location: order.locationLabel,
       customer: order.customerName ?? undefined,
       timeLabel: timeLabel(order.createdAt),
-      items: items.map((i) => ({ qty: i.qty, name: i.name })),
+      items: items.map((i) => ({ qty: i.qty, name: i.name, options: optionLabels(i.options) })),
       note: order.note ?? undefined,
     };
     await prisma.printJob.create({
@@ -122,7 +122,7 @@ export async function enqueuePrintJob(orderId: string): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      items: { select: { menuItemId: true, name: true, qty: true } },
+      items: { select: { menuItemId: true, name: true, qty: true, options: true } },
       establishment: { select: { id: true, name: true, printEnabled: true } },
     },
   });
@@ -142,7 +142,7 @@ export async function enqueueOrderReprint(
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      items: { select: { menuItemId: true, name: true, qty: true } },
+      items: { select: { menuItemId: true, name: true, qty: true, options: true } },
       establishment: { select: { id: true, name: true } },
     },
   });

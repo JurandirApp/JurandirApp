@@ -102,11 +102,16 @@ export function DoneScreen() {
         </div>
 
         {L.items.map((i, k) => (
-          <div key={k} className="flex justify-between py-1 text-sm">
-            <span>
-              {i.qty}× {i.name}
-            </span>
-            <span className="font-medium">{money(i.price * i.qty)}</span>
+          <div key={k} className="py-1 text-sm">
+            <div className="flex justify-between">
+              <span>
+                {i.qty}× {i.name}
+              </span>
+              <span className="font-medium">{money(i.price * i.qty)}</span>
+            </div>
+            {i.options?.length ? (
+              <span className="block pl-4 text-xs text-ink/45">+ {i.options.join(", ")}</span>
+            ) : null}
           </div>
         ))}
 

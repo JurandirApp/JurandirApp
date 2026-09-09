@@ -1,4 +1,4 @@
-import type { TicketData } from "./escpos";
+import { optionLabels, type TicketData } from "./escpos";
 
 export type OrderForTicket = {
   code: string;
@@ -11,7 +11,7 @@ export type OrderForTicket = {
   platformFee: unknown;
   serviceFee: unknown;
   total: unknown;
-  items: { qty: number; name: string; unitPrice: unknown }[];
+  items: { qty: number; name: string; unitPrice: unknown; options?: unknown }[];
   establishment: { name: string };
 };
 
@@ -25,7 +25,12 @@ export function orderToTicket(o: OrderForTicket): TicketData {
     location: o.locationLabel,
     customer: o.customerName ?? undefined,
     timeLabel: o.createdAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-    items: o.items.map((i) => ({ qty: i.qty, name: i.name, total: n(i.unitPrice) * i.qty })),
+    items: o.items.map((i) => ({
+      qty: i.qty,
+      name: i.name,
+      total: n(i.unitPrice) * i.qty,
+      options: optionLabels(i.options),
+    })),
     subtotal: n(o.subtotal),
     platformFee: n(o.platformFee),
     serviceFee: n(o.serviceFee),

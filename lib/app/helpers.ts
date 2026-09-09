@@ -26,7 +26,7 @@ export type ClientOrder = {
   code: string;
   /** epoch ms (client clock at checkout) */
   ts: number;
-  items: { name: string; qty: number; price: number }[];
+  items: { name: string; qty: number; price: number; options?: string[] }[];
   /** Subtotal do carrinho (só os itens). */
   total: number;
   /** Comissão da plataforma (parte do `grand`). */

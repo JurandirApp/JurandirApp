@@ -577,6 +577,17 @@ export function PanelApp({
         category: clean.cat,
         subcategory: clean.sub,
         active: true,
+        optionGroups: (clean.groups ?? []).map((g) => ({
+          name: g.name,
+          required: g.required,
+          minSelect: g.minSelect,
+          maxSelect: g.maxSelect,
+          options: g.options.map((o) => ({
+            name: o.name,
+            priceDelta: o.priceDelta,
+            active: o.active,
+          })),
+        })),
       });
       if (r.ok && r.item) {
         setMenu((prev) =>

@@ -280,11 +280,16 @@ function OrderCard({ order: o }: { order: Order }) {
 
       <div className="mb-3 flex flex-col gap-1">
         {o.items.map((i, k) => (
-          <div key={k} className="flex justify-between gap-2 text-sm">
-            <span>
-              {i[0]}× {i[1]}
-            </span>
-            <span className="text-ink/50">{money(i[0] * i[2])}</span>
+          <div key={k} className="flex flex-col">
+            <div className="flex justify-between gap-2 text-sm">
+              <span>
+                {i[0]}× {i[1]}
+              </span>
+              <span className="text-ink/50">{money(i[0] * i[2])}</span>
+            </div>
+            {o.itemOpts?.[k]?.length ? (
+              <span className="pl-4 text-xs text-ink/45">+ {o.itemOpts[k].join(", ")}</span>
+            ) : null}
           </div>
         ))}
       </div>
