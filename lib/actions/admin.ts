@@ -70,6 +70,7 @@ export async function createEstablishmentAction(
       // Mercado Pago é o gateway fixo — já nasce pronto pra cobrar de verdade.
       paymentProvider: "MERCADO_PAGO",
       paymentOnboarded: true,
+      waiterModuleEnabled: data.waiterModuleEnabled ?? false,
     },
   });
   await prisma.user.create({
@@ -118,6 +119,7 @@ export async function updateEstablishmentAction(
       whatsapp: data.whatsapp || null,
       instagram: data.instagram || null,
       logoImg: data.logoImg || null,
+      waiterModuleEnabled: data.waiterModuleEnabled ?? false,
     },
   });
   // Update the login's email; only rehash the password if a new one was provided.

@@ -872,6 +872,8 @@
     "editor": {
       "titleNew": "New establishment",
       "titleEdit": "Edit establishment",
+      "waiterModule": "Waiter module",
+      "waiterModuleHint": "Ready queue, waiter delivery and tracking",
       "close": "Close",
       "name": "Establishment name",
       "namePh": "e.g. Sunny Kiosk",

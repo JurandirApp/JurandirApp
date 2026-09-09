@@ -131,6 +131,7 @@ export const establishmentUpsertSchema = z.object({
   whatsapp: z.string().optional(),
   instagram: z.string().optional(),
   logoImg: z.string().optional(),
+  waiterModuleEnabled: z.boolean().optional(),
 });
 export type EstablishmentUpsertInput = z.infer<typeof establishmentUpsertSchema>;
 

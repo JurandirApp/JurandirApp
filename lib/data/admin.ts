@@ -14,6 +14,7 @@ export type AdminEst = {
   printerIp?: string;
   printEnabled?: boolean;
   hasPrintToken?: boolean;
+  waiterModule?: boolean;
   name: string;
   owner: string;
   city: string;

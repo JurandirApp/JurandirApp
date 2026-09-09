@@ -10,7 +10,7 @@ export async function markItemReady(establishmentId: string, orderItemId: string
   try {
     return await prisma.$transaction(async (tx) => {
       const it = await tx.orderItem.findFirst({
-        where: { id: orderItemId, order: { establishmentId, status: "IN_PRODUCTION" } },
+        where: { id: orderItemId, order: { establishmentId, status: "IN_PRODUCTION", establishment: { waiterModuleEnabled: true } } },
         select: { id: true, orderId: true, qty: true, qtyReady: true, qtyOutForDelivery: true, qtyDelivered: true },
       });
       if (!it) return { ok: false as const };
@@ -38,7 +38,7 @@ export async function markItemReady(establishmentId: string, orderItemId: string
 export async function listReadyItems(establishmentId: string) {
   const rows = await prisma.orderItem.findMany({
     where: {
-      order: { establishmentId, status: "IN_PRODUCTION" },
+      order: { establishmentId, status: "IN_PRODUCTION", establishment: { waiterModuleEnabled: true } },
       OR: [{ qtyReady: { gt: 0 } }, { qtyOutForDelivery: { gt: 0 } }],
     },
     select: {

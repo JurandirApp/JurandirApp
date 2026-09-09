@@ -14,6 +14,7 @@ type DbEst = {
   website: string | null; whatsapp: string | null; instagram: string | null; logoImg: string | null; isLive: boolean;
   paymentProvider: string; paymentOnboarded: boolean;
   printerIp: string | null; printEnabled: boolean; printAgentToken: string | null;
+  waiterModuleEnabled: boolean;
   users?: { email: string }[];
 };
 
@@ -54,6 +55,7 @@ export function toAdminEst(db: DbEst, cur?: MonthlyStatLite): AdminEst {
     printerIp: db.printerIp ?? "",
     printEnabled: db.printEnabled,
     hasPrintToken: Boolean(db.printAgentToken),
+    waiterModule: db.waiterModuleEnabled,
   };
 }
 

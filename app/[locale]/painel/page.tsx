@@ -100,6 +100,7 @@ export default async function PainelPage({
       pagarmeReady={Boolean(est.pagarmeRecipientId)}
       pagarmeStatus={est.pagarmeRecipientStatus}
       asaasReady={Boolean(est.asaasWalletId)}
+      waiterModule={est.waiterModuleEnabled}
     />
   );
 }

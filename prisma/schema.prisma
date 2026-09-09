@@ -112,6 +112,9 @@ model Establishment {
   printAgentToken  String?             @unique
   printerIp        String?
   printEnabled     Boolean             @default(false)
+  // Módulo do Garçom (entrega na mesa) habilitado para este estabelecimento.
+  // Off por padrão — só bares que usam garçom/entrega ligam (pelo admin).
+  waiterModuleEnabled Boolean          @default(false)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 

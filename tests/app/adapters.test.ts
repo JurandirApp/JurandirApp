@@ -49,6 +49,7 @@ describe("toClientOrder", () => {
   const base = {
     id: "o1", number: 12, code: "PED-ABC", status: "IN_PRODUCTION",
     customerName: "Rômulo", customerPhone: "47999998888", note: "sem gelo",
+    establishment: { waiterModuleEnabled: true },
     createdAt: new Date("2026-07-01T12:00:00Z"),
     subtotal: 121, platformFee: 9.68, serviceFee: 12.1,
     items: [
@@ -86,6 +87,13 @@ describe("toClientOrder", () => {
       ...base, customerPhone: null, payment: { method: "CREDIT", installments: 1 }, splitShares: [],
     } as never);
     expect(o.code4).toBe("0012"); // últimos 4 de `number`, zero-padded
+  });
+  it("code4 fica indefinido quando o Módulo do Garçom está desligado", () => {
+    const o = toClientOrder({
+      ...base, establishment: { waiterModuleEnabled: false },
+      payment: { method: "CREDIT", installments: 1 }, splitShares: [],
+    } as never);
+    expect(o.code4).toBeUndefined();
   });
   it("maps a split order", () => {
     const o = toClientOrder({

@@ -216,6 +216,11 @@ export function getOrdersByIds(ids: string[]) {
   return prisma.order.findMany({
     where: { id: { in: ids } },
     orderBy: { createdAt: "desc" },
-    include: { items: true, payment: true, splitShares: { orderBy: { personIndex: "asc" } } },
+    include: {
+      items: true,
+      payment: true,
+      splitShares: { orderBy: { personIndex: "asc" } },
+      establishment: { select: { waiterModuleEnabled: true } },
+    },
   });
 }

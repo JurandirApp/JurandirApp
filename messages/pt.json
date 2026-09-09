@@ -872,6 +872,8 @@
     "editor": {
       "titleNew": "Novo estabelecimento",
       "titleEdit": "Editar estabelecimento",
+      "waiterModule": "Módulo do Garçom",
+      "waiterModuleHint": "Fila de prontos, entrega por garçom e rastreio",
       "close": "Fechar",
       "name": "Nome do estabelecimento",
       "namePh": "Ex: Quiosque do Sol",

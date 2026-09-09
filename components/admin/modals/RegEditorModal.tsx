@@ -28,6 +28,7 @@ export type RegPayload = {
   whatsapp: string;
   instagram: string;
   logoImg: string;
+  waiterModule: boolean;
 };
 
 type Form = Omit<RegPayload, "neigh"> & { neighborhood: string };
@@ -66,11 +67,13 @@ export function RegEditorModal({
           whatsapp: est.whatsapp,
           instagram: est.instagram,
           logoImg: est.logoImg ?? "",
+          waiterModule: est.waiterModule ?? false,
         }
       : {
           name: "", owner: "", tipo: "Restaurante", city: "", neighborhood: "",
           posto: "", radius: "", plan: "Básico", fee: "5", user: "", password: "",
           phone: "", email: "", website: "", whatsapp: "", instagram: "", logoImg: "",
+          waiterModule: false,
         },
   );
   const [logoUploading, setLogoUploading] = useState(false);
@@ -148,6 +151,7 @@ export function RegEditorModal({
         whatsapp: form.whatsapp,
         instagram: form.instagram,
         logoImg: form.logoImg,
+        waiterModule: form.waiterModule,
       },
       est?.id ?? null,
     );
@@ -248,6 +252,30 @@ export function RegEditorModal({
               <Input value={form.fee} onChange={(e) => set("fee", e.target.value)} />
             </Field>
           </div>
+
+          <label className="flex items-center justify-between gap-3 rounded-xl border-2 border-ink/15 p-3">
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-ink/70">
+                <Icon name="room_service" size={13} style={{ color: "#FF6B4A" }} />
+                {t("waiterModule")}
+              </span>
+              <span className="mt-0.5 block text-[11px] font-normal text-ink/45">{t("waiterModuleHint")}</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.waiterModule}
+              aria-label={t("waiterModule")}
+              onClick={() => setForm((f) => ({ ...f, waiterModule: !f.waiterModule }))}
+              className="relative h-6 w-11 flex-shrink-0 rounded-full transition-colors"
+              style={{ background: form.waiterModule ? "#FF6B4A" : "rgba(20,24,33,.2)" }}
+            >
+              <span
+                className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform"
+                style={{ transform: form.waiterModule ? "translateX(22px)" : "translateX(2px)" }}
+              />
+            </button>
+          </label>
 
           <SectionLabel>{t("access")}</SectionLabel>
           <Field label={<IconLabel icon="person" color="#0C6A70">{t("user")}</IconLabel>}>

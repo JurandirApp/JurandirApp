@@ -86,6 +86,7 @@ export function PanelApp({
   orders: orders0,
   menu: menu0,
   waiters: waiters0,
+  waiterModule,
   qrs: qrs0,
   stats,
   printJobs: printJobs0,
@@ -110,6 +111,7 @@ export function PanelApp({
   orders: Order[];
   menu: MenuItem[];
   waiters: Waiter[];
+  waiterModule: boolean;
   qrs: Qr[];
   stats: MonthlyStatLite[];
   printJobs: PanelPrintJob[];
@@ -601,6 +603,7 @@ export function PanelApp({
           .then(setPrintJobs)
           .catch(() => {});
       },
+      waiterModule,
     };
   }, [
     t, beach, now, slug, orders, menu, waiters, qrs, stats, tab, orderFilter, ordersPeriod, dayStart,
@@ -609,6 +612,7 @@ export function PanelApp({
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
     gatewayPix, gatewayCredit, gatewayDebit, pagarmeReady, pagarmeStatus, asaasReady,
+    waiterModule,
   ]);
 
   const saveItem = (clean: MenuItem) => {
@@ -708,7 +712,7 @@ export function PanelApp({
           <main className="box-border min-w-0 flex-1 p-6 md:px-7 md:py-6">
             {tab === "pedidos" && <PedidosSection />}
             {tab === "cardapio" && <CardapioSection />}
-            {tab === "garcons" && <GarconsSection />}
+            {tab === "garcons" && waiterModule && <GarconsSection />}
             {tab === "qrcodes" && <QrSection />}
             {tab === "kpis" && <KpisSection />}
             {tab === "auditoria" && <AuditoriaSection />}

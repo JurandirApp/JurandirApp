@@ -221,7 +221,7 @@ export function PedidosSection() {
 }
 
 function OrderCard({ order: o }: { order: Order }) {
-  const { deliverOrder, printOrder, openTimeline, beach } = usePanel();
+  const { deliverOrder, printOrder, openTimeline, beach, waiterModule } = usePanel();
   const t = useTranslations("panel.pedidos");
   const ts = useTranslations("panel.status");
   const tp = useTranslations("panel.pay");
@@ -294,7 +294,7 @@ function OrderCard({ order: o }: { order: Order }) {
         ))}
       </div>
 
-      {o.st === "producao" &&
+      {waiterModule && o.st === "producao" &&
         o.itemStates?.some((it) => it.qty - (it.ready + it.out + it.delivered) > 0) && (
           <div className="mb-3 flex flex-col gap-1.5">
             {o.itemStates.map((it) => (
@@ -372,7 +372,7 @@ function OrderCard({ order: o }: { order: Order }) {
         </div>
         {(o.dbId || (!inc && !o.expired)) && (
           <div className="flex flex-shrink-0 gap-2">
-            {o.dbId && (
+            {waiterModule && o.dbId && (
               <button
                 type="button"
                 onClick={() => openTimeline(o.dbId!)}

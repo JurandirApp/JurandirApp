@@ -68,6 +68,9 @@ export interface PanelValue {
   csvImport: () => void;
 
   // Garçons (Módulo do Garçom)
+  /** O Módulo do Garçom está habilitado para este estabelecimento? (liga no admin).
+   *  Quando false, some a aba Garçons, o "marcar pronto" e o rastreio. */
+  waiterModule: boolean;
   waiters: Waiter[];
   openWaiterEditor: (w: Waiter | null) => void;
   askDeleteWaiter: (w: Waiter) => void;

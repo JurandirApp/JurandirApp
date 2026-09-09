@@ -114,6 +114,7 @@ export function AdminApp({
       whatsapp: payload.whatsapp,
       instagram: payload.instagram,
       logoImg: payload.logoImg,
+      waiterModuleEnabled: payload.waiterModule,
     };
     startTransition(async () => {
       try {

@@ -105,6 +105,7 @@ const STATUS: Record<string, ClientOrder["status"]> = {
 type DbOrder = {
   id: string; number: number; code: string; status: string; customerName: string | null; note: string | null;
   customerPhone: string | null;
+  establishment?: { waiterModuleEnabled: boolean } | null;
   createdAt: Date; subtotal: unknown; platformFee: unknown; serviceFee: unknown;
   items: {
     qty: number; name: string; unitPrice: unknown; options?: unknown;
@@ -134,7 +135,11 @@ export function toClientOrder(o: DbOrder): ClientOrder {
     id: o.number,
     dbId: o.id,
     code: o.code,
-    code4: deliveryCode(o.customerPhone, String(o.number).slice(-4).padStart(4, "0")),
+    // Código de entrega só quando o Módulo do Garçom está ligado no bar; senão
+    // não há garçom/entrega e o código só confundiria o cliente.
+    code4: o.establishment?.waiterModuleEnabled
+      ? deliveryCode(o.customerPhone, String(o.number).slice(-4).padStart(4, "0"))
+      : undefined,
     ts: o.createdAt.getTime(),
     items: o.items.map((i) => ({
       name: i.name, qty: i.qty, price: num(i.unitPrice), options: optionLabels(i.options),

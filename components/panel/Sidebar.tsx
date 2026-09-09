@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { usePanel, TABS } from "./context";
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { tab, setTab, orders, restName } = usePanel();
+  const { tab, setTab, orders, restName, waiterModule } = usePanel();
   const t = useTranslations("panel.sidebar");
   const locale = useLocale();
   const activeCount = orders.filter((o) => o.st !== "entregue" && !o.expired).length;
@@ -43,7 +43,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       </div>
 
       <nav className="mt-2 flex flex-col gap-0.5">
-        {TABS.map(([id, icon]) => {
+        {TABS.filter(([id]) => id !== "garcons" || waiterModule).map(([id, icon]) => {
           const active = tab === id;
           const showBadge = id === "pedidos" && activeCount > 0;
           return (
