@@ -385,6 +385,7 @@
       "empty": "Nenhum evento registrado ainda.",
       "byWaiter": "— Garçom {name}",
       "types": {
+        "CREATED": "Pedido realizado",
         "PAID": "Pago",
         "IN_PRODUCTION": "Em produção",
         "READY": "Pronto",

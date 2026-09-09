@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { deliverOrder } from "@/lib/db/orders";
-import { markItemReady } from "@/lib/db/delivery";
+import { markItemReady, buildOrderTimeline } from "@/lib/db/delivery";
 import { upsertWaiter, deleteWaiter } from "@/lib/db/waiters";
 import { upsertMenuItem, deleteMenuItem } from "@/lib/db/menu";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
@@ -561,12 +561,9 @@ export async function deleteWaiterAction(id: string): Promise<void> {
   revalidatePath("/painel");
 }
 
-/** Timeline de eventos (READY/PICKED/DELIVERED) de um pedido, mais antigo primeiro. */
+/** Timeline de um pedido (realizado/pago/produção + pronto/retirado/entregue),
+ *  mais antigo primeiro. Sintetiza os eventos de ciclo do Order/Payment (spec §9). */
 export async function orderTimelineAction(orderId: string) {
   const s = await requireEst();
-  return prisma.orderEvent.findMany({
-    where: { orderId, order: { establishmentId: s.establishmentId! } },
-    orderBy: { at: "asc" },
-    include: { waiter: { select: { name: true } } },
-  });
+  return buildOrderTimeline(orderId, s.establishmentId!);
 }

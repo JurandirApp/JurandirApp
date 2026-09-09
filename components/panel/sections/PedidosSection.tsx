@@ -294,13 +294,14 @@ function OrderCard({ order: o }: { order: Order }) {
         ))}
       </div>
 
-      {o.itemStates?.some((it) => it.qty - (it.ready + it.out + it.delivered) > 0) && (
-        <div className="mb-3 flex flex-col gap-1.5">
-          {o.itemStates.map((it) => (
-            <ItemReadyControl key={it.id} it={it} />
-          ))}
-        </div>
-      )}
+      {o.st === "producao" &&
+        o.itemStates?.some((it) => it.qty - (it.ready + it.out + it.delivered) > 0) && (
+          <div className="mb-3 flex flex-col gap-1.5">
+            {o.itemStates.map((it) => (
+              <ItemReadyControl key={it.id} it={it} />
+            ))}
+          </div>
+        )}
 
       {o.note && (
         <div className="mb-3 flex gap-1.5 rounded-lg border border-[#fde68a] bg-[#fffbeb] px-2.5 py-2 text-xs text-[#92400e]">

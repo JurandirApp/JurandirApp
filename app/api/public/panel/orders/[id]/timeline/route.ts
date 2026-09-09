@@ -1,5 +1,5 @@
 import { authEstablishment } from "@/lib/auth/bearer";
-import { prisma } from "@/lib/db/prisma";
+import { buildOrderTimeline } from "@/lib/db/delivery";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +19,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!s) return Response.json({ error: "unauthorized" }, { status: 401, headers: CORS });
 
   const { id } = await ctx.params;
-  const events = await prisma.orderEvent.findMany({
-    where: { orderId: id, order: { establishmentId: s.establishmentId! } },
-    orderBy: { at: "asc" },
-    include: { waiter: { select: { name: true } } },
-  });
+  const events = await buildOrderTimeline(id, s.establishmentId!);
   return Response.json({ events }, { headers: CORS });
 }

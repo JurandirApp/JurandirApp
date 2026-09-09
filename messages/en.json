@@ -385,6 +385,7 @@
       "empty": "No events recorded yet.",
       "byWaiter": "— Waiter {name}",
       "types": {
+        "CREATED": "Order placed",
         "PAID": "Paid",
         "IN_PRODUCTION": "In production",
         "READY": "Ready",
