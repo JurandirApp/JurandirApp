@@ -39,6 +39,8 @@ export const orderCreateSchema = z.object({
   locationLabel: z.string().min(1),
   posto: z.string().optional(),
   customerName: z.string().optional(),
+  customerPhone: z.string().optional(),
+  clientId: z.string().optional(),
   note: z.string().max(200).optional(),
   items: z.array(orderItemInput).min(1),
   payment: z.discriminatedUnion("kind", [

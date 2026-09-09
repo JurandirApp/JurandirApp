@@ -100,6 +100,8 @@ export async function createOrder(input: OrderCreateInput) {
       locationLabel: data.locationLabel,
       posto: data.posto ?? null,
       customerName: data.customerName ?? null,
+      customerPhone: data.customerPhone ?? null,
+      clientId: data.clientId ?? null,
       note: data.note ?? null,
       subtotal,
       platformFee,
