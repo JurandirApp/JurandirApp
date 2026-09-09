@@ -15,7 +15,7 @@ export async function markItemReady(establishmentId: string, orderItemId: string
     await tx.orderItem.update({ where: { id: it.id }, data: { qtyReady: { increment: qty } } });
     await tx.orderEvent.create({ data: { orderId: it.orderId, orderItemId: it.id, type: "READY", qty } });
     return { ok: true as const };
-  });
+  }, { isolationLevel: "Serializable" });
 }
 
 export async function listReadyItems(establishmentId: string) {
@@ -36,14 +36,16 @@ export async function listReadyItems(establishmentId: string) {
 /** Pegar: decremento ATÔMICO guardado (updateMany é um único UPDATE). count===0
  *  → outro garçom já levou. Grava OrderEvent(PICKED). */
 export async function pickItem(establishmentId: string, waiterId: string, orderItemId: string, qty: number) {
-  const r = await prisma.orderItem.updateMany({
-    where: { id: orderItemId, order: { establishmentId }, qtyReady: { gte: qty } },
-    data: { qtyReady: { decrement: qty }, qtyOutForDelivery: { increment: qty } },
+  return prisma.$transaction(async (tx) => {
+    const r = await tx.orderItem.updateMany({
+      where: { id: orderItemId, order: { establishmentId }, qtyReady: { gte: qty } },
+      data: { qtyReady: { decrement: qty }, qtyOutForDelivery: { increment: qty } },
+    });
+    if (r.count === 0) return { ok: false as const };
+    const it = await tx.orderItem.findUnique({ where: { id: orderItemId }, select: { orderId: true } });
+    if (it) await tx.orderEvent.create({ data: { orderId: it.orderId, orderItemId, type: "PICKED", qty, waiterId } });
+    return { ok: true as const };
   });
-  if (r.count === 0) return { ok: false as const };
-  const it = await prisma.orderItem.findUnique({ where: { id: orderItemId }, select: { orderId: true } });
-  if (it) await prisma.orderEvent.create({ data: { orderId: it.orderId, orderItemId, type: "PICKED", qty, waiterId } });
-  return { ok: true as const };
 }
 
 /** Entregar: valida código (4 últimos do telefone OU fallback do pedido),
@@ -62,17 +64,19 @@ export async function deliverItem(
   if (code !== deliveryCode(it.order.customerPhone, fallback)) {
     return { ok: false as const, error: "code" as const };
   }
-  const r = await prisma.orderItem.updateMany({
-    where: { id: orderItemId, qtyOutForDelivery: { gte: qty } },
-    data: { qtyOutForDelivery: { decrement: qty }, qtyDelivered: { increment: qty } },
+  return prisma.$transaction(async (tx) => {
+    const r = await tx.orderItem.updateMany({
+      where: { id: orderItemId, qtyOutForDelivery: { gte: qty } },
+      data: { qtyOutForDelivery: { decrement: qty }, qtyDelivered: { increment: qty } },
+    });
+    if (r.count === 0) return { ok: false as const, error: "qty" as const };
+    await tx.orderEvent.create({ data: { orderId: it.orderId, orderItemId, type: "DELIVERED", qty, waiterId } });
+    // Completou o pedido?
+    const items = await tx.orderItem.findMany({ where: { orderId: it.orderId }, select: { qty: true, qtyDelivered: true } });
+    const done = isOrderFullyDelivered(items);
+    if (done) await tx.order.update({ where: { id: it.orderId }, data: { status: "DELIVERED" } });
+    return { ok: true as const, orderDone: done };
   });
-  if (r.count === 0) return { ok: false as const, error: "qty" as const };
-  await prisma.orderEvent.create({ data: { orderId: it.orderId, orderItemId, type: "DELIVERED", qty, waiterId } });
-  // Completou o pedido?
-  const items = await prisma.orderItem.findMany({ where: { orderId: it.orderId }, select: { qty: true, qtyDelivered: true } });
-  const done = isOrderFullyDelivered(items);
-  if (done) await prisma.order.update({ where: { id: it.orderId }, data: { status: "DELIVERED" } });
-  return { ok: true as const, orderDone: done };
 }
 
 /** Código de fallback do pedido (só usado quando não há telefone): armazenado
