@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { deliverOrder } from "@/lib/db/orders";
+import { markItemReady } from "@/lib/db/delivery";
+import { upsertWaiter, deleteWaiter } from "@/lib/db/waiters";
 import { upsertMenuItem, deleteMenuItem } from "@/lib/db/menu";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
 import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
@@ -40,6 +42,7 @@ import {
   type MenuItemUpsertInput,
   type PagarmeRecipientForm,
   type ProfileSaveInput,
+  type WaiterUpsertInput,
 } from "@/lib/validation";
 
 async function requireEst() {
@@ -528,4 +531,42 @@ export async function changePasswordAction(
   }
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(parsed.data.next) } });
   return { ok: true };
+}
+
+// ---- Módulo do Garçom (painel): marcar pronto, garçons (CRUD), timeline -----
+
+/** Bar marca N unidades de um item como prontas (fila de "prontos" do garçom). */
+export async function markItemReadyAction(orderItemId: string, qty: number): Promise<{ ok: boolean }> {
+  const s = await requireEst();
+  const r = await markItemReady(s.establishmentId!, orderItemId, qty);
+  if (r.ok) revalidatePath("/painel");
+  return { ok: r.ok };
+}
+
+/** Cria ou atualiza um garçom do estabelecimento da sessão. */
+export async function upsertWaiterAction(
+  input: Omit<WaiterUpsertInput, never>,
+): Promise<{ ok: boolean; waiter?: { id: string; name: string; user: string } }> {
+  const s = await requireEst();
+  const w = await upsertWaiter(s.establishmentId!, input);
+  if (!w) return { ok: false };
+  revalidatePath("/painel");
+  return { ok: true, waiter: w };
+}
+
+/** Remove um garçom, scoped por establishmentId. */
+export async function deleteWaiterAction(id: string): Promise<void> {
+  const s = await requireEst();
+  await deleteWaiter(id, s.establishmentId!);
+  revalidatePath("/painel");
+}
+
+/** Timeline de eventos (READY/PICKED/DELIVERED) de um pedido, mais antigo primeiro. */
+export async function orderTimelineAction(orderId: string) {
+  const s = await requireEst();
+  return prisma.orderEvent.findMany({
+    where: { orderId, order: { establishmentId: s.establishmentId! } },
+    orderBy: { at: "asc" },
+    include: { waiter: { select: { name: true } } },
+  });
 }
