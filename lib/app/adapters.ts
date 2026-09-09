@@ -1,5 +1,6 @@
 import type { PaymentMethod } from "@prisma/client";
 import { isPixExpired, round2 } from "@/lib/domain/pricing";
+import { deliveryCode } from "@/lib/domain/delivery";
 import { optionLabels } from "@/lib/print/escpos";
 import type { AppEstablishment, PayId } from "@/lib/data/app";
 import { COVER_IMG } from "@/lib/data/panel";
@@ -103,8 +104,12 @@ const STATUS: Record<string, ClientOrder["status"]> = {
 };
 type DbOrder = {
   id: string; number: number; code: string; status: string; customerName: string | null; note: string | null;
+  customerPhone: string | null;
   createdAt: Date; subtotal: unknown; platformFee: unknown; serviceFee: unknown;
-  items: { qty: number; name: string; unitPrice: unknown; options?: unknown }[];
+  items: {
+    qty: number; name: string; unitPrice: unknown; options?: unknown;
+    qtyReady?: number; qtyOutForDelivery?: number; qtyDelivered?: number;
+  }[];
   payment: { method: string; installments: number; pixPayload: string | null; pixQrImage: string | null } | null;
   splitShares: {
     personIndex: number;
@@ -129,8 +134,12 @@ export function toClientOrder(o: DbOrder): ClientOrder {
     id: o.number,
     dbId: o.id,
     code: o.code,
+    code4: deliveryCode(o.customerPhone, String(o.number).slice(-4).padStart(4, "0")),
     ts: o.createdAt.getTime(),
-    items: o.items.map((i) => ({ name: i.name, qty: i.qty, price: num(i.unitPrice), options: optionLabels(i.options) })),
+    items: o.items.map((i) => ({
+      name: i.name, qty: i.qty, price: num(i.unitPrice), options: optionLabels(i.options),
+      ready: num(i.qtyReady), outForDelivery: num(i.qtyOutForDelivery), delivered: num(i.qtyDelivered),
+    })),
     total: num(o.subtotal),
     fee: num(o.platformFee),
     est: num(o.serviceFee),

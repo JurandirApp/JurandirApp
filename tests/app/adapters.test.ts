@@ -48,9 +48,13 @@ describe("toAppMenuItem", () => {
 describe("toClientOrder", () => {
   const base = {
     id: "o1", number: 12, code: "PED-ABC", status: "IN_PRODUCTION",
-    customerName: "Rômulo", note: "sem gelo", createdAt: new Date("2026-07-01T12:00:00Z"),
+    customerName: "Rômulo", customerPhone: "47999998888", note: "sem gelo",
+    createdAt: new Date("2026-07-01T12:00:00Z"),
     subtotal: 121, platformFee: 9.68, serviceFee: 12.1,
-    items: [{ qty: 1, name: "Combo Casal", unitPrice: 99 }, { qty: 1, name: "Caipirinha", unitPrice: 22 }],
+    items: [
+      { qty: 1, name: "Combo Casal", unitPrice: 99, qtyReady: 1, qtyOutForDelivery: 0, qtyDelivered: 0 },
+      { qty: 1, name: "Caipirinha", unitPrice: 22, qtyReady: 0, qtyOutForDelivery: 0, qtyDelivered: 0 },
+    ],
   };
   it("maps a full-payment order", () => {
     const o = toClientOrder({
@@ -59,6 +63,7 @@ describe("toClientOrder", () => {
     expect(o.id).toBe(12);
     expect(o.dbId).toBe("o1");
     expect(o.code).toBe("PED-ABC");
+    expect(o.code4).toBe("8888"); // últimos 4 do customerPhone
     expect(o.status).toBe("producao");
     expect(o.total).toBe(121); // subtotal
     expect(o.fee).toBe(9.68);
@@ -67,6 +72,20 @@ describe("toClientOrder", () => {
     expect(o.pay).toEqual({ id: "credito", parc: 3 });
     expect(o.splits).toBeNull();
     expect(o.name).toBe("Rômulo");
+    expect(o.items[0]).toEqual({
+      name: "Combo Casal", qty: 1, price: 99, options: [],
+      ready: 1, outForDelivery: 0, delivered: 0,
+    });
+    expect(o.items[1]).toEqual({
+      name: "Caipirinha", qty: 1, price: 22, options: [],
+      ready: 0, outForDelivery: 0, delivered: 0,
+    });
+  });
+  it("code4 usa fallback do número do pedido quando não há telefone", () => {
+    const o = toClientOrder({
+      ...base, customerPhone: null, payment: { method: "CREDIT", installments: 1 }, splitShares: [],
+    } as never);
+    expect(o.code4).toBe("0012"); // últimos 4 de `number`, zero-padded
   });
   it("maps a split order", () => {
     const o = toClientOrder({

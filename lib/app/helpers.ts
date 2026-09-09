@@ -24,9 +24,15 @@ export type ClientOrder = {
   id: number;
   dbId?: string;
   code: string;
+  /** Código de 4 dígitos pro garçom confirmar a entrega (últimos 4 do telefone
+   *  do cliente, ou os últimos 4 do número do pedido quando não há telefone). */
+  code4?: string;
   /** epoch ms (client clock at checkout) */
   ts: number;
-  items: { name: string; qty: number; price: number; options?: string[] }[];
+  items: {
+    name: string; qty: number; price: number; options?: string[];
+    ready: number; outForDelivery: number; delivered: number;
+  }[];
   /** Subtotal do carrinho (só os itens). */
   total: number;
   /** Comissão da plataforma (parte do `grand`). */
