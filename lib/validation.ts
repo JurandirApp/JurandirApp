@@ -185,3 +185,22 @@ export const pagarmeRecipientSchema = z.object({
   zipCode: z.string().optional(),
 });
 export type PagarmeRecipientForm = z.infer<typeof pagarmeRecipientSchema>;
+
+export const waiterUpsertSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1).max(120),
+  user: z.string().min(1).max(120),      // login (email ou username)
+  password: z.string().min(4).optional(), // obrigatório no create; vazio no edit = mantém
+});
+export type WaiterUpsertInput = z.infer<typeof waiterUpsertSchema>;
+
+export const markReadySchema = z.object({ qty: z.number().int().positive() });
+export const pickItemSchema = z.object({ qty: z.number().int().positive() });
+export const deliverItemSchema = z.object({
+  qty: z.number().int().positive(),
+  code: z.string().min(1).max(8),
+});
+export const deviceRegisterSchema = z.object({
+  token: z.string().min(1),
+  clientId: z.string().optional(),
+});
