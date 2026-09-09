@@ -17,8 +17,8 @@ export async function OPTIONS(): Promise<Response> {
 
 /**
  * POST /api/public/login  { email, password }
- * Login real (mesma verificação do web: bcrypt no Neon). Só existem usuários
- * ESTABLISHMENT e ADMIN — cliente é anônimo. Devolve um JWT (para o app guardar
+ * Login real (mesma verificação do web: bcrypt no Neon). Existem usuários
+ * ESTABLISHMENT, ADMIN e WAITER — cliente é anônimo. Devolve um JWT (para o app guardar
  * e usar nas rotas protegidas dos painéis) + os dados do usuário.
  */
 export async function POST(req: Request): Promise<Response> {
@@ -56,7 +56,7 @@ export async function POST(req: Request): Promise<Response> {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role, // ADMIN | ESTABLISHMENT
+        role: user.role, // ADMIN | ESTABLISHMENT | WAITER
         establishmentId: user.establishmentId,
       },
     },
