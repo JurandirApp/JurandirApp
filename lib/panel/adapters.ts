@@ -44,7 +44,10 @@ const STATUS: Record<string, Order["st"]> = {
 type DbOrder = {
   id: string; number: number; code: string; status: string; locationLabel: string;
   posto: string | null; customerName: string | null; note: string | null; createdAt: Date;
-  items: { qty: number; name: string; unitPrice: unknown; options?: unknown }[];
+  items: {
+    id: string; qty: number; name: string; unitPrice: unknown; options?: unknown;
+    qtyReady?: number; qtyOutForDelivery?: number; qtyDelivered?: number;
+  }[];
   payment: { method: string; cardMask: string | null } | null;
   splitShares: { method: string | null; paid: boolean; amount: unknown }[];
 };
@@ -52,6 +55,13 @@ type DbOrder = {
 export function toPanelOrder(o: DbOrder): Order {
   const items: OrderLine[] = o.items.map((i) => [i.qty, i.name, num(i.unitPrice)]);
   const itemOpts = o.items.map((i) => optionLabels(i.options));
+  const itemStates = o.items.map((i) => ({
+    id: i.id,
+    qty: i.qty,
+    ready: num(i.qtyReady),
+    out: num(i.qtyOutForDelivery),
+    delivered: num(i.qtyDelivered),
+  }));
   const hasSplit = o.splitShares.length > 0;
   const firstPaid = o.splitShares.find((s) => s.method);
   const pay: PayMethod = o.payment
@@ -84,6 +94,7 @@ export function toPanelOrder(o: DbOrder): Order {
     ts: o.createdAt.getTime(),
     items,
     itemOpts,
+    itemStates,
     note: o.note ?? undefined,
     card: o.payment?.cardMask ?? undefined,
     splits,

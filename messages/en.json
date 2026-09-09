@@ -261,7 +261,8 @@
       "nameRequired": "Give the item a name to save",
       "qrError": "Could not create the QR.",
       "itemError": "Could not save the item.",
-      "profileError": "Could not save the profile."
+      "profileError": "Could not save the profile.",
+      "markReadyError": "Could not mark as ready. Try again."
     },
     "pedidos": {
       "periodToday": "Today",
@@ -294,6 +295,9 @@
       "splitPayment": "Split bill",
       "print": "Print",
       "deliver": "Delivered",
+      "itemPreparing": "{n} left to prepare",
+      "itemBreakdown": "{ready} ready · {out} out for delivery · {delivered} delivered",
+      "markReady": "Mark {n} ready",
       "emptyStatus": "No orders in this status.",
       "emptyOrdersTitle": "No orders here yet",
       "emptyOrdersText": "Orders placed by customers show up here automatically, in real time. Share your QR Code to start receiving them.",

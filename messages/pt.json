@@ -261,7 +261,8 @@
       "nameRequired": "Dê um nome ao item para salvar",
       "qrError": "Não foi possível criar o QR.",
       "itemError": "Não foi possível salvar o item.",
-      "profileError": "Não foi possível salvar o perfil."
+      "profileError": "Não foi possível salvar o perfil.",
+      "markReadyError": "Não foi possível marcar como pronto. Tente de novo."
     },
     "pedidos": {
       "periodToday": "Hoje",
@@ -294,6 +295,9 @@
       "splitPayment": "Conta dividida",
       "print": "Imprimir",
       "deliver": "Entregue",
+      "itemPreparing": "Falta preparar {n}",
+      "itemBreakdown": "{ready} prontas · {out} a caminho · {delivered} entregues",
+      "markReady": "Marcar {n} pronto",
       "emptyStatus": "Nenhum pedido neste status.",
       "emptyOrdersTitle": "Nenhum pedido por aqui",
       "emptyOrdersText": "Os pedidos feitos pelos clientes aparecem aqui automaticamente, em tempo real. Compartilhe seu QR Code para começar a receber.",

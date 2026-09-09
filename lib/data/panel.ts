@@ -99,6 +99,9 @@ export type Order = {
   items: OrderLine[];
   /** Adicionais escolhidos por item (mesmos índices de `items`); [] = sem. */
   itemOpts?: string[][];
+  /** Contadores de entrega por item (Módulo do Garçom): quanto já está pronto,
+   *  saiu pra entrega ou foi entregue — o restante (qty - soma) é "preparando". */
+  itemStates?: { id: string; qty: number; ready: number; out: number; delivered: number }[];
   note?: string;
   card?: string;
   splits?: Split;

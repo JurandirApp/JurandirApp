@@ -25,6 +25,7 @@ import {
   disconnectMpAction,
   generatePrintTokenAction,
   getMpConnectUrlForMeAction,
+  markItemReadyAction,
   printOrderAction,
   refreshOrdersAction,
   refreshPrintJobsAction,
@@ -280,6 +281,21 @@ export function PanelApp({
             toast(t("toasts.printError"));
           }
           refreshPrintJobsAction().then(setPrintJobs).catch(() => {});
+        });
+      },
+      markItemReady: (orderItemId, qty) => {
+        startTransition(async () => {
+          const r = await markItemReadyAction(orderItemId, qty);
+          if (r.ok) {
+            refreshOrdersAction(ordersPeriodRef.current)
+              .then((fresh) => {
+                fresh.forEach((o) => o.dbId && seenOrders.current.add(o.dbId));
+                setOrders(fresh);
+              })
+              .catch(() => {});
+          } else {
+            toast(t("toasts.markReadyError"));
+          }
         });
       },
 

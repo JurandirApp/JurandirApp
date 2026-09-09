@@ -47,6 +47,8 @@ export interface PanelValue {
   dayStartSet: boolean;
   deliverOrder: (id: number) => void;
   printOrder: (id: number) => void;
+  /** Bar marca N unidades de um item (por `orderItemId`) como prontas. */
+  markItemReady: (orderItemId: string, qty: number) => void;
 
   // Cardápio
   menuCat: string;

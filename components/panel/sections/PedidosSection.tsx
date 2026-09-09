@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import type { Order } from "@/lib/data/panel";
@@ -294,6 +294,14 @@ function OrderCard({ order: o }: { order: Order }) {
         ))}
       </div>
 
+      {o.itemStates?.some((it) => it.qty - (it.ready + it.out + it.delivered) > 0) && (
+        <div className="mb-3 flex flex-col gap-1.5">
+          {o.itemStates.map((it) => (
+            <ItemReadyControl key={it.id} it={it} />
+          ))}
+        </div>
+      )}
+
       {o.note && (
         <div className="mb-3 flex gap-1.5 rounded-lg border border-[#fde68a] bg-[#fffbeb] px-2.5 py-2 text-xs text-[#92400e]">
           <Icon name="chat" size={15} className="mt-px flex-shrink-0" />
@@ -383,6 +391,71 @@ function OrderCard({ order: o }: { order: Order }) {
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Controle "marcar pronto" de um item (Módulo do Garçom): mostra quanto falta
+ *  preparar e um stepper (min 1, max = preparando) pro bar confirmar em lote. */
+function ItemReadyControl({
+  it,
+}: {
+  it: NonNullable<Order["itemStates"]>[number];
+}) {
+  const { markItemReady } = usePanel();
+  const t = useTranslations("panel.pedidos");
+  const preparing = it.qty - (it.ready + it.out + it.delivered);
+  const [n, setN] = useState(preparing);
+
+  // O "preparando" muda quando o pedido é atualizado (ex.: já marcou parte
+  // como pronta) — realinha o stepper ao novo teto.
+  useEffect(() => setN(preparing), [preparing]);
+
+  if (preparing <= 0) return null;
+  const showBreakdown = it.ready > 0 || it.out > 0 || it.delivered > 0;
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg bg-dune-50 px-2.5 py-2">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-semibold text-ink/70">
+          {it.qty}× {t("itemPreparing", { n: preparing })}
+        </span>
+        {showBreakdown && (
+          <span className="text-ink/45">
+            {t("itemBreakdown", { ready: it.ready, out: it.out, delivered: it.delivered })}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setN((v) => Math.max(1, v - 1))}
+            disabled={n <= 1}
+            aria-label="-"
+            className="flex h-6 w-6 items-center justify-center rounded-md border-2 border-ink bg-white text-ink disabled:opacity-30"
+          >
+            <Icon name="remove" size={14} />
+          </button>
+          <span className="w-5 text-center text-xs font-bold text-ink">{n}</span>
+          <button
+            type="button"
+            onClick={() => setN((v) => Math.min(preparing, v + 1))}
+            disabled={n >= preparing}
+            aria-label="+"
+            className="flex h-6 w-6 items-center justify-center rounded-md border-2 border-ink bg-white text-ink disabled:opacity-30"
+          >
+            <Icon name="add" size={14} />
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => markItemReady(it.id, n)}
+          className="rounded-lg bg-ink px-2.5 py-1 text-xs font-bold text-sand"
+        >
+          {t("markReady", { n })}
+        </button>
       </div>
     </div>
   );
