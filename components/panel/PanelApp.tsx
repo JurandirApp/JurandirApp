@@ -9,6 +9,7 @@ import {
   type PanelPrintJob,
   type ProfileForm,
   type Qr,
+  type Waiter,
 } from "@/lib/data/panel";
 import type { MonthlyStatLite } from "@/lib/admin/scale";
 import { padId } from "@/lib/panel/helpers";
@@ -36,6 +37,8 @@ import {
   signEstablishmentImageUploadAction,
   testPrintAction,
   upsertMenuItemAction,
+  upsertWaiterAction,
+  deleteWaiterAction,
 } from "@/lib/actions/panel";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
@@ -55,12 +58,14 @@ import { RealtimeNotif } from "./RealtimeNotif";
 import { Toast } from "./Toast";
 import { PedidosSection } from "./sections/PedidosSection";
 import { CardapioSection } from "./sections/CardapioSection";
+import { GarconsSection } from "./sections/GarconsSection";
 import { QrSection } from "./sections/QrSection";
 import { KpisSection } from "./sections/KpisSection";
 import { AuditoriaSection } from "./sections/AuditoriaSection";
 import { PerfilSection } from "./sections/PerfilSection";
 import { ConfigSection } from "./sections/ConfigSection";
 import { ItemEditorModal } from "./modals/ItemEditorModal";
+import { WaiterEditorModal } from "./modals/WaiterEditorModal";
 import { ConfirmDialog } from "./modals/ConfirmDialog";
 import { QrZoomModal } from "./modals/QrZoomModal";
 
@@ -77,6 +82,7 @@ export function PanelApp({
   images,
   orders: orders0,
   menu: menu0,
+  waiters: waiters0,
   qrs: qrs0,
   stats,
   printJobs: printJobs0,
@@ -100,6 +106,7 @@ export function PanelApp({
   images: { cover: string | null; logo: string | null };
   orders: Order[];
   menu: MenuItem[];
+  waiters: Waiter[];
   qrs: Qr[];
   stats: MonthlyStatLite[];
   printJobs: PanelPrintJob[];
@@ -120,6 +127,7 @@ export function PanelApp({
 
   const [orders, setOrders] = useState<Order[]>(orders0);
   const [menu, setMenu] = useState<MenuItem[]>(menu0);
+  const [waiters, setWaiters] = useState<Waiter[]>(waiters0);
   const [qrs, setQrs] = useState<Qr[]>(qrs0);
   const [printJobs, setPrintJobs] = useState<PanelPrintJob[]>(printJobs0);
 
@@ -171,6 +179,8 @@ export function PanelApp({
   // Modals held locally (sections trigger them via actions).
   const [editing, setEditing] = useState<{ item: MenuItem | null } | null>(null);
   const [delItem, setDelItem] = useState<MenuItem | null>(null);
+  const [editingWaiter, setEditingWaiter] = useState<{ waiter: Waiter | null } | null>(null);
+  const [delWaiter, setDelWaiter] = useState<Waiter | null>(null);
   const [delQr, setDelQr] = useState<Qr | null>(null);
   const [qrZoom, setQrZoom] = useState<Qr | null>(null);
 
@@ -233,6 +243,7 @@ export function PanelApp({
       now,
       orders,
       menu,
+      waiters,
       qrs,
       stats,
       tab,
@@ -305,6 +316,9 @@ export function PanelApp({
       askDeleteItem: (item) => setDelItem(item),
       csvModel: () => toast(t("toasts.csvModel")),
       csvImport: () => toast(t("toasts.csvImport")),
+
+      openWaiterEditor: (waiter) => setEditingWaiter({ waiter }),
+      askDeleteWaiter: (waiter) => setDelWaiter(waiter),
 
       qrLabel,
       setQrLabel,
@@ -571,7 +585,7 @@ export function PanelApp({
       },
     };
   }, [
-    t, beach, now, slug, orders, menu, qrs, stats, tab, orderFilter, ordersPeriod, dayStart,
+    t, beach, now, slug, orders, menu, waiters, qrs, stats, tab, orderFilter, ordersPeriod, dayStart,
     dayStartSet, period, openPay, menuCat,
     itemCat, qrLabel, aud, audPage, profile, weekly, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
@@ -619,6 +633,23 @@ export function PanelApp({
     });
   };
 
+  const saveWaiter = (data: { id?: string; name: string; user: string; password?: string }) => {
+    startTransition(async () => {
+      const r = await upsertWaiterAction(data);
+      if (r.ok && r.waiter) {
+        setWaiters((prev) =>
+          prev.some((x) => x.id === r.waiter!.id)
+            ? prev.map((x) => (x.id === r.waiter!.id ? r.waiter! : x))
+            : [...prev, r.waiter!],
+        );
+        setEditingWaiter(null);
+        toast(t("toasts.waiterSaved"));
+      } else {
+        toast(t("toasts.waiterError"));
+      }
+    });
+  };
+
   return (
     <PanelContext.Provider value={value}>
       <div className="min-h-screen bg-page">
@@ -659,6 +690,7 @@ export function PanelApp({
           <main className="box-border min-w-0 flex-1 p-6 md:px-7 md:py-6">
             {tab === "pedidos" && <PedidosSection />}
             {tab === "cardapio" && <CardapioSection />}
+            {tab === "garcons" && <GarconsSection />}
             {tab === "qrcodes" && <QrSection />}
             {tab === "kpis" && <KpisSection />}
             {tab === "auditoria" && <AuditoriaSection />}
@@ -689,6 +721,31 @@ export function PanelApp({
               setMenu((prev) => prev.filter((x) => x.dbId !== delItem.dbId));
               if (delItem.dbId) startTransition(() => deleteMenuItemAction(delItem.dbId!));
               setDelItem(null);
+            }}
+          />
+        )}
+        {editingWaiter && (
+          <WaiterEditorModal
+            waiter={editingWaiter.waiter}
+            onClose={() => setEditingWaiter(null)}
+            onSave={saveWaiter}
+            onToast={toast}
+          />
+        )}
+        {delWaiter && (
+          <ConfirmDialog
+            icon="delete"
+            title={t("confirm.deleteWaiterTitle")}
+            body={t.rich("confirm.deleteWaiterBody", {
+              name: delWaiter.name,
+              b: (c) => <b>{c}</b>,
+            })}
+            confirmLabel={t("confirm.delete")}
+            onCancel={() => setDelWaiter(null)}
+            onConfirm={() => {
+              setWaiters((prev) => prev.filter((x) => x.id !== delWaiter.id));
+              startTransition(() => deleteWaiterAction(delWaiter.id));
+              setDelWaiter(null);
             }}
           />
         )}

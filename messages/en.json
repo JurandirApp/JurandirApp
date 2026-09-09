@@ -215,6 +215,7 @@
       "nav": {
         "pedidos": "Orders",
         "cardapio": "Menu",
+        "garcons": "Waiters",
         "qrcodes": "QR Codes",
         "kpis": "KPIs",
         "auditoria": "Audit",
@@ -262,7 +263,9 @@
       "qrError": "Could not create the QR.",
       "itemError": "Could not save the item.",
       "profileError": "Could not save the profile.",
-      "markReadyError": "Could not mark as ready. Try again."
+      "markReadyError": "Could not mark as ready. Try again.",
+      "waiterSaved": "Waiter saved",
+      "waiterError": "Could not save the waiter."
     },
     "pedidos": {
       "periodToday": "Today",
@@ -314,6 +317,13 @@
       "edit": "Edit",
       "delete": "Delete"
     },
+    "garcons": {
+      "countWaiters": "{count, plural, one {# waiter} other {# waiters}}",
+      "newWaiter": "New waiter",
+      "empty": "No waiters added yet.",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
     "editor": {
       "titleNew": "New item",
       "titleEdit": "Edit item",
@@ -349,11 +359,31 @@
       "save": "Save item",
       "close": "Close"
     },
+    "waiterEditor": {
+      "titleNew": "New waiter",
+      "titleEdit": "Edit waiter",
+      "name": "Name",
+      "namePlaceholder": "e.g. John Smith",
+      "user": "Username (login)",
+      "userPlaceholder": "e.g. john or john@bar.com",
+      "password": "Password",
+      "passwordPlaceholder": "At least 4 characters",
+      "passwordEditPlaceholder": "Leave blank to keep it",
+      "passwordEditHint": "Leave blank to keep the current password.",
+      "nameRequired": "Enter the waiter's name.",
+      "userRequired": "Enter the username (login).",
+      "passwordRequired": "Enter a password for the new waiter.",
+      "passwordTooShort": "The password must be at least 4 characters.",
+      "save": "Save waiter",
+      "close": "Close"
+    },
     "confirm": {
       "cancel": "Cancel",
       "delete": "Delete",
       "deleteItemTitle": "Delete item?",
       "deleteItemBody": "<b>{name}</b> will be removed from the menu. This action can't be undone.",
+      "deleteWaiterTitle": "Delete waiter?",
+      "deleteWaiterBody": "<b>{name}</b> will be removed and lose access to the waiter app. This action can't be undone.",
       "deleteQrTitle": "Delete QR Code?",
       "deleteQrBody": "The QR for <b>{label}</b> will be removed. Prints already made will stop opening the menu."
     },

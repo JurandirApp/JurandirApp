@@ -109,6 +109,9 @@ export type Order = {
 
 export type Qr = { id: string; label: string };
 
+/** Garçom do estabelecimento (Módulo do Garçom). `user` é o login (email/username). */
+export type Waiter = { id: string; name: string; user: string };
+
 // ---- Constants ----------------------------------------------------------
 
 export const PM: Record<

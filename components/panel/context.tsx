@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { MenuItem, Order, PanelPrintJob, ProfileForm, Qr } from "@/lib/data/panel";
+import type { MenuItem, Order, PanelPrintJob, ProfileForm, Qr, Waiter } from "@/lib/data/panel";
 import type { MonthlyStatLite } from "@/lib/admin/scale";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
@@ -10,6 +10,7 @@ import type { PagarmeRecipientForm } from "@/lib/validation";
 export type TabId =
   | "pedidos"
   | "cardapio"
+  | "garcons"
   | "qrcodes"
   | "kpis"
   | "auditoria"
@@ -57,6 +58,11 @@ export interface PanelValue {
   askDeleteItem: (item: MenuItem) => void;
   csvModel: () => void;
   csvImport: () => void;
+
+  // Garçons (Módulo do Garçom)
+  waiters: Waiter[];
+  openWaiterEditor: (w: Waiter | null) => void;
+  askDeleteWaiter: (w: Waiter) => void;
 
   // QR
   qrLabel: string;
@@ -160,6 +166,7 @@ export function usePanel(): PanelValue {
 export const TABS: [TabId, string][] = [
   ["pedidos", "space_dashboard"],
   ["cardapio", "restaurant"],
+  ["garcons", "badge"],
   ["qrcodes", "qr_code_2"],
   ["kpis", "trending_up"],
   ["auditoria", "receipt_long"],

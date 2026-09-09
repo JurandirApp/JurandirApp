@@ -10,6 +10,7 @@ import {
   listPanelQrSpots,
   listPanelStats,
 } from "@/lib/db/panel";
+import { listWaiters } from "@/lib/db/waiters";
 import { toMonthlyStatLite } from "@/lib/admin/adapters";
 import {
   toPanelMenuItem,
@@ -62,9 +63,10 @@ export default async function PainelPage({
   const now = Date.now();
   // Abre no dia operacional atual (respeita o "início do dia" do estabelecimento).
   const todayRange = periodRange({ kind: "hoje" }, est.dayStartHour, now);
-  const [dbOrders, dbMenu, dbQrs, dbStats, dbPrintJobs] = await Promise.all([
+  const [dbOrders, dbMenu, dbWaiters, dbQrs, dbStats, dbPrintJobs] = await Promise.all([
     listPanelOrders(estId, todayRange),
     listPanelMenu(estId),
+    listWaiters(estId),
     listPanelQrSpots(estId),
     listPanelStats(estId),
     listPanelPrintJobs(estId),
@@ -80,6 +82,7 @@ export default async function PainelPage({
       images={{ cover: est.coverImg, logo: est.logoImg }}
       orders={dbOrders.map(toPanelOrder)}
       menu={dbMenu.map(toPanelMenuItem)}
+      waiters={dbWaiters}
       qrs={dbQrs.map(toPanelQr)}
       stats={dbStats.map(toMonthlyStatLite)}
       printJobs={dbPrintJobs.map(toPanelPrintJob)}

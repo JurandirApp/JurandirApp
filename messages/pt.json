@@ -215,6 +215,7 @@
       "nav": {
         "pedidos": "Pedidos",
         "cardapio": "Cardápio",
+        "garcons": "Garçons",
         "qrcodes": "QR Codes",
         "kpis": "KPIs",
         "auditoria": "Auditoria",
@@ -262,7 +263,9 @@
       "qrError": "Não foi possível criar o QR.",
       "itemError": "Não foi possível salvar o item.",
       "profileError": "Não foi possível salvar o perfil.",
-      "markReadyError": "Não foi possível marcar como pronto. Tente de novo."
+      "markReadyError": "Não foi possível marcar como pronto. Tente de novo.",
+      "waiterSaved": "Garçom salvo",
+      "waiterError": "Não foi possível salvar o garçom."
     },
     "pedidos": {
       "periodToday": "Hoje",
@@ -314,6 +317,13 @@
       "edit": "Editar",
       "delete": "Excluir"
     },
+    "garcons": {
+      "countWaiters": "{count, plural, one {# garçom} other {# garçons}}",
+      "newWaiter": "Novo garçom",
+      "empty": "Nenhum garçom cadastrado ainda.",
+      "edit": "Editar",
+      "delete": "Excluir"
+    },
     "editor": {
       "titleNew": "Novo item",
       "titleEdit": "Editar item",
@@ -349,11 +359,31 @@
       "save": "Salvar item",
       "close": "Fechar"
     },
+    "waiterEditor": {
+      "titleNew": "Novo garçom",
+      "titleEdit": "Editar garçom",
+      "name": "Nome",
+      "namePlaceholder": "Ex: João Silva",
+      "user": "Usuário (login)",
+      "userPlaceholder": "Ex: joao ou joao@bar.com",
+      "password": "Senha",
+      "passwordPlaceholder": "Mínimo 4 caracteres",
+      "passwordEditPlaceholder": "Deixe em branco para manter",
+      "passwordEditHint": "Deixe em branco para manter a senha atual.",
+      "nameRequired": "Informe o nome do garçom.",
+      "userRequired": "Informe o usuário (login).",
+      "passwordRequired": "Informe uma senha para o novo garçom.",
+      "passwordTooShort": "A senha precisa ter ao menos 4 caracteres.",
+      "save": "Salvar garçom",
+      "close": "Fechar"
+    },
     "confirm": {
       "cancel": "Cancelar",
       "delete": "Excluir",
       "deleteItemTitle": "Excluir item?",
       "deleteItemBody": "<b>{name}</b> será removido do cardápio. Esta ação não pode ser desfeita.",
+      "deleteWaiterTitle": "Excluir garçom?",
+      "deleteWaiterBody": "<b>{name}</b> será removido e perderá o acesso ao app do garçom. Esta ação não pode ser desfeita.",
       "deleteQrTitle": "Excluir QR Code?",
       "deleteQrBody": "O QR de <b>{label}</b> será removido. Impressões já feitas deixam de abrir o cardápio."
     },
