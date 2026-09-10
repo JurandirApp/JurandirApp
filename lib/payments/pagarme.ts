@@ -181,11 +181,17 @@ function mapGooglePay(raw: string): Record<string, unknown> {
   };
 }
 
-/** Apple Pay: token vem no PKPaymentToken.paymentData. Estrutura finalizada
- *  quando o iOS estiver de pé (Merchant ID Apple + certificado). */
+/** Apple Pay: o plugin `pay` (iOS) devolve o PKPaymentToken serializado como
+ *  string JSON. O que o Pagar.me descriptografa (com o certificado que subimos
+ *  pro Merchant ID merchant.br.app.jurandir) é o `paymentData`:
+ *  `{ version, data, signature, header:{ ephemeralPublicKey, publicKeyHash,
+ *  transactionId } }`. Mandamos esse objeto direto sob `apple_pay` — mesmo
+ *  padrão do Google Pay (dados nativos da carteira preservados). */
 function mapApplePay(raw: string): Record<string, unknown> {
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
+    const t = JSON.parse(raw) as Record<string, unknown>;
+    const pd = (t.paymentData ?? t.payment_data ?? t) as Record<string, unknown>;
+    return pd;
   } catch {
     return { data: raw };
   }

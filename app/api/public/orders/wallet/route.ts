@@ -53,7 +53,11 @@ export async function POST(req: Request): Promise<Response> {
       },
       { headers: CORS },
     );
-  } catch {
+  } catch (e) {
+    // Loga o motivo real (ex.: PagarmeError com o campo inválido do token) pra
+    // diagnosticar a cobrança de carteira sem vazar detalhe do gateway pro app.
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error("[orders/wallet] falha ao cobrar carteira:", detail);
     return Response.json({ ok: false, status: "failed", error: "failed" }, { status: 500, headers: CORS });
   }
 }
