@@ -36,6 +36,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email.trim().toLowerCase() },
+    include: { establishment: { select: { waiterModuleEnabled: true } } },
   });
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return Response.json({ ok: false, error: "invalidCredentials" }, { status: 401, headers: CORS });
@@ -58,6 +59,7 @@ export async function POST(req: Request): Promise<Response> {
         email: user.email,
         role: user.role, // ADMIN | ESTABLISHMENT | WAITER
         establishmentId: user.establishmentId,
+        waiterModule: user.establishment?.waiterModuleEnabled ?? false,
       },
     },
     { headers: CORS },
