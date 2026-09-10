@@ -62,6 +62,7 @@ export async function GET(req: Request): Promise<Response> {
       gmv: a.gmv,
       fees: a.fees,
       active: e.status === "ACTIVE",
+      waiterModuleEnabled: e.waiterModuleEnabled,
     };
   });
 

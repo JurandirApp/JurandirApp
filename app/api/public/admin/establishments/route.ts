@@ -87,6 +87,7 @@ export async function POST(req: Request): Promise<Response> {
         whatsapp: data.whatsapp || null,
         instagram: data.instagram || null,
         logoImg: data.logoImg || null,
+        waiterModuleEnabled: data.waiterModuleEnabled ?? false,
         paymentProvider: "MERCADO_PAGO",
         paymentOnboarded: true,
       },
@@ -123,6 +124,7 @@ export async function POST(req: Request): Promise<Response> {
       whatsapp: data.whatsapp || null,
       instagram: data.instagram || null,
       logoImg: data.logoImg || null,
+      waiterModuleEnabled: data.waiterModuleEnabled ?? false,
     },
   });
   const est = await prisma.establishment.findUnique({
