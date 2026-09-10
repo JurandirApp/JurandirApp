@@ -2,15 +2,32 @@ import { prisma } from "./prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { waiterUpsertSchema, type WaiterUpsertInput } from "../validation";
 
-/** Lista os garçons de um estabelecimento (ordenados por nome). */
-export function listWaiters(establishmentId: string) {
-  return prisma.user
-    .findMany({
+/** Lista os garçons de um estabelecimento (ordenados por nome), com o total de
+ *  entregas (eventos DELIVERED) e de produtos entregues (soma das quantidades). */
+export async function listWaiters(establishmentId: string) {
+  const [rows, agg] = await Promise.all([
+    prisma.user.findMany({
       where: { establishmentId, role: "WAITER" },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
-    })
-    .then((rows) => rows.map((r) => ({ id: r.id, name: r.name, user: r.email })));
+    }),
+    prisma.orderEvent.groupBy({
+      by: ["waiterId"],
+      where: { order: { establishmentId }, type: "DELIVERED", waiterId: { not: null } },
+      _count: { _all: true },
+      _sum: { qty: true },
+    }),
+  ]);
+  const stat = new Map(
+    agg.map((a) => [a.waiterId, { deliveries: a._count._all, products: a._sum.qty ?? 0 }]),
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    user: r.email,
+    deliveries: stat.get(r.id)?.deliveries ?? 0,
+    products: stat.get(r.id)?.products ?? 0,
+  }));
 }
 
 /**
