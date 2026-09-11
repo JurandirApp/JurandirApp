@@ -181,19 +181,39 @@ function mapGooglePay(raw: string): Record<string, unknown> {
   };
 }
 
+/** Apple Merchant ID usado no `merchant_identifier` do payload Apple Pay do
+ *  Pagar.me (é ele que diz qual certificado usar pra descriptografar). */
+const applePayMerchantId = () =>
+  process.env.PAGARME_APPLE_PAY_MERCHANT_ID ?? "merchant.br.app.jurandir";
+
 /** Apple Pay: o plugin `pay` (iOS) devolve o PKPaymentToken serializado como
- *  string JSON. O que o Pagar.me descriptografa (com o certificado que subimos
- *  pro Merchant ID merchant.br.app.jurandir) é o `paymentData`:
- *  `{ version, data, signature, header:{ ephemeralPublicKey, publicKeyHash,
- *  transactionId } }`. Mandamos esse objeto direto sob `apple_pay` — mesmo
- *  padrão do Google Pay (dados nativos da carteira preservados). */
+ *  string JSON. O Pagar.me descriptografa o `paymentData` usando o certificado
+ *  do nosso Merchant ID. Formato EXATO validado contra a API (2026-09-11):
+ *  - o `header` precisa vir em snake_case (a Apple manda camelCase → converter,
+ *    senão o Pagar.me descarta e recusa 422);
+ *  - `merchant_identifier` é OBRIGATÓRIO dentro de `apple_pay`. */
 function mapApplePay(raw: string): Record<string, unknown> {
   try {
-    const t = JSON.parse(raw) as Record<string, unknown>;
-    const pd = (t.paymentData ?? t.payment_data ?? t) as Record<string, unknown>;
-    return pd;
+    const t = JSON.parse(raw) as Record<string, any>;
+    const pd = (t.paymentData ?? t.payment_data ?? t) as Record<string, any>;
+    const h = (pd.header ?? {}) as Record<string, any>;
+    return {
+      version: pd.version,
+      data: pd.data,
+      signature: pd.signature,
+      header: {
+        ephemeral_public_key: h.ephemeral_public_key ?? h.ephemeralPublicKey,
+        public_key_hash: h.public_key_hash ?? h.publicKeyHash,
+        transaction_id: h.transaction_id ?? h.transactionId,
+        // wrapped_key só existe no fluxo RSA_v1 (não no EC_v1 padrão) — mantém se vier.
+        ...(h.wrapped_key ?? h.wrappedKey
+          ? { wrapped_key: h.wrapped_key ?? h.wrappedKey }
+          : {}),
+      },
+      merchant_identifier: applePayMerchantId(),
+    };
   } catch {
-    return { data: raw };
+    return { data: raw, merchant_identifier: applePayMerchantId() };
   }
 }
 
