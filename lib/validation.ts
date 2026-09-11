@@ -203,6 +203,15 @@ export const deliverItemSchema = z.object({
   qty: z.number().int().positive(),
   code: z.string().min(1).max(8),
 });
+/** Entrega em LOTE (novo fluxo): garçom seleciona vários itens prontos de um
+ *  pedido e confirma tudo com um código só. */
+export const deliverOrderSchema = z.object({
+  code: z.string().min(1).max(8),
+  items: z
+    .array(z.object({ orderItemId: z.string().min(1), qty: z.number().int().positive() }))
+    .min(1),
+});
+export type DeliverOrderInput = z.infer<typeof deliverOrderSchema>;
 export const deviceRegisterSchema = z.object({
   token: z.string().min(1),
   clientId: z.string().optional(),

@@ -54,6 +54,126 @@ export async function listReadyItems(establishmentId: string) {
   }));
 }
 
+/** Fila do garçom AGRUPADA POR PEDIDO (novo fluxo). Cada pedido em produção
+ *  (módulo on) com ≥1 unidade pronta ou em entrega entra na lista, trazendo
+ *  TODAS as suas linhas ainda não 100% entregues — inclusive as que ainda estão
+ *  "preparando" (só informativas). O garçom abre o pedido, marca os itens
+ *  prontos que está levando e confirma tudo com um código. */
+export async function listWaiterOrders(establishmentId: string) {
+  const rows = await prisma.orderItem.findMany({
+    where: {
+      order: { establishmentId, status: "IN_PRODUCTION", establishment: { waiterModuleEnabled: true } },
+    },
+    select: {
+      id: true, name: true, qty: true, qtyReady: true, qtyOutForDelivery: true, qtyDelivered: true,
+      order: { select: { id: true, locationLabel: true, customerName: true, createdAt: true } },
+    },
+    orderBy: { order: { createdAt: "asc" } },
+  });
+
+  type Item = {
+    orderItemId: string; name: string;
+    qtyReady: number; qtyPreparing: number; qtyOutForDelivery: number; qtyDelivered: number;
+  };
+  type Ord = {
+    orderId: string; mesa: string; cliente: string;
+    hasReadyOrOut: boolean; items: Item[];
+  };
+  const byOrder = new Map<string, Ord>();
+
+  for (const r of rows) {
+    // Linhas 100% entregues não interessam mais na fila.
+    if (r.qtyDelivered >= r.qty) continue;
+    let o = byOrder.get(r.order.id);
+    if (!o) {
+      o = {
+        orderId: r.order.id,
+        mesa: r.order.locationLabel,
+        cliente: r.order.customerName ?? "",
+        hasReadyOrOut: false,
+        items: [],
+      };
+      byOrder.set(r.order.id, o);
+    }
+    const preparing = r.qty - (r.qtyReady + r.qtyOutForDelivery + r.qtyDelivered);
+    o.items.push({
+      orderItemId: r.id,
+      name: r.name,
+      qtyReady: r.qtyReady,
+      qtyPreparing: preparing < 0 ? 0 : preparing,
+      qtyOutForDelivery: r.qtyOutForDelivery,
+      qtyDelivered: r.qtyDelivered,
+    });
+    if (r.qtyReady > 0 || r.qtyOutForDelivery > 0) o.hasReadyOrOut = true;
+  }
+
+  // Só pedidos com algo pronto/em entrega (senão o garçom não tem o que fazer).
+  return [...byOrder.values()]
+    .filter((o) => o.hasReadyOrOut)
+    .map(({ hasReadyOrOut: _omit, ...o }) => o);
+}
+
+/** Conflito de entrega em lote — força rollback da transação (retornar valor
+ *  do callback do $transaction NÃO desfaz os writes anteriores; lançar sim). */
+class DeliverConflict extends Error {}
+
+/** Entrega em LOTE: valida o código UMA vez e entrega as unidades selecionadas
+ *  de várias linhas do MESMO pedido, tudo-ou-nada. Cada linha decrementa
+ *  qtyReady→qtyDelivered de forma atômica (guard `qtyReady >= qty`); se qualquer
+ *  uma não puder (outro garçom levou / mudou), a transação inteira é revertida.
+ *  Grava um DELIVERED por linha (waiterId+qty → alimenta o relatório) e fecha o
+ *  pedido quando todas as linhas foram entregues. */
+export async function deliverOrderItems(
+  establishmentId: string,
+  waiterId: string,
+  orderId: string,
+  items: { orderItemId: string; qty: number }[],
+  code: string,
+) {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, establishmentId },
+    select: { id: true, customerPhone: true },
+  });
+  if (!order) return { ok: false as const, error: "notfound" as const };
+
+  const fallback = await pedidoFallbackCode(orderId);
+  if (code !== deliveryCode(order.customerPhone, fallback)) {
+    return { ok: false as const, error: "code" as const };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const it of items) {
+        const r = await tx.orderItem.updateMany({
+          where: { id: it.orderItemId, order: { id: orderId, establishmentId }, qtyReady: { gte: it.qty } },
+          data: { qtyReady: { decrement: it.qty }, qtyDelivered: { increment: it.qty } },
+        });
+        if (r.count === 0) throw new DeliverConflict();
+        await tx.orderEvent.create({
+          data: { orderId, orderItemId: it.orderItemId, type: "DELIVERED", qty: it.qty, waiterId },
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof DeliverConflict) return { ok: false as const, error: "qty" as const };
+    throw e;
+  }
+
+  // Completude contra o estado JÁ COMMITADO (idempotente, guardado por status).
+  const all = await prisma.orderItem.findMany({
+    where: { orderId },
+    select: { qty: true, qtyDelivered: true },
+  });
+  const done = isOrderFullyDelivered(all);
+  if (done) {
+    await prisma.order.updateMany({
+      where: { id: orderId, status: "IN_PRODUCTION" },
+      data: { status: "DELIVERED" },
+    });
+  }
+  return { ok: true as const, orderDone: done };
+}
+
 /** Pegar: decremento ATÔMICO guardado (updateMany é um único UPDATE). count===0
  *  → outro garçom já levou. Grava OrderEvent(PICKED). */
 export async function pickItem(establishmentId: string, waiterId: string, orderItemId: string, qty: number) {
