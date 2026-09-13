@@ -28,18 +28,26 @@ const payerDocument = () => (process.env.PAGARME_TEST_CPF ?? "11144477735").repl
  *  TESTE válidos (envs PAGARME_TEST_CPF / PAGARME_TEST_PHONE, este com DDI+DDD+nº).
  *  E-mail único por pedido evita a Pagar.me reusar um customer antigo sem CPF.
  *  PRODUÇÃO: coletar CPF e telefone reais do pagador no app. */
-function buildCustomer(reference: string, name?: string) {
-  const phone = (process.env.PAGARME_TEST_PHONE ?? "5547999990000").replace(/\D/g, "");
+function buildCustomer(reference: string, opts?: { name?: string; document?: string; phone?: string }) {
+  // CPF real do pagador quando vier (11 dígitos); senão o de teste (dev).
+  const rawDoc = (opts?.document ?? "").replace(/\D/g, "");
+  const document = rawDoc.length >= 11 ? rawDoc : payerDocument();
+  // Telefone real quando vier; normaliza pra DDI 55 (o app guarda DDD+número).
+  const rawPhone = (opts?.phone ?? "").replace(/\D/g, "");
+  const digits = rawPhone.length >= 10
+    ? rawPhone
+    : (process.env.PAGARME_TEST_PHONE ?? "5547999990000").replace(/\D/g, "");
+  const full = digits.length >= 12 ? digits : `55${digits}`;
   return {
-    name: name || "Cliente Jurandir",
+    name: opts?.name || "Cliente Jurandir",
     email: `pedido-${reference.toLowerCase()}@jurandir.app.br`,
     type: "individual" as const,
-    document: payerDocument(),
+    document,
     phones: {
       mobile_phone: {
-        country_code: phone.slice(0, 2) || "55",
-        area_code: phone.slice(2, 4) || "47",
-        number: phone.slice(4) || "999990000",
+        country_code: full.slice(0, 2),
+        area_code: full.slice(2, 4),
+        number: full.slice(4),
       },
     },
   };
@@ -248,13 +256,13 @@ export const pagarmeProvider: PaymentProvider = {
     };
   },
   async createPixCharge(input: PixChargeInput): Promise<PixCharge> {
-    const { est, reference, total, platformFee, customerName, description } = input;
+    const { est, reference, total, platformFee, customerName, customerDocument, customerPhone, description } = input;
     recipientFor(est); // valida recebedor (estabelecimento ou plataforma p/ testes)
     const totalCents = cents(total);
     const body = {
       code: reference,
       items: [{ amount: totalCents, description, quantity: 1, code: reference }],
-      customer: buildCustomer(reference, customerName),
+      customer: buildCustomer(reference, { name: customerName, document: customerDocument, phone: customerPhone }),
       payments: [
         {
           payment_method: "pix",

@@ -64,6 +64,8 @@ export async function createOrder(input: OrderCreateInput) {
       total,
       platformFee,
       customerName: data.customerName ?? undefined,
+      customerDocument: data.customerDocument ?? undefined,
+      customerPhone: data.customerPhone ?? undefined,
       description: `Pedido ${code}`,
     });
   }
@@ -81,6 +83,8 @@ export async function createOrder(input: OrderCreateInput) {
             total: amt,
             platformFee: 0,
             customerName: data.customerName ?? undefined,
+            customerDocument: data.customerDocument ?? undefined,
+            customerPhone: data.customerPhone ?? undefined,
             description: `Pedido ${code} — parte ${i + 1}/${amounts.length}`,
           })
           .catch(() => null),

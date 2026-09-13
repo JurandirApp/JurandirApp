@@ -15,6 +15,8 @@ export type PixChargeInput = {
   total: number;
   platformFee: number;
   customerName?: string;
+  customerDocument?: string; // CPF real do pagador
+  customerPhone?: string; // telefone real do pagador (DDD+número ou com DDI)
   description: string;
 };
 

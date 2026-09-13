@@ -40,6 +40,7 @@ export const orderCreateSchema = z.object({
   posto: z.string().optional(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
+  customerDocument: z.string().optional(), // CPF do pagador (Pagar.me exige)
   clientId: z.string().optional(),
   note: z.string().max(200).optional(),
   items: z.array(orderItemInput).min(1),
