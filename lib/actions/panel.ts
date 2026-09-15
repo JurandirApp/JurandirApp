@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
+import { listTableTracking } from "@/lib/db/tracking";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { deliverOrder } from "@/lib/db/orders";
 import { markItemReady, buildOrderTimeline } from "@/lib/db/delivery";
@@ -53,6 +54,14 @@ async function requireEst() {
 
 /** Re-fetch the session establishment's orders do período pedido (default: hoje).
  *  O painel usa isto no poll e ao trocar o filtro de período. */
+/** Rastreio por mesa de um dia ("YYYY-MM-DD", fuso BR) — pedidos pagos agrupados
+ *  por mesa, pro painel. */
+export async function tableTrackingAction(day: string) {
+  const s = await getSession();
+  if (s?.role !== "ESTABLISHMENT" || !s.establishmentId) throw new Error("unauthorized");
+  return listTableTracking(s.establishmentId, day);
+}
+
 export async function refreshOrdersAction(period?: OrdersPeriod): Promise<Order[]> {
   const s = await requireEst();
   const est = await prisma.establishment.findUnique({
