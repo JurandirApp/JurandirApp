@@ -10,6 +10,7 @@ import type {
   FoundPayment,
   WalletPaymentInput,
   CardPaymentResult,
+  CardTokenPaymentInput,
 } from "./types";
 
 // Pagar.me v5 (modelo marketplace): a PLATAFORMA tem a conta (secret key). Cada
@@ -243,6 +244,40 @@ export const pagarmeProvider: PaymentProvider = {
         {
           payment_method: "credit_card",
           credit_card: { statement_descriptor: "JURANDIR", payload },
+          split: buildSplit(est, totalCents, cents(platformFee)),
+        },
+      ],
+    };
+    const order = await call<PgOrder>("/orders", { method: "POST", body: JSON.stringify(body) });
+    const charge = order.charges?.[0];
+    return {
+      chargeId: charge?.id ?? order.id,
+      status: mapStatus(charge?.status ?? order.status),
+      statusDetail: charge?.last_transaction?.status,
+    };
+  },
+  // Cartão via TOKEN da tokenização (jeito CORRETO da v5 — substitui o
+  // "checkout" hospedado que dava 412). O app tokeniza com a chave pública e
+  // manda só o `card_token`; aqui montamos o pedido credit_card/debit_card.
+  async createCardTokenPayment(input: CardTokenPaymentInput): Promise<CardPaymentResult> {
+    const { est, reference, total, platformFee, description, cardToken, installments, method,
+      customerName, customerDocument, customerPhone } = input;
+    recipientFor(est);
+    const totalCents = cents(total);
+    const isDebit = method === "debit";
+    const cardObj = {
+      statement_descriptor: "JURANDIR",
+      card_token: cardToken,
+      ...(isDebit ? {} : { installments: installments > 0 ? installments : 1 }),
+    };
+    const body = {
+      code: reference,
+      items: [{ amount: totalCents, description, quantity: 1, code: reference }],
+      customer: buildCustomer(reference, { name: customerName, document: customerDocument, phone: customerPhone }),
+      payments: [
+        {
+          payment_method: isDebit ? "debit_card" : "credit_card",
+          [isDebit ? "debit_card" : "credit_card"]: cardObj,
           split: buildSplit(est, totalCents, cents(platformFee)),
         },
       ],

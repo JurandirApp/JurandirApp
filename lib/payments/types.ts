@@ -64,6 +64,23 @@ export type CardPaymentResult = {
   statusDetail?: string; // status_detail do MP (ex.: cc_rejected_insufficient_amount)
 };
 
+/** Cartão via TOKEN da tokenização (Pagar.me v5 correto): o app tokeniza com a
+ *  chave pública (`/tokens?appId=pk_`) e manda só o `card_token` (nunca o cartão
+ *  cru). O backend cria o pedido com `credit_card.card_token`. */
+export type CardTokenPaymentInput = {
+  est: Establishment;
+  reference: string;
+  total: number;
+  platformFee: number;
+  description: string;
+  cardToken: string;
+  installments: number;
+  method: "credit" | "debit";
+  customerName?: string;
+  customerDocument?: string;
+  customerPhone?: string;
+};
+
 /** Pagamento aprovado localizado por referência externa (Checkout Pro não devolve o id na criação). */
 export type FoundPayment = { paymentId: string; status: ChargeStatus };
 
@@ -87,6 +104,8 @@ export interface PaymentProvider {
   createCheckoutPreference?(input: CheckoutPreferenceInput): Promise<CheckoutPreference>;
   /** Cobra um cartão via token (checkout transparente / Payment Brick) — sem redirect. */
   createCardPayment?(input: CardPaymentInput): Promise<CardPaymentResult>;
+  /** Cobra cartão via `card_token` da tokenização (Pagar.me v5 correto). */
+  createCardTokenPayment?(input: CardTokenPaymentInput): Promise<CardPaymentResult>;
   /** Cobra via carteira nativa (Google Pay / Apple Pay) usando o token do app. */
   createWalletPayment?(input: WalletPaymentInput): Promise<CardPaymentResult>;
   /** Busca um pagamento aprovado pela referência externa (order.code). */

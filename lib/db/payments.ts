@@ -170,6 +170,51 @@ export async function payOrderWithCard(
   return { status: res.status, statusDetail: res.statusDetail };
 }
 
+/** Cobra o cartão do pedido via `card_token` da tokenização (Pagar.me v5). O CPF
+ *  vem por parâmetro (não é gravado no Order). Aprovado → confirma e vai pra
+ *  produção; devolve o status pra UI reagir. */
+export async function payOrderWithCardToken(
+  orderId: string,
+  cardToken: string,
+  installments: number,
+  method: "credit" | "debit",
+  customerDocument?: string,
+): Promise<{ status: ChargeStatus; statusDetail?: string }> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { establishment: true, payment: true },
+  });
+  if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) {
+    return { status: "failed" };
+  }
+  const provider = getProviderByName(order.payment.provider ?? "PAGARME");
+  if (!provider.createCardTokenPayment) return { status: "failed" };
+  let res;
+  try {
+    res = await provider.createCardTokenPayment({
+      est: order.establishment,
+      reference: order.code,
+      total: Number(order.total),
+      platformFee: Number(order.platformFee),
+      description: `Pedido ${order.code}`,
+      cardToken,
+      installments,
+      method,
+      customerName: order.customerName ?? undefined,
+      customerDocument: customerDocument ?? undefined,
+      customerPhone: order.customerPhone ?? undefined,
+    });
+  } catch (e) {
+    return { status: "failed", statusDetail: e instanceof Error ? e.message : String(e) };
+  }
+  await prisma.payment.update({
+    where: { id: order.payment.id },
+    data: { gatewayChargeId: res.chargeId },
+  });
+  if (res.status === "paid") await confirmChargePaid(res.chargeId);
+  return { status: res.status, statusDetail: res.statusDetail };
+}
+
 /** Cobra o pedido via carteira nativa (Google Pay / Apple Pay) usando o token do
  *  app. Aprovado → confirma e vai pra produção. */
 export async function payOrderWithWallet(
