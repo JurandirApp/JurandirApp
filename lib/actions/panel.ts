@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
-import { listTableTracking } from "@/lib/db/tracking";
+import { listTableTracking, listTableDetail } from "@/lib/db/tracking";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { deliverOrder } from "@/lib/db/orders";
 import { markItemReady, buildOrderTimeline } from "@/lib/db/delivery";
@@ -60,6 +60,13 @@ export async function tableTrackingAction(day: string) {
   const s = await getSession();
   if (s?.role !== "ESTABLISHMENT" || !s.establishmentId) throw new Error("unauthorized");
   return listTableTracking(s.establishmentId, day);
+}
+
+/** Detalhe de UMA mesa num dia — pedidos pagos agrupados por cliente, pro painel. */
+export async function tableDetailAction(day: string, label: string) {
+  const s = await getSession();
+  if (s?.role !== "ESTABLISHMENT" || !s.establishmentId) throw new Error("unauthorized");
+  return listTableDetail(s.establishmentId, day, label);
 }
 
 export async function refreshOrdersAction(period?: OrdersPeriod): Promise<Order[]> {
