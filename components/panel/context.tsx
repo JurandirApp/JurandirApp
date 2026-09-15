@@ -16,6 +16,7 @@ export type TabId =
   | "pedidos"
   | "cardapio"
   | "garcons"
+  | "rastreio"
   | "qrcodes"
   | "kpis"
   | "auditoria"
@@ -178,6 +179,7 @@ export const TABS: [TabId, string][] = [
   ["pedidos", "space_dashboard"],
   ["cardapio", "restaurant"],
   ["garcons", "badge"],
+  ["rastreio", "table_restaurant"],
   ["qrcodes", "qr_code_2"],
   ["kpis", "trending_up"],
   ["auditoria", "receipt_long"],

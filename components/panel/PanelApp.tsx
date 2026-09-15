@@ -61,6 +61,7 @@ import { Toast } from "./Toast";
 import { PedidosSection } from "./sections/PedidosSection";
 import { CardapioSection } from "./sections/CardapioSection";
 import { GarconsSection } from "./sections/GarconsSection";
+import { RastreioSection } from "./sections/RastreioSection";
 import { QrSection } from "./sections/QrSection";
 import { KpisSection } from "./sections/KpisSection";
 import { AuditoriaSection } from "./sections/AuditoriaSection";
@@ -713,6 +714,7 @@ export function PanelApp({
             {tab === "pedidos" && <PedidosSection />}
             {tab === "cardapio" && <CardapioSection />}
             {tab === "garcons" && waiterModule && <GarconsSection />}
+            {tab === "rastreio" && <RastreioSection />}
             {tab === "qrcodes" && <QrSection />}
             {tab === "kpis" && <KpisSection />}
             {tab === "auditoria" && <AuditoriaSection />}

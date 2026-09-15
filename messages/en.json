@@ -216,6 +216,7 @@
         "pedidos": "Orders",
         "cardapio": "Menu",
         "garcons": "Waiters",
+        "rastreio": "Table tracking",
         "qrcodes": "QR Codes",
         "kpis": "KPIs",
         "auditoria": "Audit",
