@@ -137,14 +137,13 @@ function ClientBlock({ c }: { c: TableDetail["clients"][number] }) {
   return (
     <details className="group rounded-xl border border-ink/12 bg-white [&[open]]:border-ink/25">
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
-        <Icon name="person" size={18} className="text-ink/55" />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-display text-[15px] font-bold text-ink">
-            {c.name || "Cliente"}
-            {c.phone ? <span className="ml-1.5 text-[13px] font-semibold text-ink/45">{c.phone}</span> : null}
-          </div>
-          <div className="text-[12.5px] font-bold text-ink/55">
-            {c.orderCount} {c.orderCount === 1 ? "pedido" : "pedidos"} · {brl(c.total)}
+          <div className="truncate font-display text-[15px] font-bold text-ink">{c.name || "Cliente"}</div>
+          {/* Telefone + nº de pedidos em preto; só o valor pago em verde. */}
+          <div className="truncate text-[12.5px] font-bold text-ink">
+            {c.phone ? `${c.phone} · ` : ""}
+            {c.orderCount} {c.orderCount === 1 ? "pedido" : "pedidos"} ·{" "}
+            <span className="text-emerald-600">{brl(c.total)}</span>
           </div>
         </div>
         <Icon name="expand_more" size={20} className="text-ink/40 transition-transform group-open:rotate-180" />
