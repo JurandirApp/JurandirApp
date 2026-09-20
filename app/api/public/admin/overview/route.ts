@@ -1,5 +1,6 @@
 import { authAdmin } from "@/lib/auth/bearer";
 import { getAdminEstablishments, listAllOrders } from "@/lib/db/admin";
+import { aggregatePlatformOverview, METHOD, num } from "@/lib/admin/overview";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,6 @@ export async function OPTIONS(): Promise<Response> {
   return new Response(null, { status: 204, headers: CORS });
 }
 
-const METHOD: Record<string, string> = { CREDIT: "credito", DEBIT: "debito", PIX: "pix", USDC: "usdc" };
-const num = (v: unknown): number => Number(v ?? 0);
-
 /**
  * GET /api/public/admin/overview — visão geral da plataforma (ADMIN):
  * estabelecimentos com agregados (pedidos, GMV, fees), quebra por método,
@@ -28,27 +26,13 @@ export async function GET(req: Request): Promise<Response> {
   const [ests, orders] = await Promise.all([getAdminEstablishments(), listAllOrders()]);
   const estById = new Map(ests.map((e) => [e.id, e]));
 
-  const agg = new Map<string, { orders: number; gmv: number; fees: number }>();
-  const byPayment: Record<string, number> = { pix: 0, credito: 0, debito: 0, usdc: 0, split: 0 };
-  let gmvTotal = 0;
-  let feesTotal = 0;
-
-  for (const o of orders) {
-    const t = num(o.total);
-    const fee = num(o.platformFee);
-    gmvTotal += t;
-    feesTotal += fee;
-    const a = agg.get(o.establishmentId) ?? { orders: 0, gmv: 0, fees: 0 };
-    a.orders += 1;
-    a.gmv += t;
-    a.fees += fee;
-    agg.set(o.establishmentId, a);
-    const m = o.payment ? (METHOD[o.payment.method] ?? "pix") : "split";
-    byPayment[m] = (byPayment[m] ?? 0) + t;
-  }
+  // Só pedidos PAGOS entram nos totais (GMV/taxas/contagem/método) — ver
+  // aggregatePlatformOverview. Antes somava tudo, inclusive AWAITING_PAYMENT.
+  const { perEst, byPayment, gmvTotal, feesTotal, paidOrders } =
+    aggregatePlatformOverview(orders);
 
   const establishments = ests.map((e) => {
-    const a = agg.get(e.id) ?? { orders: 0, gmv: 0, fees: 0 };
+    const a = perEst.get(e.id) ?? { orders: 0, gmv: 0, fees: 0 };
     return {
       id: e.id,
       name: e.name,
@@ -86,7 +70,7 @@ export async function GET(req: Request): Promise<Response> {
     {
       establishments,
       byPayment,
-      totals: { gmv: gmvTotal, fees: feesTotal, orders: orders.length, count: ests.length },
+      totals: { gmv: gmvTotal, fees: feesTotal, orders: paidOrders, count: ests.length },
       backlog,
     },
     { headers: CORS },
