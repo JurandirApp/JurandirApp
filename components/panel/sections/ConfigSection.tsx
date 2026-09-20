@@ -98,19 +98,11 @@ export function ConfigSection() {
             {t.rich("notificationsHint", { b: (c) => <b>{c}</b> })}
           </p>
           <ToggleRow
-            title={t("sendWhatsapp")}
-            sub={t("sendWhatsappTo")}
-            checked={toggles.wa}
-            onChange={() => flipToggle("wa")}
+            title={t("sendEmail")}
+            sub={t("sendEmailTo")}
+            checked={toggles.em}
+            onChange={() => flipToggle("em")}
           />
-          <div className="border-t border-ink/10">
-            <ToggleRow
-              title={t("sendEmail")}
-              sub={t("sendEmailTo")}
-              checked={toggles.em}
-              onChange={() => flipToggle("em")}
-            />
-          </div>
           <p className="m-0 mt-2 text-[11px] text-ink/40">
             {t("notificationsFootnote")}
           </p>
