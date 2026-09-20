@@ -24,7 +24,7 @@ const pillStyle = (active: boolean) =>
 
 export function KpisSection() {
   const {
-    orders,
+    kpiOrders: orders,
     menu,
     now,
     period,

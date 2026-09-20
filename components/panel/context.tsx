@@ -35,6 +35,9 @@ export interface PanelValue {
   slug: string;
   now: number;
   orders: Order[];
+  /** Pedidos para os KPIs — buscados no período próprio dos KPIs (hoje/7d/30d/
+   *  tudo), independentes de `orders` (que segue a aba Pedidos). */
+  kpiOrders: Order[];
   menu: MenuItem[];
   qrs: Qr[];
   stats: MonthlyStatLite[];
@@ -67,6 +70,8 @@ export interface PanelValue {
   askDeleteItem: (item: MenuItem) => void;
   csvModel: () => void;
   csvImport: () => void;
+  /** Abre o modal de ajuste de preço em massa. */
+  openBulkAdjust: () => void;
 
   // Garçons (Módulo do Garçom)
   /** O Módulo do Garçom está habilitado para este estabelecimento? (liga no admin).

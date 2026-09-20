@@ -95,6 +95,18 @@ export const menuItemUpsertSchema = z.object({
 });
 export type MenuItemUpsertInput = z.infer<typeof menuItemUpsertSchema>;
 
+/** Ajuste de preço em massa. A UI já resolve a seleção (categoria/subcategoria/
+ *  itens marcados) num conjunto de ids; o backend só ajusta exatamente esses.
+ *  `dryRun` = preview (calcula sem gravar). `percent`: 20 = +20%, -15 = -15%. */
+export const bulkPriceAdjustSchema = z.object({
+  itemIds: z.array(z.string().min(1)).min(1).max(2000),
+  percent: z.number().finite().gte(-90).lte(1000),
+  rounding: z.enum(["exact", "end90", "end99", "whole"]),
+  includeAddons: z.boolean().default(false),
+  dryRun: z.boolean().default(false),
+});
+export type BulkPriceAdjustInput = z.infer<typeof bulkPriceAdjustSchema>;
+
 export const qrSpotCreateSchema = z.object({
   establishmentId: z.string().min(1),
   label: z.string().min(1),

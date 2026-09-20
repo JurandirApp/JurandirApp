@@ -9,7 +9,8 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { deliverOrder } from "@/lib/db/orders";
 import { markItemReady, buildOrderTimeline } from "@/lib/db/delivery";
 import { upsertWaiter, deleteWaiter } from "@/lib/db/waiters";
-import { upsertMenuItem, deleteMenuItem } from "@/lib/db/menu";
+import { upsertMenuItem, deleteMenuItem, bulkAdjustPrices } from "@/lib/db/menu";
+import type { ItemChange } from "@/lib/pricing/bulk-adjust";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
 import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
 import { reconcileOrder } from "@/lib/db/payments";
@@ -35,11 +36,13 @@ const DIAS_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 // não uma categoria — ver PrintersManager.)
 const PRINT_CATEGORIES = ["Alimentos", "Bebidas"];
 import {
+  bulkPriceAdjustSchema,
   menuItemUpsertSchema,
   pagarmeRecipientSchema,
   passwordChangeSchema,
   profileSaveSchema,
   qrSpotCreateSchema,
+  type BulkPriceAdjustInput,
   type MenuItemUpsertInput,
   type PagarmeRecipientForm,
   type ProfileSaveInput,
@@ -476,6 +479,19 @@ export async function deleteMenuItemAction(dbId: string): Promise<void> {
   const s = await requireEst();
   await deleteMenuItem(dbId, s.establishmentId!); // deleteMany scoped by establishmentId
   revalidatePath("/painel");
+}
+
+/** Ajuste de preço em massa. Com `dryRun` devolve só o preview (não grava);
+ *  sem ele, aplica e revalida o painel. `establishmentId` vem SEMPRE da sessão. */
+export async function bulkAdjustPricesAction(
+  input: BulkPriceAdjustInput,
+): Promise<{ ok: boolean; error?: string; changes?: ItemChange[]; applied?: boolean }> {
+  const s = await requireEst();
+  const parsed = bulkPriceAdjustSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const res = await bulkAdjustPrices(s.establishmentId!, parsed.data);
+  if (res.applied) revalidatePath("/painel");
+  return { ok: true, changes: res.changes, applied: res.applied };
 }
 
 export async function addQrSpotAction(

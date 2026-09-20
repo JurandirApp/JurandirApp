@@ -1,6 +1,11 @@
 import { OrderStatus } from "@prisma/client";
 import { prisma } from "./prisma";
-import { menuItemUpsertSchema, type MenuItemUpsertInput } from "../validation";
+import { menuItemUpsertSchema, type BulkPriceAdjustInput, type MenuItemUpsertInput } from "../validation";
+import {
+  computeAdjustment,
+  type AdjustableItem,
+  type ItemChange,
+} from "../pricing/bulk-adjust";
 
 /** Grupos de adicionais (com opções) ordenados — reusado na leitura e no upsert. */
 const optionGroupsInclude = {
@@ -119,4 +124,54 @@ export async function upsertMenuItem(input: MenuItemUpsertInput) {
 export function deleteMenuItem(id: string, establishmentId: string) {
   // Scope by establishmentId so a tenant can only delete its own items.
   return prisma.menuItem.deleteMany({ where: { id, establishmentId } });
+}
+
+export interface BulkAdjustResult {
+  changes: ItemChange[];
+  applied: boolean;
+}
+
+/**
+ * Ajuste de preço em massa. Lê os itens selecionados (SEMPRE escopados ao
+ * estabelecimento — ids de outro tenant simplesmente não entram), calcula o
+ * "de → para" com a lógica pura testada, e:
+ * - `dryRun` → devolve só o preview, sem gravar;
+ * - senão → grava preços (e deltas dos adicionais, se `includeAddons`) numa
+ *   transação única, pra não deixar o cardápio meio-ajustado.
+ */
+export async function bulkAdjustPrices(
+  establishmentId: string,
+  input: BulkPriceAdjustInput,
+): Promise<BulkAdjustResult> {
+  const rows = await prisma.menuItem.findMany({
+    where: { id: { in: input.itemIds }, establishmentId },
+    include: optionGroupsInclude,
+  });
+
+  const adjustable: AdjustableItem[] = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    price: Number(r.price),
+    options: r.optionGroups.flatMap((g) =>
+      g.options.map((o) => ({ id: o.id, name: o.name, priceDelta: Number(o.priceDelta) })),
+    ),
+  }));
+
+  const changes = computeAdjustment(adjustable, {
+    percent: input.percent,
+    rounding: input.rounding,
+    includeAddons: input.includeAddons,
+  });
+
+  if (input.dryRun) return { changes, applied: false };
+
+  // Todos os ids abaixo vêm da leitura já escopada acima, então são do tenant.
+  const writes = changes.flatMap((c) => [
+    prisma.menuItem.update({ where: { id: c.id }, data: { price: c.newPrice } }),
+    ...c.options.map((o) =>
+      prisma.menuItemOption.update({ where: { id: o.id }, data: { priceDelta: o.newDelta } }),
+    ),
+  ]);
+  if (writes.length > 0) await prisma.$transaction(writes);
+  return { changes, applied: true };
 }

@@ -68,6 +68,7 @@ import { AuditoriaSection } from "./sections/AuditoriaSection";
 import { PerfilSection } from "./sections/PerfilSection";
 import { ConfigSection } from "./sections/ConfigSection";
 import { ItemEditorModal } from "./modals/ItemEditorModal";
+import { BulkAdjustModal } from "./modals/BulkAdjustModal";
 import { WaiterEditorModal } from "./modals/WaiterEditorModal";
 import { ConfirmDialog } from "./modals/ConfirmDialog";
 import { QrZoomModal } from "./modals/QrZoomModal";
@@ -75,6 +76,26 @@ import { TimelineModal } from "./modals/TimelineModal";
 
 const EMPTY_AUD: AuditFilters = { from: "", to: "", mesa: "", method: "" };
 const EMPTY_PW: PwForm = { cur: "", nova: "", conf: "" };
+
+/** Data de Brasília (UTC-3) "YYYY-MM-DD", `daysAgo` atrás. */
+function brDateStr(daysAgo = 0): string {
+  const d = new Date(Date.now() - 3 * 3600e3 - daysAgo * 864e5);
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${mo}-${day}`;
+}
+
+/** Mapeia o período dos KPIs (hoje/7d/30d/tudo) para um OrdersPeriod, pra
+ *  BUSCAR os pedidos daquele intervalo. Os KPIs não podem reusar o array
+ *  `orders` (que o poll mantém no período da aba Pedidos, default "hoje"),
+ *  senão 7d/30d/tudo mostram só hoje. O tipo OrdersPeriod não tem 30d/tudo,
+ *  então viram `custom`. */
+function kpiPeriodToOrders(p: string): OrdersPeriod {
+  if (p === "7d") return { kind: "d7" };
+  if (p === "30d") return { kind: "custom", from: brDateStr(29), to: brDateStr(0) };
+  if (p === "tudo") return { kind: "custom", from: "2020-01-01", to: brDateStr(0) };
+  return { kind: "hoje" };
+}
 
 export function PanelApp({
   now,
@@ -132,6 +153,9 @@ export function PanelApp({
   const [, startTransition] = useTransition();
 
   const [orders, setOrders] = useState<Order[]>(orders0);
+  // Pedidos dos KPIs — buscados por período próprio (independente do poll da
+  // aba Pedidos, que é dono de `orders`). Ver kpiPeriodToOrders + o efeito abaixo.
+  const [kpiOrders, setKpiOrders] = useState<Order[]>(orders0);
   const [menu, setMenu] = useState<MenuItem[]>(menu0);
   const [waiters, setWaiters] = useState<Waiter[]>(waiters0);
   const [qrs, setQrs] = useState<Qr[]>(qrs0);
@@ -184,6 +208,7 @@ export function PanelApp({
 
   // Modals held locally (sections trigger them via actions).
   const [editing, setEditing] = useState<{ item: MenuItem | null } | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [delItem, setDelItem] = useState<MenuItem | null>(null);
   const [editingWaiter, setEditingWaiter] = useState<{ waiter: Waiter | null } | null>(null);
   const [delWaiter, setDelWaiter] = useState<Waiter | null>(null);
@@ -245,6 +270,23 @@ export function PanelApp({
     };
   }, []);
 
+  // KPIs: com a aba ativa, busca os pedidos do PERÍODO selecionado (hoje/7d/
+  // 30d/tudo), separado do poll. Sem isto, 7d/30d/tudo filtravam só o que a aba
+  // Pedidos tinha carregado (hoje) → subestimavam. Refaz ao entrar na aba e ao
+  // trocar o período.
+  useEffect(() => {
+    if (tab !== "kpis") return;
+    let alive = true;
+    refreshOrdersAction(kpiPeriodToOrders(period))
+      .then((fresh) => {
+        if (alive) setKpiOrders(fresh);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [tab, period]);
+
   const value = useMemo<PanelValue>(() => {
     return {
       beach,
@@ -252,6 +294,7 @@ export function PanelApp({
       slug,
       now,
       orders,
+      kpiOrders,
       menu,
       waiters,
       qrs,
@@ -337,6 +380,7 @@ export function PanelApp({
       askDeleteItem: (item) => setDelItem(item),
       csvModel: () => toast(t("toasts.csvModel")),
       csvImport: () => toast(t("toasts.csvImport")),
+      openBulkAdjust: () => setBulkOpen(true),
 
       openWaiterEditor: (waiter) => setEditingWaiter({ waiter }),
       askDeleteWaiter: (waiter) => setDelWaiter(waiter),
@@ -607,7 +651,7 @@ export function PanelApp({
       waiterModule,
     };
   }, [
-    t, beach, now, slug, orders, menu, waiters, qrs, stats, tab, orderFilter, ordersPeriod, dayStart,
+    t, beach, now, slug, orders, kpiOrders, menu, waiters, qrs, stats, tab, orderFilter, ordersPeriod, dayStart,
     dayStartSet, period, openPay, menuCat,
     itemCat, qrLabel, aud, audPage, profile, weekly, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
@@ -729,6 +773,23 @@ export function PanelApp({
             onClose={() => setEditing(null)}
             onSave={saveItem}
             onToast={toast}
+          />
+        )}
+        {bulkOpen && (
+          <BulkAdjustModal
+            menu={menu}
+            onClose={() => setBulkOpen(false)}
+            onApplied={(changes) => {
+              // Atualiza os preços na lista local (o servidor já gravou + revalidou).
+              setMenu((prev) =>
+                prev.map((m) => {
+                  const c = changes.find((x) => x.id === m.dbId);
+                  return c ? { ...m, price: c.newPrice } : m;
+                }),
+              );
+              toast(t("toasts.bulkApplied", { count: changes.length }));
+            }}
+            onError={() => toast(t("toasts.bulkError"))}
           />
         )}
         {delItem && (

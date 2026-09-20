@@ -14,7 +14,8 @@ const pillStyle = (active: boolean) =>
     : { background: "#fff", color: "rgba(20,24,33,.6)" };
 
 export function CardapioSection() {
-  const { menu, menuCat, setMenuCat, openEditor, csvModel, csvImport } = usePanel();
+  const { menu, menuCat, setMenuCat, openEditor, csvModel, csvImport, openBulkAdjust } =
+    usePanel();
   const t = useTranslations("panel.cardapio");
   const tcat = useTranslations("panel.cat");
 
@@ -45,6 +46,14 @@ export function CardapioSection() {
           >
             <Icon name="upload" size={15} />
             {t("import")}
+          </button>
+          <button
+            type="button"
+            onClick={openBulkAdjust}
+            className="flex items-center gap-1 rounded-xl bg-dune-50 px-3 py-2 text-sm font-medium text-ink/70"
+          >
+            <Icon name="percent" size={15} />
+            {t("adjustPrices")}
           </button>
           <button
             type="button"
