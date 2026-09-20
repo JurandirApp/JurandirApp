@@ -19,6 +19,9 @@ export function AuditoriaSection() {
   const audAll = useMemo(
     () =>
       [...orders]
+        // Só transações CONCLUÍDAS (pagas): produção/entregue. "aguardando"
+        // (não pago / Pix expirado) não é uma transação — não entra na auditoria.
+        .filter((o) => o.st !== "aguardando")
         .sort((a, b) => b.ts - a.ts)
         .map((o) => {
           const total = orderTotal(o);
