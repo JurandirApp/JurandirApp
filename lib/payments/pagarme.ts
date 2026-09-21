@@ -573,3 +573,21 @@ export async function getPagarmeKycLink(
   );
   return { url: r.url ?? "", base64: r.base64 ?? "", expiresAt: r.expiration_date ?? "" };
 }
+
+/** Consulta o status atual do recebedor direto no Pagar.me (GET). Usado pra
+ *  sincronizar quando o webhook `recipient.updated` não está configurado (ou já
+ *  perdeu a transição). Devolve "" em qualquer falha e tem timeout curto pra
+ *  nunca travar o carregamento do painel. */
+export async function getPagarmeRecipientStatus(recipientId: string): Promise<string> {
+  try {
+    const res = await fetch(`${baseUrl()}/recipients/${recipientId}`, {
+      headers: { "Content-Type": "application/json", Authorization: authHeader() },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return "";
+    const j = (await res.json()) as { status?: string };
+    return j.status ?? "";
+  } catch {
+    return "";
+  }
+}

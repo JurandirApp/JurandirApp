@@ -158,7 +158,9 @@ export async function savePaymentRoutingAction(routing: {
     where: { id: s.establishmentId! },
     data: { gatewayPix: pix, gatewayCredit: credit, gatewayDebit: debit },
   });
-  revalidatePath("/painel");
+  // Sem revalidatePath aqui de propósito: o cliente já reflete o valor efetivo
+  // pelo retorno desta action. Revalidar forçaria um re-render do servidor que
+  // "pisca" a seleção (volta pro valor antigo e depois pro novo).
   return { ok: true, pix, credit, debit };
 }
 

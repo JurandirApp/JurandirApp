@@ -11,6 +11,8 @@ import {
   listPanelStats,
 } from "@/lib/db/panel";
 import { listWaiters } from "@/lib/db/waiters";
+import { syncPagarmeRecipientStatus } from "@/lib/db/payments";
+import { getPagarmeRecipientStatus } from "@/lib/payments/pagarme";
 import { toMonthlyStatLite } from "@/lib/admin/adapters";
 import {
   toPanelMenuItem,
@@ -56,6 +58,19 @@ export default async function PainelPage({
     return null;
   }
 
+  // Self-heal do status do recebedor Pagar.me: enquanto não está `active`,
+  // consulta o status real na API (o webhook pode não estar configurado ou já
+  // ter perdido a transição registration → affiliation → active). Best-effort,
+  // com timeout curto; se falhar, mantém o status guardado.
+  let pagarmeStatus = est.pagarmeRecipientStatus;
+  if (est.pagarmeRecipientId && pagarmeStatus !== "active" && pagarmeStatus !== "refused") {
+    const live = await getPagarmeRecipientStatus(est.pagarmeRecipientId);
+    if (live && live !== pagarmeStatus) {
+      await syncPagarmeRecipientStatus(est.pagarmeRecipientId, live);
+      pagarmeStatus = live;
+    }
+  }
+
   // Server timestamp → deterministic seed for SSR/hydration (see PanelApp).
   // This Server Component renders per request (already dynamic via the session
   // cookie), so reading the request-time clock here is intentional.
@@ -98,7 +113,7 @@ export default async function PainelPage({
       gatewayCredit={est.gatewayCredit}
       gatewayDebit={est.gatewayDebit}
       pagarmeReady={Boolean(est.pagarmeRecipientId)}
-      pagarmeStatus={est.pagarmeRecipientStatus}
+      pagarmeStatus={pagarmeStatus}
       asaasReady={Boolean(est.asaasWalletId)}
       waiterModule={est.waiterModuleEnabled}
     />
