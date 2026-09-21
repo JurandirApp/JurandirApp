@@ -199,7 +199,40 @@ export const pagarmeRecipientSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   zipCode: z.string().optional(),
-});
+  // Sócios administradores (só PJ). Cada sócio é um KYC de pessoa física.
+  managingPartners: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+        document: z.string().min(11),
+        phone: z.string().optional(),
+        birthdate: z.string().optional(),
+        motherName: z.string().optional(),
+        monthlyIncome: z.coerce.number().optional(),
+        professionalOccupation: z.string().optional(),
+        legalRepresentative: z.boolean().optional(),
+        street: z.string().optional(),
+        streetNumber: z.string().optional(),
+        complement: z.string().optional(),
+        neighborhood: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        zipCode: z.string().optional(),
+      }),
+    )
+    .optional(),
+})
+  // PJ exige ao menos um sócio administrador (managing_partners) no Pagar.me.
+  .superRefine((v, ctx) => {
+    if (v.type === "corporation" && !(v.managingPartners && v.managingPartners.length > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["managingPartners"],
+        message: "corporation requires at least one managing partner",
+      });
+    }
+  });
 export type PagarmeRecipientForm = z.infer<typeof pagarmeRecipientSchema>;
 
 export const waiterUpsertSchema = z.object({

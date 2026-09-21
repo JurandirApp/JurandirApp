@@ -405,6 +405,22 @@ type Form = {
   city: string;
   state: string;
   zipCode: string;
+  // sócio administrador (só PJ)
+  pName: string;
+  pDocument: string;
+  pEmail: string;
+  pPhone: string;
+  pBirthdate: string;
+  pMotherName: string;
+  pOccupation: string;
+  pIncome: string;
+  pStreet: string;
+  pStreetNumber: string;
+  pComplement: string;
+  pNeighborhood: string;
+  pCity: string;
+  pState: string;
+  pZipCode: string;
 };
 
 const EMPTY: Form = {
@@ -430,6 +446,21 @@ const EMPTY: Form = {
   city: "",
   state: "",
   zipCode: "",
+  pName: "",
+  pDocument: "",
+  pEmail: "",
+  pPhone: "",
+  pBirthdate: "",
+  pMotherName: "",
+  pOccupation: "",
+  pIncome: "",
+  pStreet: "",
+  pStreetNumber: "",
+  pComplement: "",
+  pNeighborhood: "",
+  pCity: "",
+  pState: "",
+  pZipCode: "",
 };
 
 // Campos obrigatórios (marcados com "*"). Ficam de fora só os que o Pagar.me
@@ -452,6 +483,9 @@ const REQUIRED_FIELDS: (keyof Form)[] = [
   "zipCode",
 ];
 const REQUIRED_PF: (keyof Form)[] = ["motherName", "professionalOccupation", "monthlyIncome"];
+// PJ: dados pessoais do sócio administrador exigidos pelo Pagar.me.
+const REQUIRED_PARTNER: (keyof Form)[] = ["pName", "pDocument", "pEmail", "pPhone", "pBirthdate", "pOccupation", "pIncome"];
+const REQUIRED_PARTNER_ADDR: (keyof Form)[] = ["pStreet", "pStreetNumber", "pNeighborhood", "pCity", "pState", "pZipCode"];
 
 const onlyDigits = (v: string) => v.replace(/\D/g, "");
 
@@ -497,6 +531,10 @@ function RecipientModal({
   const [form, setForm] = useState<Form>(EMPTY);
   const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const isPF = form.type === "individual";
+  // PJ: o sócio se declara representante legal (default sim) e reusa o endereço
+  // da empresa (default sim, some as opções ligadas quando marcado).
+  const [legalRep, setLegalRep] = useState(true);
+  const [sameAddr, setSameAddr] = useState(true);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -511,7 +549,9 @@ function RecipientModal({
 
   const submit = async () => {
     setErr(null);
-    const required = isPF ? [...REQUIRED_FIELDS, ...REQUIRED_PF] : REQUIRED_FIELDS;
+    const required = isPF
+      ? [...REQUIRED_FIELDS, ...REQUIRED_PF]
+      : [...REQUIRED_FIELDS, ...REQUIRED_PARTNER, ...(sameAddr ? [] : REQUIRED_PARTNER_ADDR)];
     if (required.some((k) => !String(form[k]).trim())) {
       setErr(t("pgFillRequired"));
       return;
@@ -540,6 +580,29 @@ function RecipientModal({
       city: form.city || undefined,
       state: form.state || undefined,
       zipCode: form.zipCode || undefined,
+      managingPartners: isPF
+        ? undefined
+        : [
+            {
+              name: form.pName,
+              email: form.pEmail,
+              document: form.pDocument,
+              phone: form.pPhone || undefined,
+              birthdate: form.pBirthdate || undefined,
+              motherName: form.pMotherName || undefined,
+              professionalOccupation: form.pOccupation || undefined,
+              monthlyIncome: form.pIncome ? Number(form.pIncome) : undefined,
+              legalRepresentative: legalRep,
+              // "Mesmo endereço da empresa" reusa os campos do endereço acima.
+              street: (sameAddr ? form.street : form.pStreet) || undefined,
+              streetNumber: (sameAddr ? form.streetNumber : form.pStreetNumber) || undefined,
+              complement: (sameAddr ? form.complement : form.pComplement) || undefined,
+              neighborhood: (sameAddr ? form.neighborhood : form.pNeighborhood) || undefined,
+              city: (sameAddr ? form.city : form.pCity) || undefined,
+              state: (sameAddr ? form.state : form.pState) || undefined,
+              zipCode: (sameAddr ? form.zipCode : form.pZipCode) || undefined,
+            },
+          ],
     });
     setSaving(false);
     if (r.ok) {
@@ -687,6 +750,75 @@ function RecipientModal({
               <Input value={form.zipCode} onChange={(e) => set("zipCode", onlyDigits(e.target.value).slice(0, 8))} inputMode="numeric" placeholder="88300000" />
             </F>
           </div>
+
+          {!isPF && (
+            <>
+              <p className="m-0 mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">{t("pgPartnerTitle")}</p>
+              <p className="m-0 -mt-1.5 text-[11px] leading-relaxed text-ink/45">{t("pgPartnerHint")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <F req className="col-span-2" label={t("pgPartnerName")}>
+                  <Input value={form.pName} onChange={(e) => set("pName", e.target.value)} />
+                </F>
+                <F req label={t("pgPartnerCpf")}>
+                  <Input value={form.pDocument} onChange={(e) => set("pDocument", formatDoc(e.target.value, "individual"))} inputMode="numeric" placeholder="000.000.000-00" />
+                </F>
+                <F req label={t("pgBirthdate")}>
+                  <Input type="date" value={form.pBirthdate} onChange={(e) => set("pBirthdate", e.target.value)} />
+                </F>
+                <F req label={t("pgEmail")}>
+                  <Input value={form.pEmail} onChange={(e) => set("pEmail", e.target.value)} />
+                </F>
+                <F req label={t("pgPhone")}>
+                  <Input value={form.pPhone} onChange={(e) => set("pPhone", formatPhone(e.target.value))} inputMode="tel" placeholder="(47) 99999-9999" />
+                </F>
+                <F req label={t("pgOccupation")}>
+                  <Input value={form.pOccupation} onChange={(e) => set("pOccupation", e.target.value)} />
+                </F>
+                <F req label={t("pgIncome")}>
+                  <Input value={form.pIncome} onChange={(e) => set("pIncome", onlyDigits(e.target.value))} inputMode="numeric" placeholder="Ex: 5000" />
+                </F>
+                <F className="col-span-2" label={t("pgMother")}>
+                  <Input value={form.pMotherName} onChange={(e) => set("pMotherName", e.target.value)} />
+                </F>
+              </div>
+              <label className="mt-1 flex items-center gap-2 text-[12px] font-medium text-ink/70">
+                <input type="checkbox" checked={legalRep} onChange={(e) => setLegalRep(e.target.checked)} className="h-4 w-4 accent-ink" />
+                {t("pgLegalRep")}
+              </label>
+              <label className="flex items-center gap-2 text-[12px] font-medium text-ink/70">
+                <input type="checkbox" checked={sameAddr} onChange={(e) => setSameAddr(e.target.checked)} className="h-4 w-4 accent-ink" />
+                {t("pgSameAddress")}
+              </label>
+              {!sameAddr && (
+                <>
+                  <p className="m-0 mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">{t("pgPartnerAddressTitle")}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <F req className="col-span-2" label={t("pgStreet")}>
+                      <Input value={form.pStreet} onChange={(e) => set("pStreet", e.target.value)} />
+                    </F>
+                    <F req label={t("pgStreetNumber")}>
+                      <Input value={form.pStreetNumber} onChange={(e) => set("pStreetNumber", e.target.value)} />
+                    </F>
+                    <F label={t("pgComplement")}>
+                      <Input value={form.pComplement} onChange={(e) => set("pComplement", e.target.value)} placeholder={t("pgComplementPh")} />
+                    </F>
+                    <F req label={t("pgNeighborhood")}>
+                      <Input value={form.pNeighborhood} onChange={(e) => set("pNeighborhood", e.target.value)} />
+                    </F>
+                    <F req label={t("pgCity")}>
+                      <Input value={form.pCity} onChange={(e) => set("pCity", e.target.value)} />
+                    </F>
+                    <F req label={t("pgState")}>
+                      <Input value={form.pState} onChange={(e) => set("pState", e.target.value.toUpperCase().slice(0, 2))} placeholder="SC" />
+                    </F>
+                    <F req label={t("pgZip")}>
+                      <Input value={form.pZipCode} onChange={(e) => set("pZipCode", onlyDigits(e.target.value).slice(0, 8))} inputMode="numeric" placeholder="88300000" />
+                    </F>
+                  </div>
+                </>
+              )}
+            </>
+          )}
 
           {err && <p className="m-0 text-xs font-medium text-[#e11d48]">{err}</p>}
           <div className="mt-1 flex gap-2">

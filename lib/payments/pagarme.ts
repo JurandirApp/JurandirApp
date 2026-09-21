@@ -410,6 +410,32 @@ export type PagarmeRecipientInput = {
   city?: string;
   state?: string;
   zipCode?: string;
+  // sócios administradores (register_information.managing_partners) — o Pagar.me
+  // EXIGE ao menos um pra recebedor PJ (corporation). Cada sócio é um KYC de PF.
+  managingPartners?: PagarmePartnerInput[];
+};
+
+/** Sócio administrador de um recebedor PJ. O Pagar.me trata cada um como uma
+ *  pessoa física (KYC próprio): CPF, nascimento, renda, ocupação, endereço e
+ *  telefone são exigidos; nome da mãe é opcional. */
+export type PagarmePartnerInput = {
+  name: string;
+  email: string;
+  document: string; // CPF do sócio
+  phone?: string;
+  birthdate?: string; // "YYYY-MM-DD" ou "DD/MM/AAAA"
+  motherName?: string;
+  monthlyIncome?: number;
+  professionalOccupation?: string;
+  /** self_declared_legal_representative — o sócio se declara representante legal. */
+  legalRepresentative?: boolean;
+  street?: string;
+  streetNumber?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
 };
 
 function splitPhone(phone?: string): { ddd: string; number: string; type: "mobile" } | null {
@@ -430,17 +456,49 @@ function toBrDate(value: string | undefined, fallback: string): string {
   return fallback;
 }
 
-function addressBody(i: PagarmeRecipientInput) {
+type AddrFields = {
+  street?: string;
+  streetNumber?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+};
+
+function addrOf(a: AddrFields) {
   return {
-    street: i.street || "",
-    street_number: i.streetNumber || "",
+    street: a.street || "",
+    street_number: a.streetNumber || "",
     // Pagar.me exige o campo complementary preenchido (não aceita vazio).
-    complementary: i.complement || "N/A",
-    neighborhood: i.neighborhood || "",
-    city: i.city || "",
-    state: i.state || "",
-    zip_code: (i.zipCode ?? "").replace(/\D/g, ""),
+    complementary: a.complement || "N/A",
+    neighborhood: a.neighborhood || "",
+    city: a.city || "",
+    state: a.state || "",
+    zip_code: (a.zipCode ?? "").replace(/\D/g, ""),
     reference_point: "N/A",
+  };
+}
+
+const addressBody = (i: PagarmeRecipientInput) => addrOf(i);
+
+/** Monta um sócio administrador (managing_partner) no shape da Pagar.me v5.
+ *  phone_numbers e address são exigidos; sem eles a criação do PJ é recusada. */
+function partnerBody(p: PagarmePartnerInput) {
+  const doc = p.document.replace(/\D/g, "");
+  const phone = splitPhone(p.phone);
+  return {
+    name: p.name,
+    email: p.email,
+    document: doc,
+    type: "individual",
+    birthdate: toBrDate(p.birthdate, "01/01/1990"),
+    monthly_income: p.monthlyIncome ?? 5000,
+    professional_occupation: p.professionalOccupation || "Empresário",
+    self_declared_legal_representative: p.legalRepresentative ?? true,
+    address: addrOf(p),
+    ...(p.motherName ? { mother_name: p.motherName } : {}),
+    ...(phone ? { phone_numbers: [phone] } : {}),
   };
 }
 
@@ -474,6 +532,7 @@ export async function createPagarmeRecipient(
           annual_revenue: input.monthlyIncome ? input.monthlyIncome * 12 : 100000,
           founding_date: toBrDate(input.birthdate, "01/01/2015"),
           main_address: addressBody(input),
+          managing_partners: (input.managingPartners ?? []).map(partnerBody),
           ...(phone ? { phone_numbers: [phone] } : {}),
         };
   // Identidade (name/email/document/type) vai SÓ dentro de register_information —
