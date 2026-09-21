@@ -530,7 +530,8 @@ export async function createPagarmeRecipient(
           email: input.email,
           document: doc,
           annual_revenue: input.monthlyIncome ? input.monthlyIncome * 12 : 100000,
-          founding_date: toBrDate(input.birthdate, "01/01/2015"),
+          // founding_date (Abertura) é OPCIONAL pro Pagar.me — só manda se vier.
+          ...(input.birthdate ? { founding_date: toBrDate(input.birthdate, "01/01/2015") } : {}),
           main_address: addressBody(input),
           managing_partners: (input.managingPartners ?? []).map(partnerBody),
           ...(phone ? { phone_numbers: [phone] } : {}),

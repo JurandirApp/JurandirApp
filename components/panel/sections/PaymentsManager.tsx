@@ -470,7 +470,6 @@ const REQUIRED_FIELDS: (keyof Form)[] = [
   "name",
   "email",
   "phone",
-  "birthdate",
   "bank",
   "branchNumber",
   "accountNumber",
@@ -482,7 +481,9 @@ const REQUIRED_FIELDS: (keyof Form)[] = [
   "state",
   "zipCode",
 ];
-const REQUIRED_PF: (keyof Form)[] = ["motherName", "professionalOccupation", "monthlyIncome"];
+// PF: nascimento + mãe/profissão/renda são KYC obrigatório da pessoa física.
+// (PJ: a "Abertura"/founding_date é opcional no Pagar.me, então fica de fora.)
+const REQUIRED_PF: (keyof Form)[] = ["birthdate", "motherName", "professionalOccupation", "monthlyIncome"];
 // PJ: dados pessoais do sócio administrador exigidos pelo Pagar.me.
 const REQUIRED_PARTNER: (keyof Form)[] = ["pName", "pDocument", "pEmail", "pPhone", "pBirthdate", "pOccupation", "pIncome"];
 const REQUIRED_PARTNER_ADDR: (keyof Form)[] = ["pStreet", "pStreetNumber", "pNeighborhood", "pCity", "pState", "pZipCode"];
@@ -679,7 +680,7 @@ function RecipientModal({
             <F req label={t("pgPhone")}>
               <Input value={form.phone} onChange={(e) => set("phone", formatPhone(e.target.value))} inputMode="tel" placeholder="(47) 99999-9999" />
             </F>
-            <F req label={isPF ? t("pgBirthdate") : t("pgFounding")}>
+            <F req={isPF} label={isPF ? t("pgBirthdate") : t("pgFounding")}>
               <Input type="date" value={form.birthdate} onChange={(e) => set("birthdate", e.target.value)} />
             </F>
             {isPF && (
