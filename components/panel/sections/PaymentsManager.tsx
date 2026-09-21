@@ -481,9 +481,9 @@ const REQUIRED_FIELDS: (keyof Form)[] = [
   "state",
   "zipCode",
 ];
-// PF: nascimento + mãe/profissão/renda são KYC obrigatório da pessoa física.
-// (PJ: a "Abertura"/founding_date é opcional no Pagar.me, então fica de fora.)
-const REQUIRED_PF: (keyof Form)[] = ["birthdate", "motherName", "professionalOccupation", "monthlyIncome"];
+// PF: nascimento + profissão + renda são KYC obrigatório da pessoa física.
+// (Nome da mãe é opcional no Pagar.me e a "Abertura" de PJ também — fora do form.)
+const REQUIRED_PF: (keyof Form)[] = ["birthdate", "professionalOccupation", "monthlyIncome"];
 // PJ: dados pessoais do sócio administrador exigidos pelo Pagar.me.
 const REQUIRED_PARTNER: (keyof Form)[] = ["pName", "pDocument", "pEmail", "pPhone", "pBirthdate", "pOccupation", "pIncome"];
 const REQUIRED_PARTNER_ADDR: (keyof Form)[] = ["pStreet", "pStreetNumber", "pNeighborhood", "pCity", "pState", "pZipCode"];
@@ -680,16 +680,13 @@ function RecipientModal({
             <F req label={t("pgPhone")}>
               <Input value={form.phone} onChange={(e) => set("phone", formatPhone(e.target.value))} inputMode="tel" placeholder="(47) 99999-9999" />
             </F>
-            <F req={isPF} label={isPF ? t("pgBirthdate") : t("pgFounding")}>
-              <Input type="date" value={form.birthdate} onChange={(e) => set("birthdate", e.target.value)} />
-            </F>
             {isPF && (
               <>
+                <F req label={t("pgBirthdate")}>
+                  <Input type="date" value={form.birthdate} onChange={(e) => set("birthdate", e.target.value)} />
+                </F>
                 <F req label={t("pgOccupation")}>
                   <Input value={form.professionalOccupation} onChange={(e) => set("professionalOccupation", e.target.value)} />
-                </F>
-                <F req className="col-span-2" label={t("pgMother")}>
-                  <Input value={form.motherName} onChange={(e) => set("motherName", e.target.value)} />
                 </F>
                 <F req label={t("pgIncome")}>
                   <Input value={form.monthlyIncome} onChange={(e) => set("monthlyIncome", onlyDigits(e.target.value))} inputMode="numeric" placeholder="Ex: 5000" />
@@ -735,9 +732,6 @@ function RecipientModal({
             <F req label={t("pgStreetNumber")}>
               <Input value={form.streetNumber} onChange={(e) => set("streetNumber", e.target.value)} />
             </F>
-            <F label={t("pgComplement")}>
-              <Input value={form.complement} onChange={(e) => set("complement", e.target.value)} placeholder={t("pgComplementPh")} />
-            </F>
             <F req label={t("pgNeighborhood")}>
               <Input value={form.neighborhood} onChange={(e) => set("neighborhood", e.target.value)} />
             </F>
@@ -778,9 +772,6 @@ function RecipientModal({
                 <F req label={t("pgIncome")}>
                   <Input value={form.pIncome} onChange={(e) => set("pIncome", onlyDigits(e.target.value))} inputMode="numeric" placeholder="Ex: 5000" />
                 </F>
-                <F className="col-span-2" label={t("pgMother")}>
-                  <Input value={form.pMotherName} onChange={(e) => set("pMotherName", e.target.value)} />
-                </F>
               </div>
               <label className="mt-1 flex items-center gap-2 text-[12px] font-medium text-ink/70">
                 <input type="checkbox" checked={legalRep} onChange={(e) => setLegalRep(e.target.checked)} className="h-4 w-4 accent-ink" />
@@ -799,9 +790,6 @@ function RecipientModal({
                     </F>
                     <F req label={t("pgStreetNumber")}>
                       <Input value={form.pStreetNumber} onChange={(e) => set("pStreetNumber", e.target.value)} />
-                    </F>
-                    <F label={t("pgComplement")}>
-                      <Input value={form.pComplement} onChange={(e) => set("pComplement", e.target.value)} placeholder={t("pgComplementPh")} />
                     </F>
                     <F req label={t("pgNeighborhood")}>
                       <Input value={form.pNeighborhood} onChange={(e) => set("pNeighborhood", e.target.value)} />
