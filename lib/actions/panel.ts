@@ -18,7 +18,7 @@ import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
-import { createPagarmeRecipient, getPagarmeKycLink } from "@/lib/payments/pagarme";
+import { createPagarmeRecipient, getPagarmeKycLink, PagarmeError } from "@/lib/payments/pagarme";
 import { createSubaccount } from "@/lib/payments/asaas";
 import { periodRange, type OrdersPeriod } from "@/lib/domain/period";
 import {
@@ -201,7 +201,13 @@ export async function generatePagarmeKycLinkAction(): Promise<{
     // Só fica pronto quando o recebedor chega em `affiliation`.
     if (!link.url && !link.base64) return { ok: false, error: "not-ready" };
     return { ok: true, url: link.url, base64: link.base64 };
-  } catch {
+  } catch (e) {
+    // 401/403 = o Pagar.me RECUSOU a operação (restrição de IP/permissão) — não
+    // é "ainda preparando". Como a Vercel tem IP dinâmico, o link tem que ser
+    // gerado pelo painel do Pagar.me (Recebedores) ou pelo e-mail do recebedor.
+    if (e instanceof PagarmeError && (e.status === 401 || e.status === 403)) {
+      return { ok: false, error: "blocked" };
+    }
     return { ok: false, error: "not-ready" };
   }
 }

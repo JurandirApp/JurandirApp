@@ -689,6 +689,7 @@
       "pgKycOpen": "Open registration on Pagar.me",
       "pgKycGenerating": "Generating link…",
       "pgKycNotReady": "Pagar.me is still preparing the registration. Try again in a few moments.",
+      "pgKycBlocked": "Pagar.me refused to generate the link due to an IP restriction. Complete the identity check directly in the Pagar.me dashboard (Recipients menu) or via the link Pagar.me emails to the recipient.",
       "pgKycError": "Couldn't generate the link. Try again.",
       "pgKycQrHint": "Or scan the QR with your phone:",
       "pgType": "Type",

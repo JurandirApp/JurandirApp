@@ -337,7 +337,13 @@ function KycFinish() {
       if (r.url) window.open(r.url, "_blank", "noopener,noreferrer");
       if (r.base64) setQr(r.base64);
     } else {
-      setMsg(r.error === "not-ready" ? t("pgKycNotReady") : t("pgKycError"));
+      setMsg(
+        r.error === "not-ready"
+          ? t("pgKycNotReady")
+          : r.error === "blocked"
+            ? t("pgKycBlocked")
+            : t("pgKycError"),
+      );
     }
   };
 

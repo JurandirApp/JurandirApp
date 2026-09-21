@@ -689,6 +689,7 @@
       "pgKycOpen": "Abrir cadastro no Pagar.me",
       "pgKycGenerating": "Gerando link…",
       "pgKycNotReady": "O Pagar.me ainda está preparando o cadastro. Tente de novo em alguns instantes.",
+      "pgKycBlocked": "O Pagar.me recusou gerar o link por restrição de IP. Conclua a prova de vida direto no painel do Pagar.me (menu Recebedores) ou pelo link que o Pagar.me envia no e-mail do recebedor.",
       "pgKycError": "Não foi possível gerar o link. Tente de novo.",
       "pgKycQrHint": "Ou escaneie o QR com o celular:",
       "pgType": "Tipo",
