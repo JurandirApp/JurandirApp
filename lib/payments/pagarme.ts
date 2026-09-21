@@ -418,6 +418,18 @@ function splitPhone(phone?: string): { ddd: string; number: string; type: "mobil
   return { ddd: d.slice(0, 2), number: d.slice(2), type: "mobile" };
 }
 
+/** Pagar.me v5 exige birthdate/founding_date no formato DD/MM/AAAA
+ *  (regex /^\d{2}\/\d{2}\/\d{4}$/). O form manda ISO (AAAA-MM-DD, do
+ *  <input type="date">); convertemos. Se já vier DD/MM/AAAA, passa direto;
+ *  sem data válida, usa o fallback (também DD/MM/AAAA). */
+function toBrDate(value: string | undefined, fallback: string): string {
+  const v = (value ?? "").trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(v); // AAAA-MM-DD (aceita datetime)
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) return v; // já DD/MM/AAAA
+  return fallback;
+}
+
 function addressBody(i: PagarmeRecipientInput) {
   return {
     street: i.street || "",
@@ -447,7 +459,7 @@ export async function createPagarmeRecipient(
           email: input.email,
           document: doc,
           mother_name: input.motherName || input.name,
-          birthdate: input.birthdate || "1990-01-01",
+          birthdate: toBrDate(input.birthdate, "01/01/1990"),
           monthly_income: input.monthlyIncome ?? 5000,
           professional_occupation: input.professionalOccupation || "Empresário",
           address: addressBody(input),
@@ -460,7 +472,7 @@ export async function createPagarmeRecipient(
           email: input.email,
           document: doc,
           annual_revenue: input.monthlyIncome ? input.monthlyIncome * 12 : 100000,
-          founding_date: input.birthdate || "2015-01-01",
+          founding_date: toBrDate(input.birthdate, "01/01/2015"),
           main_address: addressBody(input),
           ...(phone ? { phone_numbers: [phone] } : {}),
         };
