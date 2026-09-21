@@ -79,6 +79,17 @@ export type CardTokenPaymentInput = {
   customerName?: string;
   customerDocument?: string;
   customerPhone?: string;
+  /** Endereço de cobrança do portador — EXIGIDO pelo antifraude do Pagar.me em
+   *  cartão. O app resolve o CEP (ViaCEP) e manda os campos prontos. */
+  billing?: CardBillingAddress;
+};
+
+/** billing_address do cartão (formato Pagar.me v5). */
+export type CardBillingAddress = {
+  line_1: string;
+  zip_code: string;
+  city: string;
+  state: string;
 };
 
 /** Pagamento aprovado localizado por referência externa (Checkout Pro não devolve o id na criação). */

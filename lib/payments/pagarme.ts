@@ -261,14 +261,32 @@ export const pagarmeProvider: PaymentProvider = {
   // manda só o `card_token`; aqui montamos o pedido credit_card/debit_card.
   async createCardTokenPayment(input: CardTokenPaymentInput): Promise<CardPaymentResult> {
     const { est, reference, total, platformFee, description, cardToken, installments, method,
-      customerName, customerDocument, customerPhone } = input;
+      customerName, customerDocument, customerPhone, billing } = input;
     recipientFor(est);
     const totalCents = cents(total);
     const isDebit = method === "debit";
+    // Antifraude do Pagar.me exige billing_address no cartão — sem ele a cobrança
+    // falha com `validation_error | billing | "value" is required`. Vem do app
+    // (CEP resolvido no ViaCEP); só anexa se os 4 campos vierem preenchidos.
+    const billingOk =
+      billing && billing.line_1 && billing.zip_code && billing.city && billing.state;
     const cardObj = {
       statement_descriptor: "JURANDIR",
       card_token: cardToken,
       ...(isDebit ? {} : { installments: installments > 0 ? installments : 1 }),
+      ...(billingOk
+        ? {
+            card: {
+              billing_address: {
+                line_1: billing.line_1,
+                zip_code: billing.zip_code.replace(/\D/g, ""),
+                city: billing.city,
+                state: billing.state,
+                country: "BR",
+              },
+            },
+          }
+        : {}),
     };
     const body = {
       code: reference,

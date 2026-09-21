@@ -23,7 +23,13 @@ export async function OPTIONS(): Promise<Response> {
  * app tokeniza com a chave pública; o cartão cru NUNCA chega aqui).
  */
 export async function POST(req: Request): Promise<Response> {
-  let body: { order?: unknown; cardToken?: unknown; installments?: unknown; method?: unknown };
+  let body: {
+    order?: unknown;
+    cardToken?: unknown;
+    installments?: unknown;
+    method?: unknown;
+    billing?: unknown;
+  };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -34,6 +40,14 @@ export async function POST(req: Request): Promise<Response> {
   if (!cardToken) {
     return Response.json({ ok: false, error: "tokenRequired" }, { status: 422, headers: CORS });
   }
+  // Billing do portador (antifraude Pagar.me). O app resolve o CEP e manda os 4
+  // campos; só passa adiante se todos vierem como string preenchida.
+  const b = (body.billing ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const billing =
+    str(b.line_1) && str(b.zip_code) && str(b.city) && str(b.state)
+      ? { line_1: str(b.line_1), zip_code: str(b.zip_code), city: str(b.city), state: str(b.state) }
+      : undefined;
   const method = body.method === "debit" ? "debit" : "credit";
   const installments =
     typeof body.installments === "number" && Number.isInteger(body.installments) && body.installments > 0
@@ -47,7 +61,7 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const created = await createOrder(parsed.data);
-    const pay = await payOrderWithCardToken(created.id, cardToken, installments, method, parsed.data.customerDocument);
+    const pay = await payOrderWithCardToken(created.id, cardToken, installments, method, parsed.data.customerDocument, billing);
     const [fresh] = await getOrdersByIds([created.id]);
     return Response.json(
       {

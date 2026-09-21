@@ -1,7 +1,7 @@
 import { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getProviderByName } from "@/lib/payments";
-import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
+import type { CardBillingAddress, CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
 
 /** Sincroniza o status do recebedor Pagar.me (webhook recipient.updated). */
@@ -179,6 +179,7 @@ export async function payOrderWithCardToken(
   installments: number,
   method: "credit" | "debit",
   customerDocument?: string,
+  billing?: CardBillingAddress,
 ): Promise<{ status: ChargeStatus; statusDetail?: string }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -203,6 +204,7 @@ export async function payOrderWithCardToken(
       customerName: order.customerName ?? undefined,
       customerDocument: customerDocument ?? undefined,
       customerPhone: order.customerPhone ?? undefined,
+      billing,
     });
   } catch (e) {
     return { status: "failed", statusDetail: e instanceof Error ? e.message : String(e) };
