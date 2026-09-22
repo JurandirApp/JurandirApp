@@ -234,10 +234,10 @@ function mapApplePay(raw: string): Record<string, unknown> {
 // TODO: trocar pelo billing real (CEP do cartão manual / billingContact do
 // Apple Pay) quando reativar a coleta — ver createCardTokenPayment/Wallet.
 const DEFAULT_BILLING = {
-  line_1: "1000, Avenida Brasil, Centro",
-  zip_code: "01310100",
-  city: "Sao Paulo",
-  state: "SP",
+  line_1: "100, Rua Santos, Centro",
+  zip_code: "86020040", // Londrina/PR — região do cartão do chefe (teste antifraude)
+  city: "Londrina",
+  state: "PR",
   country: "BR",
 };
 
