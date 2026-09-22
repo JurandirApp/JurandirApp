@@ -123,6 +123,8 @@ const GATEWAY_CAP: Record<string, { pix: boolean; credit: boolean; debit: boolea
   MERCADO_PAGO: { pix: true, credit: true, debit: true },
   PAGARME: { pix: true, credit: true, debit: true },
   ASAAS: { pix: true, credit: false, debit: false },
+  // Appmax não tem débito avulso (só crédito/pix/boleto/apple-pay).
+  APPMAX: { pix: true, credit: true, debit: false },
   INFINITEPAY: { pix: false, credit: false, debit: false },
 };
 
@@ -136,11 +138,12 @@ export async function savePaymentRoutingAction(routing: {
   const s = await requireEst();
   const est = await prisma.establishment.findUnique({
     where: { id: s.establishmentId! },
-    select: { pagarmeRecipientId: true, asaasWalletId: true },
+    select: { pagarmeRecipientId: true, asaasWalletId: true, appmaxRecipientHash: true },
   });
   const ready: Record<string, boolean> = {
     PAGARME: Boolean(est?.pagarmeRecipientId),
     ASAAS: Boolean(est?.asaasWalletId),
+    APPMAX: Boolean(est?.appmaxRecipientHash),
   };
   const resolve = (
     v: string,

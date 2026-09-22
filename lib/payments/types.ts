@@ -109,7 +109,7 @@ export type WalletPaymentInput = {
 };
 
 export interface PaymentProvider {
-  readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME";
+  readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME" | "APPMAX";
   createPixCharge(input: PixChargeInput): Promise<PixCharge>;
   getChargeStatus(est: Establishment, chargeId: string): Promise<ChargeStatus>;
   /** Cria a preferência do checkout hospedado e devolve a URL de redirecionamento. */

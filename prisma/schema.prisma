@@ -36,6 +36,7 @@ enum PaymentProvider {
   ASAAS
   MERCADO_PAGO
   PAGARME
+  APPMAX
 }
 
 enum PrintJobStatus {
@@ -106,6 +107,10 @@ model Establishment {
   // recebedor. Split manda total−comissão pro recebedor do bar.
   pagarmeRecipientId     String?
   pagarmeRecipientStatus String?
+  // Appmax (marketplace): a plataforma é o merchant; cada bar é um recipient
+  // (split por pedido). recipientStatus = "Onboarding completed" recebe split.
+  appmaxRecipientHash    String?
+  appmaxRecipientStatus  String?
   // Conta MP conectada consegue gerar QR Pix? (null = não verificado). Se false,
   // o painel avisa o dono pra cadastrar uma chave Pix no Mercado Pago dele.
   mpPixReady       Boolean?
