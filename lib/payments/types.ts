@@ -90,6 +90,7 @@ export type CardBillingAddress = {
   zip_code: string;
   city: string;
   state: string;
+  country?: string;
 };
 
 /** Pagamento aprovado localizado por referência externa (Checkout Pro não devolve o id na criação). */

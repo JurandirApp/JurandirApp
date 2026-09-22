@@ -11,6 +11,7 @@ import type {
   WalletPaymentInput,
   CardPaymentResult,
   CardTokenPaymentInput,
+  CardBillingAddress,
 } from "./types";
 
 // Pagar.me v5 (modelo marketplace): a PLATAFORMA tem a conta (secret key). Cada
@@ -226,6 +227,34 @@ function mapApplePay(raw: string): Record<string, unknown> {
   }
 }
 
+// A conta Pagar.me EXIGE `billing_address` pra cartão/carteira (recusa com
+// `validation_error | billing | "value" is required`), mas só valida a PRESENÇA
+// — não confere contra o cartão. Enquanto não coletamos o endereço real do
+// portador (ou o Pagar.me remover a exigência), mandamos um billing fixo válido.
+// TODO: trocar pelo billing real (CEP do cartão manual / billingContact do
+// Apple Pay) quando reativar a coleta — ver createCardTokenPayment/Wallet.
+const DEFAULT_BILLING = {
+  line_1: "1000, Avenida Brasil, Centro",
+  zip_code: "01310100",
+  city: "Sao Paulo",
+  state: "SP",
+  country: "BR",
+};
+
+/** Billing do cartão: usa o endereço real (se o app enviou) ou o fixo. */
+function billingFor(billing?: CardBillingAddress) {
+  if (billing && billing.line_1 && billing.zip_code && billing.city && billing.state) {
+    return {
+      line_1: billing.line_1,
+      zip_code: billing.zip_code.replace(/\D/g, ""),
+      city: billing.city,
+      state: billing.state,
+      country: "BR",
+    };
+  }
+  return DEFAULT_BILLING;
+}
+
 export const pagarmeProvider: PaymentProvider = {
   name: "PAGARME",
   async createWalletPayment(input: WalletPaymentInput): Promise<CardPaymentResult> {
@@ -243,7 +272,9 @@ export const pagarmeProvider: PaymentProvider = {
       payments: [
         {
           payment_method: "credit_card",
-          credit_card: { statement_descriptor: "JURANDIR", payload },
+          // A conta exige billing tb na carteira; Apple/Google Pay não mandam
+          // endereço por padrão, então usamos o fixo (a conta só valida presença).
+          credit_card: { statement_descriptor: "JURANDIR", payload, card: { billing_address: DEFAULT_BILLING } },
           split: buildSplit(est, totalCents, cents(platformFee)),
         },
       ],
@@ -265,28 +296,13 @@ export const pagarmeProvider: PaymentProvider = {
     recipientFor(est);
     const totalCents = cents(total);
     const isDebit = method === "debit";
-    // Antifraude do Pagar.me exige billing_address no cartão — sem ele a cobrança
-    // falha com `validation_error | billing | "value" is required`. Vem do app
-    // (CEP resolvido no ViaCEP); só anexa se os 4 campos vierem preenchidos.
-    const billingOk =
-      billing && billing.line_1 && billing.zip_code && billing.city && billing.state;
+    // A conta exige billing_address pra cartão. Usa o do app (CEP via ViaCEP)
+    // quando vier; senão, o billing fixo (a conta só valida a presença).
     const cardObj = {
       statement_descriptor: "JURANDIR",
       card_token: cardToken,
       ...(isDebit ? {} : { installments: installments > 0 ? installments : 1 }),
-      ...(billingOk
-        ? {
-            card: {
-              billing_address: {
-                line_1: billing.line_1,
-                zip_code: billing.zip_code.replace(/\D/g, ""),
-                city: billing.city,
-                state: billing.state,
-                country: "BR",
-              },
-            },
-          }
-        : {}),
+      card: { billing_address: billingFor(billing) },
     };
     const body = {
       code: reference,
