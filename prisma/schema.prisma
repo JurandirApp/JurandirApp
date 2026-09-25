@@ -48,61 +48,81 @@ enum PrintJobStatus {
 enum PrintJobKind {
   ORDER
   TEST
+  FISCAL
+}
+
+enum FiscalMode {
+  AUTO_ON_PRINT
+  MANUAL
+  OFF
+}
+
+enum FiscalEnv {
+  HOMOLOGACAO
+  PRODUCAO
+}
+
+enum FiscalDocStatus {
+  QUEUED
+  PROCESSING
+  AUTHORIZED
+  REJECTED
+  ERROR
 }
 
 model Establishment {
-  id             String              @id @default(cuid())
-  slug           String              @unique
-  name           String
-  owner          String
-  type           String
-  city           String
-  neighborhood   String?
-  posto          String?
-  radiusM        Int?
-  plan           String
-  platformFeePct Int                 @default(8)
-  serviceFeePct  Int                 @default(10)
+  id                     String              @id @default(cuid())
+  slug                   String              @unique
+  name                   String
+  owner                  String
+  type                   String
+  city                   String
+  neighborhood           String?
+  posto                  String?
+  radiusM                Int?
+  plan                   String
+  platformFeePct         Int                 @default(8)
+  serviceFeePct          Int                 @default(10)
   // Hora (0-23, fuso Brasília) em que o "dia operacional" começa. Ex.: 12 → o
   // turno noturno (18h–6h) fica todo no mesmo "dia". 0 = dia do calendário.
-  dayStartHour   Int                 @default(0)
+  dayStartHour           Int                 @default(0)
   // O dono já confirmou o horário de funcionamento? (senão, mostra o aviso)
-  dayStartSet    Boolean             @default(false)
-  cuisine        String?
-  rating         Decimal?            @db.Decimal(2, 1)
-  rankingOrders  Int                 @default(0)
-  weeklyHours    Json?
-  status         EstablishmentStatus @default(ACTIVE)
-  isLive         Boolean             @default(false)
-  tagline        String?
-  description    String?
-  address        String?
+  dayStartSet            Boolean             @default(false)
+  cuisine                String?
+  rating                 Decimal?            @db.Decimal(2, 1)
+  rankingOrders          Int                 @default(0)
+  weeklyHours            Json?
+  status                 EstablishmentStatus @default(ACTIVE)
+  isLive                 Boolean             @default(false)
+  tagline                String?
+  description            String?
+  address                String?
   // Coordenadas geocodificadas do endereço (Google Geocoding) — usadas pra
   // ordenar "perto de você" por distância no app. Null = ainda não geocodificado.
-  lat            Float?
-  lng            Float?
-  hours          String?
-  coverImg       String?
-  logoImg        String?
-  phone          String?
-  email          String?
-  website        String?
-  whatsapp       String?
-  instagram      String?
-  paymentProvider  PaymentProvider @default(ASAAS)
-  paymentOnboarded Boolean         @default(false)
+  lat                    Float?
+  lng                    Float?
+  hours                  String?
+  coverImg               String?
+  logoImg                String?
+  phone                  String?
+  email                  String?
+  website                String?
+  whatsapp               String?
+  instagram              String?
+  paymentProvider        PaymentProvider     @default(ASAAS)
+  paymentOnboarded       Boolean             @default(false)
   // Gateway escolhido POR MÉTODO (Pix/Crédito/Débito). Default = Mercado Pago,
   // que é o comportamento efetivo atual.
-  gatewayPix       PaymentProvider @default(MERCADO_PAGO)
-  gatewayCredit    PaymentProvider @default(MERCADO_PAGO)
-  gatewayDebit     PaymentProvider @default(MERCADO_PAGO)
-  ownerCpfCnpj     String?
-  asaasAccountId   String?
-  asaasWalletId    String?
-  mpUserId         String?
-  mpAccessToken    String?
-  mpRefreshToken   String?
-  mpPublicKey      String?
+  gatewayPix             PaymentProvider     @default(MERCADO_PAGO)
+  gatewayCredit          PaymentProvider     @default(MERCADO_PAGO)
+  gatewayDebit           PaymentProvider     @default(MERCADO_PAGO)
+  ownerCpfCnpj           String?
+  asaasAccountId         String?
+  asaasWalletId          String?
+  mpUserId               String?
+  mpAccessToken          String?
+  mpRefreshToken         String?
+  mpPublicKey            String?
   // Pagar.me (modelo marketplace): a plataforma tem a conta; cada bar é um
   // recebedor. Split manda total−comissão pro recebedor do bar.
   pagarmeRecipientId     String?
@@ -113,24 +133,43 @@ model Establishment {
   appmaxRecipientStatus  String?
   // Conta MP conectada consegue gerar QR Pix? (null = não verificado). Se false,
   // o painel avisa o dono pra cadastrar uma chave Pix no Mercado Pago dele.
-  mpPixReady       Boolean?
-  printAgentToken  String?             @unique
-  printerIp        String?
-  printEnabled     Boolean             @default(false)
+  mpPixReady             Boolean?
+  printAgentToken        String?             @unique
+  printerIp              String?
+  printEnabled           Boolean             @default(false)
   // Módulo do Garçom (entrega na mesa) habilitado para este estabelecimento.
   // Off por padrão — só bares que usam garçom/entrega ligam (pelo admin).
-  waiterModuleEnabled Boolean          @default(false)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  waiterModuleEnabled    Boolean             @default(false)
+  // --- Bloco fiscal (NFC-e) ---
+  // OFF por padrão; o dono liga e configura. Segredos (fiscalCsc/focusToken) são
+  // backend-only, nunca vão pro app nem pro cliente.
+  fiscalMode             FiscalMode          @default(OFF)
+  fiscalEnv              FiscalEnv           @default(HOMOLOGACAO)
+  cnpj                   String?
+  ie                     String? // inscrição estadual
+  regimeTributario       String? // "1" Simples, "3" Normal (Lucro Real/Presumido)
+  fiscalCsc              String? // código CSC (segredo do cliente)
+  fiscalCscId            String? // idToken do CSC
+  nfceSerie              Int?
+  focusToken             String? // token do estabelecimento no Focus NFe
+  fiscalStreet           String?
+  fiscalNumber           String?
+  fiscalDistrict         String?
+  fiscalCity             String?
+  fiscalUf               String?
+  fiscalZip              String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
-  users        User[]
-  menuItems    MenuItem[]
-  qrSpots      QrSpot[]
-  orders       Order[]
-  searchEvents SearchEvent[]
-  monthlyStats MonthlyStat[]
-  printJobs    PrintJob[]
-  printers     Printer[]
+  users           User[]
+  menuItems       MenuItem[]
+  qrSpots         QrSpot[]
+  orders          Order[]
+  searchEvents    SearchEvent[]
+  monthlyStats    MonthlyStat[]
+  printJobs       PrintJob[]
+  printers        Printer[]
+  fiscalDocuments FiscalDocument[]
 }
 
 model User {
@@ -148,24 +187,33 @@ model User {
 }
 
 model MenuItem {
-  id              String        @id @default(cuid())
-  establishmentId String
-  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
-  name            String
-  description     String?
-  price           Decimal       @db.Decimal(10, 2)
-  oldPrice        Decimal?      @db.Decimal(10, 2)
-  photo           String?
-  measure         Int?
-  unit            String?
-  category        String
-  subcategory     String
-  active          Boolean       @default(true)
-  sortOrder       Int           @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id               String        @id @default(cuid())
+  establishmentId  String
+  establishment    Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  price            Decimal       @db.Decimal(10, 2)
+  oldPrice         Decimal?      @db.Decimal(10, 2)
+  photo            String?
+  measure          Int?
+  unit             String?
+  category         String
+  subcategory      String
+  active           Boolean       @default(true)
+  sortOrder        Int           @default(0)
+  // --- Campos fiscais (preenchidos pelo contador do cliente) ---
+  ncm              String? // 8 dígitos
+  cest             String? // quando há substituição tributária
+  cfop             String? // ex. 5102
+  origem           String? // origem da mercadoria (0-8)
+  cstIcms          String? // Regime Normal
+  csosnIcms        String? // Simples Nacional
+  cClassTrib       String? // classificação tributária (reforma IBS/CBS)
+  unidadeComercial String?       @default("UN")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  optionGroups    MenuItemOptionGroup[]
+  optionGroups MenuItemOptionGroup[]
 
   @@index([establishmentId])
 }
@@ -215,7 +263,7 @@ model Order {
   establishmentId String
   establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
   code            String        @unique
-  number          Int           @default(autoincrement()) @unique
+  number          Int           @unique @default(autoincrement())
   status          OrderStatus   @default(AWAITING_PAYMENT)
   locationLabel   String
   posto           String?
@@ -230,29 +278,30 @@ model Order {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  items       OrderItem[]
-  payment     Payment?
-  splitShares SplitShare[]
-  events      OrderEvent[]
+  items          OrderItem[]
+  payment        Payment?
+  splitShares    SplitShare[]
+  events         OrderEvent[]
+  fiscalDocument FiscalDocument?
 
   @@index([establishmentId, status])
 }
 
 model OrderItem {
-  id         String  @id @default(cuid())
-  orderId    String
-  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItemId String?
-  name       String
-  qty        Int
-  unitPrice  Decimal @db.Decimal(10, 2)
+  id                String  @id @default(cuid())
+  orderId           String
+  order             Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId        String?
+  name              String
+  qty               Int
+  unitPrice         Decimal @db.Decimal(10, 2)
   // Snapshot das opções escolhidas: [{ group, name, priceDelta }]. `unitPrice`
   // já é o preço final por unidade (base + adicionais).
-  options    Json?
+  options           Json?
   // Entrega parcial por quantidade (o restante está "preparando").
-  qtyReady          Int @default(0)
-  qtyOutForDelivery Int @default(0)
-  qtyDelivered      Int @default(0)
+  qtyReady          Int     @default(0)
+  qtyOutForDelivery Int     @default(0)
+  qtyDelivered      Int     @default(0)
 }
 
 enum OrderEventType {
@@ -291,20 +340,20 @@ model DeviceToken {
 }
 
 model Payment {
-  id            String        @id @default(cuid())
-  orderId       String        @unique
-  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  method        PaymentMethod
-  installments  Int           @default(1)
-  gatewayFeePct Decimal       @db.Decimal(5, 2)
-  cardMask      String?
+  id                   String           @id @default(cuid())
+  orderId              String           @unique
+  order                Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method               PaymentMethod
+  installments         Int              @default(1)
+  gatewayFeePct        Decimal          @db.Decimal(5, 2)
+  cardMask             String?
   provider             PaymentProvider?
   gatewayChargeId      String?          @unique
   pixPayload           String?
   pixQrImage           String?          @db.Text
   confirmedAt          DateTime?
   splitToEstablishment Decimal?         @db.Decimal(10, 2)
-  createdAt     DateTime      @default(now())
+  createdAt            DateTime         @default(now())
 }
 
 model PrintJob {
@@ -346,15 +395,44 @@ model Printer {
   @@index([establishmentId])
 }
 
+/// Uma nota fiscal (NFC-e mod. 65 na Fase 1) de um pedido. A emissão é
+/// assíncrona: nasce QUEUED, vira PROCESSING ao chamar o Focus NFe, e fecha em
+/// AUTHORIZED (chave+protocolo → imprime DANFE) ou REJECTED/ERROR (aparece no
+/// painel). 1 nota por pedido nesta fase.
+model FiscalDocument {
+  id              String          @id @default(cuid())
+  establishmentId String
+  establishment   Establishment   @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  orderId         String          @unique
+  order           Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ref             String          @unique // nosso id enviado ao Focus (?ref=)
+  model           Int             @default(65) // 65 NFC-e (55 = Fase 2)
+  status          FiscalDocStatus @default(QUEUED)
+  env             FiscalEnv
+  numero          Int?
+  serie           Int?
+  chave           String? // chave de acesso (44 dígitos)
+  protocolo       String?
+  xmlUrl          String? // link do XML no provedor
+  danfeUrl        String? // link do PDF/DANFE no provedor
+  qrcodeUrl       String?         @db.Text // QR Code da NFC-e (vai no cupom)
+  rejeicao        String?         @db.Text // motivo da SEFAZ
+  providerRaw     Json? // resposta crua p/ auditoria
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([establishmentId, status])
+}
+
 model SplitShare {
-  id          String         @id @default(cuid())
-  orderId     String
-  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  personIndex Int
-  amount      Decimal        @db.Decimal(10, 2)
-  method      PaymentMethod?
-  paid        Boolean        @default(false)
-  paidAt      DateTime?
+  id              String           @id @default(cuid())
+  orderId         String
+  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  personIndex     Int
+  amount          Decimal          @db.Decimal(10, 2)
+  method          PaymentMethod?
+  paid            Boolean          @default(false)
+  paidAt          DateTime?
   // Split REAL por Pix: cada parte é uma cobrança Pix própria (Pagar.me).
   provider        PaymentProvider?
   gatewayChargeId String?
