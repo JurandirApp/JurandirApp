@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { getProviderByName } from "@/lib/payments";
 import type { CardBillingAddress, CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
+import { autoEmitFiscal } from "./fiscal";
 
 /** Sincroniza o status do recebedor Pagar.me (webhook recipient.updated). */
 export async function syncPagarmeRecipientStatus(
@@ -36,6 +37,8 @@ export async function confirmChargePaid(gatewayChargeId: string): Promise<void> 
     prisma.payment.update({ where: { id: payment.id }, data: { confirmedAt: new Date() } }),
   ]);
   await enqueuePrintJob(payment.order.id);
+  // Nota fiscal automática (AUTO_ON_PRINT). No-op se o fiscal estiver off/manual.
+  await autoEmitFiscal(payment.order.id);
 }
 
 /** Consulta o gateway e confirma se pago. Usado pela reconciliação (dev) e pelo webhook do MP. */
@@ -113,6 +116,7 @@ async function reconcileSplitShares(
       data: { status: OrderStatus.IN_PRODUCTION },
     });
     await enqueuePrintJob(order.id);
+    await autoEmitFiscal(order.id);
   }
 }
 

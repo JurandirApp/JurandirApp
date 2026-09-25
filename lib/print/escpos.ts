@@ -58,6 +58,23 @@ class Builder {
     this.bytes.push(0x0a);
     return this;
   }
+  /** QR Code nativo (GS ( k, modelo 2). `data` vai cru (URL da NFC-e) — sem
+   *  passar por ascii(), o conteúdo tem que ser exato. */
+  qrcode(data: string, moduleSize = 6): this {
+    const bytes = Array.from(new TextEncoder().encode(data));
+    // modelo 2
+    this.raw(GS, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00);
+    // tamanho do módulo (1-16)
+    this.raw(GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, moduleSize & 0xff);
+    // correção de erro nível M
+    this.raw(GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31);
+    // armazena os dados
+    const len = bytes.length + 3;
+    this.raw(GS, 0x28, 0x6b, len & 0xff, (len >> 8) & 0xff, 0x31, 0x50, 0x30, ...bytes);
+    // imprime
+    this.raw(GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30);
+    return this;
+  }
   build(): Uint8Array {
     return Uint8Array.from(this.bytes);
   }
@@ -92,6 +109,74 @@ export function renderTicket(t: TicketData): Uint8Array {
     b.line("-".repeat(WIDTH));
     b.line("Obs: " + t.note);
   }
+  b.raw(ESC, 0x64, 0x04); // feed 4
+  b.raw(GS, 0x56, 0x00); // full cut
+  return b.build();
+}
+
+/** Cupom fiscal (DANFE simplificado da NFC-e, 80mm). Impresso só depois da nota
+ *  AUTORIZADA — carrega chave de acesso, protocolo e o QR Code de consulta. */
+export type DanfeData = {
+  establishment: string;
+  cnpj?: string;
+  address?: string;
+  code: string; // pedido de origem
+  timeLabel: string;
+  items: { name: string; qty: number; unit: string; unitPrice: number; total: number }[];
+  total: number;
+  numero?: number;
+  serie?: number;
+  chave: string; // 44 dígitos
+  protocolo?: string;
+  qrData: string; // conteúdo do QR (URL de consulta da NFC-e)
+  homologacao: boolean;
+};
+
+/** Chave de acesso em grupos de 4 (leitura humana). */
+function chaveGrupos(chave: string): string {
+  return (chave.match(/.{1,4}/g) ?? [chave]).join(" ");
+}
+
+export function renderDanfe(d: DanfeData): Uint8Array {
+  const b = new Builder();
+  b.raw(ESC, 0x40); // init
+  b.raw(ESC, 0x61, 0x01); // center
+  b.raw(GS, 0x21, 0x01); // double height
+  b.line(d.establishment);
+  b.raw(GS, 0x21, 0x00); // normal
+  if (d.cnpj) b.line("CNPJ: " + d.cnpj);
+  if (d.address) b.line(d.address);
+  b.line("");
+  b.line("DANFE NFC-e - Documento Auxiliar da");
+  b.line("Nota Fiscal de Consumidor Eletronica");
+  b.raw(ESC, 0x61, 0x00); // left
+  b.line("-".repeat(WIDTH));
+  b.line("Pedido " + d.code + "   " + d.timeLabel);
+  b.line("-".repeat(WIDTH));
+  b.line("ITEM               QTD x UN.        VALOR");
+  for (const it of d.items) {
+    b.line(it.name);
+    b.line(row("  " + it.qty + " x " + brl(it.unitPrice), brl(it.total)));
+  }
+  b.line("-".repeat(WIDTH));
+  b.line(row("QTD. TOTAL DE ITENS", String(d.items.length)));
+  b.raw(ESC, 0x45, 0x01); // bold
+  b.line(row("VALOR TOTAL", brl(d.total)));
+  b.raw(ESC, 0x45, 0x00); // bold off
+  b.line("-".repeat(WIDTH));
+  b.raw(ESC, 0x61, 0x01); // center
+  if (d.homologacao) {
+    b.line("EMITIDA EM AMBIENTE DE HOMOLOGACAO");
+    b.line("SEM VALOR FISCAL");
+    b.line("");
+  }
+  b.line("Consulte pela Chave de Acesso em:");
+  b.line("Chave de acesso");
+  b.line(chaveGrupos(d.chave));
+  if (d.protocolo) b.line("Protocolo: " + d.protocolo);
+  if (d.numero) b.line("NFC-e no. " + d.numero + "  Serie " + (d.serie ?? ""));
+  b.line("");
+  b.qrcode(d.qrData);
   b.raw(ESC, 0x64, 0x04); // feed 4
   b.raw(GS, 0x56, 0x00); // full cut
   return b.build();
