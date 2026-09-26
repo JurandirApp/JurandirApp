@@ -67,6 +67,7 @@ import { KpisSection } from "./sections/KpisSection";
 import { AuditoriaSection } from "./sections/AuditoriaSection";
 import { PerfilSection } from "./sections/PerfilSection";
 import { ConfigSection } from "./sections/ConfigSection";
+import { FiscalSection } from "./sections/FiscalSection";
 import { ItemEditorModal } from "./modals/ItemEditorModal";
 import { BulkAdjustModal } from "./modals/BulkAdjustModal";
 import { WaiterEditorModal } from "./modals/WaiterEditorModal";
@@ -762,6 +763,7 @@ export function PanelApp({
             {tab === "qrcodes" && <QrSection />}
             {tab === "kpis" && <KpisSection />}
             {tab === "auditoria" && <AuditoriaSection />}
+            {tab === "fiscal" && <FiscalSection />}
             {tab === "perfil" && <PerfilSection />}
             {tab === "config" && <ConfigSection />}
           </main>

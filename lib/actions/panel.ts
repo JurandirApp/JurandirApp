@@ -14,6 +14,7 @@ import type { ItemChange } from "@/lib/pricing/bulk-adjust";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
 import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
 import { reconcileOrder } from "@/lib/db/payments";
+import { emitFiscalForOrder } from "@/lib/db/fiscal";
 import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
@@ -27,7 +28,14 @@ import {
   deriveDayStartHour,
 } from "@/lib/domain/schedule";
 import { Prisma } from "@prisma/client";
-import type { Order, PanelPrintJob, PanelPrinter, PrinterInput } from "@/lib/data/panel";
+import type {
+  Order,
+  PanelPrintJob,
+  PanelPrinter,
+  PrinterInput,
+  FiscalConfigForm,
+  FiscalNotaRow,
+} from "@/lib/data/panel";
 
 // Rótulos dos dias (índice 0 = domingo) pro texto de exibição do horário.
 const DIAS_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -609,4 +617,143 @@ export async function deleteWaiterAction(id: string): Promise<void> {
 export async function orderTimelineAction(orderId: string) {
   const s = await requireEst();
   return buildOrderTimeline(orderId, s.establishmentId!);
+}
+
+// ---- Nota fiscal (NFC-e) ------------------------------------------------
+
+const onlyDigits = (x: string) => (x ?? "").replace(/\D/g, "");
+
+/** Carrega a config fiscal + as últimas notas (pedidos pagos e o estado da nota
+ *  de cada um). Segredos não voltam — só as flags hasFocusToken/hasCsc. */
+export async function getFiscalDataAction(): Promise<{
+  config: FiscalConfigForm;
+  rows: FiscalNotaRow[];
+}> {
+  const s = await requireEst();
+  const est = await prisma.establishment.findUnique({
+    where: { id: s.establishmentId! },
+    select: {
+      fiscalMode: true,
+      fiscalEnv: true,
+      cnpj: true,
+      ie: true,
+      regimeTributario: true,
+      nfceSerie: true,
+      fiscalStreet: true,
+      fiscalNumber: true,
+      fiscalDistrict: true,
+      fiscalCity: true,
+      fiscalUf: true,
+      fiscalZip: true,
+      fiscalCscId: true,
+      focusToken: true,
+      fiscalCsc: true,
+    },
+  });
+  const orders = await prisma.order.findMany({
+    where: {
+      establishmentId: s.establishmentId!,
+      status: { in: ["IN_PRODUCTION", "DELIVERED"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 40,
+    select: {
+      id: true,
+      code: true,
+      total: true,
+      createdAt: true,
+      fiscalDocument: {
+        select: { status: true, numero: true, chave: true, danfeUrl: true, rejeicao: true },
+      },
+    },
+  });
+
+  const config: FiscalConfigForm = {
+    fiscalMode: est?.fiscalMode ?? "OFF",
+    fiscalEnv: est?.fiscalEnv ?? "HOMOLOGACAO",
+    cnpj: est?.cnpj ?? "",
+    ie: est?.ie ?? "",
+    regimeTributario: est?.regimeTributario ?? "",
+    nfceSerie: est?.nfceSerie != null ? String(est.nfceSerie) : "",
+    fiscalStreet: est?.fiscalStreet ?? "",
+    fiscalNumber: est?.fiscalNumber ?? "",
+    fiscalDistrict: est?.fiscalDistrict ?? "",
+    fiscalCity: est?.fiscalCity ?? "",
+    fiscalUf: est?.fiscalUf ?? "",
+    fiscalZip: est?.fiscalZip ?? "",
+    fiscalCscId: est?.fiscalCscId ?? "",
+    focusToken: "",
+    fiscalCsc: "",
+    hasFocusToken: Boolean(est?.focusToken),
+    hasCsc: Boolean(est?.fiscalCsc),
+  };
+
+  const rows: FiscalNotaRow[] = orders.map((o) => ({
+    orderId: o.id,
+    orderCode: o.code,
+    total: Number(o.total),
+    createdAt: o.createdAt.toISOString(),
+    status: o.fiscalDocument?.status ?? null,
+    numero: o.fiscalDocument?.numero ?? null,
+    chave: o.fiscalDocument?.chave ?? null,
+    danfeUrl: o.fiscalDocument?.danfeUrl ?? null,
+    rejeicao: o.fiscalDocument?.rejeicao ?? null,
+  }));
+
+  return { config, rows };
+}
+
+/** Salva a config fiscal. Segredos só são gravados quando vêm preenchidos
+ *  (vazio = mantém o atual). */
+export async function saveFiscalConfigAction(
+  input: FiscalConfigForm,
+): Promise<{ ok: boolean; error?: string }> {
+  const s = await requireEst();
+  const mode = (["AUTO_ON_PRINT", "MANUAL", "OFF"] as const).includes(
+    input.fiscalMode as "AUTO_ON_PRINT" | "MANUAL" | "OFF",
+  )
+    ? input.fiscalMode
+    : "OFF";
+  const env = input.fiscalEnv === "PRODUCAO" ? "PRODUCAO" : "HOMOLOGACAO";
+  const serie = input.nfceSerie.trim()
+    ? Math.max(1, parseInt(input.nfceSerie, 10) || 1)
+    : null;
+
+  const data: Prisma.EstablishmentUpdateInput = {
+    fiscalMode: mode,
+    fiscalEnv: env,
+    cnpj: onlyDigits(input.cnpj) || null,
+    ie: input.ie.trim() || null,
+    regimeTributario: input.regimeTributario.trim() || null,
+    nfceSerie: serie,
+    fiscalStreet: input.fiscalStreet.trim() || null,
+    fiscalNumber: input.fiscalNumber.trim() || null,
+    fiscalDistrict: input.fiscalDistrict.trim() || null,
+    fiscalCity: input.fiscalCity.trim() || null,
+    fiscalUf: input.fiscalUf.trim().toUpperCase().slice(0, 2) || null,
+    fiscalZip: onlyDigits(input.fiscalZip) || null,
+    fiscalCscId: input.fiscalCscId.trim() || null,
+  };
+  if (input.focusToken.trim()) data.focusToken = input.focusToken.trim();
+  if (input.fiscalCsc.trim()) data.fiscalCsc = input.fiscalCsc.trim();
+
+  await prisma.establishment.update({ where: { id: s.establishmentId! }, data });
+  revalidatePath("/painel");
+  return { ok: true };
+}
+
+/** Emite (ou reemite) a nota de um pedido manualmente. Escopo garantido: o
+ *  pedido precisa ser do estabelecimento da sessão. */
+export async function emitFiscalManualAction(
+  orderId: string,
+): Promise<{ ok: boolean; status?: string; error?: string }> {
+  const s = await requireEst();
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, establishmentId: s.establishmentId! },
+    select: { id: true },
+  });
+  if (!order) return { ok: false, error: "forbidden" };
+  const r = await emitFiscalForOrder(orderId, { manual: true });
+  revalidatePath("/painel");
+  return r;
 }

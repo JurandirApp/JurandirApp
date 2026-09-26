@@ -109,6 +109,50 @@ export type Order = {
 
 export type Qr = { id: string; label: string };
 
+// ---- Fiscal (NFC-e) -----------------------------------------------------
+
+export type FiscalMode = "AUTO_ON_PRINT" | "MANUAL" | "OFF";
+export type FiscalEnv = "HOMOLOGACAO" | "PRODUCAO";
+export type FiscalDocStatus = "QUEUED" | "PROCESSING" | "AUTHORIZED" | "REJECTED" | "ERROR";
+
+/** Config fiscal do estabelecimento (aba Fiscal do painel). Segredos
+ *  (`focusToken`, `fiscalCsc`) NUNCA voltam do servidor — vêm vazios e só são
+ *  gravados quando o dono digita um valor novo; `hasFocusToken`/`hasCsc` dizem
+ *  se já estão configurados. */
+export type FiscalConfigForm = {
+  fiscalMode: FiscalMode;
+  fiscalEnv: FiscalEnv;
+  cnpj: string;
+  ie: string;
+  regimeTributario: string; // "1" Simples, "3" Normal
+  nfceSerie: string;
+  fiscalStreet: string;
+  fiscalNumber: string;
+  fiscalDistrict: string;
+  fiscalCity: string;
+  fiscalUf: string;
+  fiscalZip: string;
+  fiscalCscId: string;
+  focusToken: string; // write-only
+  fiscalCsc: string; // write-only
+  hasFocusToken: boolean;
+  hasCsc: boolean;
+};
+
+/** Uma linha do painel de Notas: um pedido pago e o estado da sua nota
+ *  (`status: null` = ainda sem nota). */
+export type FiscalNotaRow = {
+  orderId: string;
+  orderCode: string;
+  total: number;
+  createdAt: string; // ISO
+  status: FiscalDocStatus | null;
+  numero: number | null;
+  chave: string | null;
+  danfeUrl: string | null;
+  rejeicao: string | null;
+};
+
 /** Garçom do estabelecimento (Módulo do Garçom). `user` é o login (email/username). */
 export type Waiter = { id: string; name: string; user: string };
 

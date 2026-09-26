@@ -20,6 +20,7 @@ export type TabId =
   | "qrcodes"
   | "kpis"
   | "auditoria"
+  | "fiscal"
   | "perfil"
   | "config";
 
@@ -188,6 +189,7 @@ export const TABS: [TabId, string][] = [
   ["qrcodes", "qr_code_2"],
   ["kpis", "trending_up"],
   ["auditoria", "receipt_long"],
+  ["fiscal", "description"],
   ["perfil", "storefront"],
   ["config", "settings"],
 ];
