@@ -108,6 +108,8 @@ type DbOptionGroup = {
 type DbMenuItem = {
   id: string; name: string; description: string | null; price: unknown; oldPrice: unknown;
   photo: string | null; measure: number | null; unit: string | null; category: string; subcategory: string;
+  ncm?: string | null; cest?: string | null; cfop?: string | null; origem?: string | null;
+  cstIcms?: string | null; csosnIcms?: string | null; cClassTrib?: string | null; unidadeComercial?: string | null;
   optionGroups?: DbOptionGroup[];
 };
 export function toPanelMenuItem(m: DbMenuItem): MenuItem {
@@ -137,6 +139,16 @@ export function toPanelMenuItem(m: DbMenuItem): MenuItem {
         active: o.active,
       })),
     })),
+    fiscal: {
+      ncm: m.ncm ?? "",
+      cest: m.cest ?? "",
+      cfop: m.cfop ?? "",
+      origem: m.origem ?? "",
+      cstIcms: m.cstIcms ?? "",
+      csosnIcms: m.csosnIcms ?? "",
+      cClassTrib: m.cClassTrib ?? "",
+      unidadeComercial: m.unidadeComercial ?? "",
+    },
   };
 }
 

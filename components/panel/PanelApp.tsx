@@ -662,6 +662,8 @@ export function PanelApp({
   ]);
 
   const saveItem = (clean: MenuItem) => {
+    const orNull = (s?: string) => (s && s.trim() ? s.trim() : null);
+    const f = clean.fiscal;
     startTransition(async () => {
       const r = await upsertMenuItemAction({
         id: clean.dbId,
@@ -675,6 +677,14 @@ export function PanelApp({
         category: clean.cat,
         subcategory: clean.sub,
         active: true,
+        ncm: orNull(f?.ncm),
+        cest: orNull(f?.cest),
+        cfop: orNull(f?.cfop),
+        origem: orNull(f?.origem),
+        cstIcms: orNull(f?.cstIcms),
+        csosnIcms: orNull(f?.csosnIcms),
+        cClassTrib: orNull(f?.cClassTrib),
+        unidadeComercial: orNull(f?.unidadeComercial),
         optionGroups: (clean.groups ?? []).map((g) => ({
           name: g.name,
           required: g.required,

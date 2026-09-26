@@ -91,6 +91,15 @@ export const menuItemUpsertSchema = z.object({
   category: z.string().min(1),
   subcategory: z.string().min(1),
   active: z.boolean().default(true),
+  // Campos fiscais (NFC-e) — o contador preenche; null = não informado.
+  ncm: z.string().nullable().optional(),
+  cest: z.string().nullable().optional(),
+  cfop: z.string().nullable().optional(),
+  origem: z.string().nullable().optional(),
+  cstIcms: z.string().nullable().optional(),
+  csosnIcms: z.string().nullable().optional(),
+  cClassTrib: z.string().nullable().optional(),
+  unidadeComercial: z.string().nullable().optional(),
   optionGroups: z.array(menuOptionGroupInput).optional(),
 });
 export type MenuItemUpsertInput = z.infer<typeof menuItemUpsertSchema>;

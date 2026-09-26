@@ -6,7 +6,7 @@ import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Input, Textarea } from "@/components/ui/Input";
 import { signItemPhotoUploadAction } from "@/lib/actions/panel";
-import { CATS, type MenuItem } from "@/lib/data/panel";
+import { CATS, type MenuItem, type MenuFiscalFields } from "@/lib/data/panel";
 
 const CN = Object.keys(CATS);
 const UNITS = ["g", "kg", "ml", "L"];
@@ -63,6 +63,18 @@ export function ItemEditorModal({
     photo: item?.photo ?? "",
   }));
   const [uploading, setUploading] = useState(false);
+  const [fiscal, setFiscal] = useState<MenuFiscalFields>(() => ({
+    ncm: item?.fiscal?.ncm ?? "",
+    cest: item?.fiscal?.cest ?? "",
+    cfop: item?.fiscal?.cfop ?? "",
+    origem: item?.fiscal?.origem ?? "",
+    cstIcms: item?.fiscal?.cstIcms ?? "",
+    csosnIcms: item?.fiscal?.csosnIcms ?? "",
+    cClassTrib: item?.fiscal?.cClassTrib ?? "",
+    unidadeComercial: item?.fiscal?.unidadeComercial ?? "",
+  }));
+  const setFisc = (k: keyof MenuFiscalFields, v: string) =>
+    setFiscal((f) => ({ ...f, [k]: v }));
   const [groups, setGroups] = useState<GroupForm[]>(() =>
     (item?.groups ?? []).map((g) => ({
       key: rid(),
@@ -178,6 +190,7 @@ export function ItemEditorModal({
       cat: form.cat,
       sub: form.sub,
       groups: cleanGroups,
+      fiscal,
     });
   };
 
@@ -404,6 +417,41 @@ export function ItemEditorModal({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div className="border-t border-ink/10 pt-3">
+            <span className="text-xs font-semibold text-ink/70">{t("fiscalTitle")}</span>
+            <p className="m-0 mb-2 mt-1 text-[11px] leading-snug text-ink/40">{t("fiscalHint")}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t("ncm")}>
+                <Input value={fiscal.ncm} onChange={(e) => setFisc("ncm", e.target.value)} placeholder="22030000" />
+              </Field>
+              <Field label={t("cfop")}>
+                <Input value={fiscal.cfop} onChange={(e) => setFisc("cfop", e.target.value)} placeholder="5102" />
+              </Field>
+              <Field label={t("origem")}>
+                <Input value={fiscal.origem} onChange={(e) => setFisc("origem", e.target.value)} placeholder="0" />
+              </Field>
+              <Field label={t("comUnit")}>
+                <Input
+                  value={fiscal.unidadeComercial}
+                  onChange={(e) => setFisc("unidadeComercial", e.target.value)}
+                  placeholder="UN"
+                />
+              </Field>
+              <Field label={t("cst")}>
+                <Input value={fiscal.cstIcms} onChange={(e) => setFisc("cstIcms", e.target.value)} placeholder="00" />
+              </Field>
+              <Field label={t("csosn")}>
+                <Input value={fiscal.csosnIcms} onChange={(e) => setFisc("csosnIcms", e.target.value)} placeholder="102" />
+              </Field>
+              <Field label={t("cest")}>
+                <Input value={fiscal.cest} onChange={(e) => setFisc("cest", e.target.value)} />
+              </Field>
+              <Field label={t("cClassTrib")}>
+                <Input value={fiscal.cClassTrib} onChange={(e) => setFisc("cClassTrib", e.target.value)} />
+              </Field>
             </div>
           </div>
 

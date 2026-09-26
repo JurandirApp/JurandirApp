@@ -63,6 +63,19 @@ export type MenuOptionGroup = {
   options: MenuOption[];
 };
 
+/** Campos fiscais de um item (preenchidos pelo contador). Strings de formulário
+ *  — vazio = não preenchido. */
+export type MenuFiscalFields = {
+  ncm: string;
+  cest: string;
+  cfop: string;
+  origem: string;
+  cstIcms: string;
+  csosnIcms: string;
+  cClassTrib: string;
+  unidadeComercial: string;
+};
+
 export type MenuItem = {
   id: number;
   dbId?: string;
@@ -76,6 +89,8 @@ export type MenuItem = {
   cat: string;
   sub: string;
   groups?: MenuOptionGroup[];
+  /** Classificação fiscal (NFC-e). Ausente = item ainda sem dados fiscais. */
+  fiscal?: MenuFiscalFields;
 };
 
 /** [quantity, item name, unit price] */
