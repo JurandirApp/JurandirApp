@@ -1,5 +1,5 @@
 import { createOrder, getOrdersByIds } from "@/lib/db/orders";
-import { payOrderWithCardToken } from "@/lib/db/payments";
+import { payOrderWithCardToken, resolveChargeableOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
 
@@ -25,6 +25,8 @@ export async function OPTIONS(): Promise<Response> {
 export async function POST(req: Request): Promise<Response> {
   let body: {
     order?: unknown;
+    orderId?: unknown;
+    customerDocument?: unknown;
     cardToken?: unknown;
     installments?: unknown;
     method?: unknown;
@@ -54,21 +56,47 @@ export async function POST(req: Request): Promise<Response> {
       ? body.installments
       : 1;
 
-  const parsed = orderCreateSchema.safeParse(body.order);
-  if (!parsed.success) {
-    return Response.json({ ok: false, error: "invalidOrder" }, { status: 422, headers: CORS });
-  }
+  // Fluxo resiliente (novo app): o pedido é criado ANTES (o app já tem o id) e
+  // aqui só cobramos. Fluxo antigo (compat): vem `order` e criamos + cobramos.
+  const existingId = typeof body.orderId === "string" ? body.orderId.trim() : "";
+  const bodyDoc = typeof body.customerDocument === "string" ? body.customerDocument : undefined;
 
   try {
-    const created = await createOrder(parsed.data);
-    const pay = await payOrderWithCardToken(created.id, cardToken, installments, method, parsed.data.customerDocument, billing);
-    const [fresh] = await getOrdersByIds([created.id]);
+    let targetId: string;
+    let payerDoc: string | undefined;
+    if (existingId) {
+      const r = await resolveChargeableOrder(existingId);
+      if (r.kind === "notfound") {
+        return Response.json({ ok: false, error: "orderNotFound" }, { status: 404, headers: CORS });
+      }
+      if (r.kind === "settled") {
+        // Já pago ou já com cobrança em andamento — NÃO cobra de novo.
+        const [f] = await getOrdersByIds([existingId]);
+        return Response.json(
+          { ok: true, status: r.status, order: f ? toClientOrder(f) : null },
+          { headers: CORS },
+        );
+      }
+      targetId = r.id;
+      payerDoc = bodyDoc;
+    } else {
+      const parsed = orderCreateSchema.safeParse(body.order);
+      if (!parsed.success) {
+        return Response.json({ ok: false, error: "invalidOrder" }, { status: 422, headers: CORS });
+      }
+      const created = await createOrder(parsed.data);
+      targetId = created.id;
+      payerDoc = parsed.data.customerDocument;
+    }
+
+    const pay = await payOrderWithCardToken(targetId, cardToken, installments, method, payerDoc, billing);
+    const [fresh] = await getOrdersByIds([targetId]);
     return Response.json(
       {
         ok: pay.status !== "failed",
         status: pay.status, // paid | pending | failed
         detail: pay.statusDetail,
-        order: toClientOrder(fresh ?? created),
+        order: fresh ? toClientOrder(fresh) : null,
       },
       { headers: CORS },
     );

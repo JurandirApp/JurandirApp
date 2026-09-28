@@ -52,6 +52,36 @@ export async function reconcileByChargeId(gatewayChargeId: string): Promise<void
   if (status === "paid") await confirmChargePaid(gatewayChargeId);
 }
 
+/** Fluxo resiliente do app: o pedido é criado ANTES de cobrar, então o app fica
+ *  com o id e nunca trava. Aqui decidimos se ainda precisamos cobrar (`charge`)
+ *  ou se já está resolvido — pago, ou com uma cobrança em andamento (`settled`) —
+ *  para NÃO cobrar o mesmo pedido duas vezes numa retentativa/timeout. */
+export async function resolveChargeableOrder(
+  orderId: string,
+): Promise<
+  | { kind: "charge"; id: string }
+  | { kind: "settled"; status: "paid" | "pending" }
+  | { kind: "notfound" }
+> {
+  const o = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, status: true, payment: { select: { id: true } } },
+  });
+  if (!o) return { kind: "notfound" };
+  if (o.status !== OrderStatus.AWAITING_PAYMENT) return { kind: "settled", status: "paid" };
+  // Já existe cobrança pra este pedido → não cobra de novo; reconcilia e devolve.
+  if (o.payment) {
+    await reconcileOrder(orderId);
+    const again = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { status: true },
+    });
+    const paid = !!again && again.status !== OrderStatus.AWAITING_PAYMENT;
+    return { kind: "settled", status: paid ? "paid" : "pending" };
+  }
+  return { kind: "charge", id: o.id };
+}
+
 export async function reconcileOrder(orderId: string): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },

@@ -1,5 +1,5 @@
 import { createOrder, getOrdersByIds } from "@/lib/db/orders";
-import { payOrderWithWallet } from "@/lib/db/payments";
+import { payOrderWithWallet, resolveChargeableOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
 
@@ -23,9 +23,9 @@ export async function OPTIONS(): Promise<Response> {
  * Pagar.me e `gatewayCredit = PAGARME`.
  */
 export async function POST(req: Request): Promise<Response> {
-  let body: { order?: unknown; walletType?: unknown; token?: unknown };
+  let body: { order?: unknown; orderId?: unknown; walletType?: unknown; token?: unknown };
   try {
-    body = (await req.json()) as { order?: unknown; walletType?: unknown; token?: unknown };
+    body = (await req.json()) as typeof body;
   } catch {
     return Response.json({ ok: false, error: "invalid json" }, { status: 400, headers: CORS });
   }
@@ -35,21 +35,42 @@ export async function POST(req: Request): Promise<Response> {
   if (!token) {
     return Response.json({ ok: false, error: "tokenRequired" }, { status: 422, headers: CORS });
   }
-  const parsed = orderCreateSchema.safeParse(body.order);
-  if (!parsed.success) {
-    return Response.json({ ok: false, error: "invalidOrder" }, { status: 422, headers: CORS });
-  }
+
+  // Resiliente (novo app): pedido já criado, só cobra. Compat: cria + cobra.
+  const existingId = typeof body.orderId === "string" ? body.orderId.trim() : "";
 
   try {
-    const created = await createOrder(parsed.data);
-    const pay = await payOrderWithWallet(created.id, walletType, token);
-    const [fresh] = await getOrdersByIds([created.id]);
+    let targetId: string;
+    if (existingId) {
+      const r = await resolveChargeableOrder(existingId);
+      if (r.kind === "notfound") {
+        return Response.json({ ok: false, error: "orderNotFound" }, { status: 404, headers: CORS });
+      }
+      if (r.kind === "settled") {
+        const [f] = await getOrdersByIds([existingId]);
+        return Response.json(
+          { ok: true, status: r.status, order: f ? toClientOrder(f) : null },
+          { headers: CORS },
+        );
+      }
+      targetId = r.id;
+    } else {
+      const parsed = orderCreateSchema.safeParse(body.order);
+      if (!parsed.success) {
+        return Response.json({ ok: false, error: "invalidOrder" }, { status: 422, headers: CORS });
+      }
+      const created = await createOrder(parsed.data);
+      targetId = created.id;
+    }
+
+    const pay = await payOrderWithWallet(targetId, walletType, token);
+    const [fresh] = await getOrdersByIds([targetId]);
     return Response.json(
       {
         ok: pay.status !== "failed",
         status: pay.status, // paid | pending | failed
         detail: pay.statusDetail,
-        order: toClientOrder(fresh ?? created),
+        order: fresh ? toClientOrder(fresh) : null,
       },
       { headers: CORS },
     );
