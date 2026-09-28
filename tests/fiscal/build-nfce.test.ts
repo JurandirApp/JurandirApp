@@ -3,6 +3,9 @@ import { buildNfceInput, emissaoISOAgora, type FiscalItemFields } from "@/lib/fi
 import { FiscalValidationError } from "@/lib/fiscal/types";
 import type { Establishment, Order, OrderItem, PaymentMethod } from "@prisma/client";
 
+// Entrada de item do teste (unitPrice como number; o build coage com Number()).
+type ItemInput = { menuItemId?: string; name?: string; qty?: number; unitPrice?: number };
+
 const estNormal = {
   id: "est_1",
   regimeTributario: "3", // Normal → CST
@@ -23,7 +26,7 @@ const fiscalOk: FiscalItemFields = {
   unidadeComercial: "UN",
 };
 
-function order(items: Partial<OrderItem>[]): Order & { items: OrderItem[] } {
+function order(items: ItemInput[]): Order & { items: OrderItem[] } {
   return {
     id: "o1",
     code: "PED-1",
