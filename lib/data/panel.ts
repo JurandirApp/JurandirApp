@@ -96,6 +96,11 @@ export type Order = {
   cust?: string;
   /** epoch ms */
   ts: number;
+  /** Total real pago pelo cliente (subtotal + taxas), como salvo no pedido.
+   *  Fonte da verdade — a auditoria usa ISSO, nunca recalcula taxa. Sempre
+   *  presente nos pedidos reais (via toPanelOrder); opcional só para os mocks
+   *  de seed, que não são renderizados. */
+  total?: number;
   items: OrderLine[];
   /** Adicionais escolhidos por item (mesmos índices de `items`); [] = sem. */
   itemOpts?: string[][];

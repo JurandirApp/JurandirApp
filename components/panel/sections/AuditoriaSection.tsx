@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { GW } from "@/lib/data/panel";
-import { fmtFull, money, orderTotal, padId, ymd } from "@/lib/panel/helpers";
+import { fmtFull, money, padId, ymd } from "@/lib/panel/helpers";
 import { usePanel } from "../context";
 
 const AUD_SIZE = 8;
@@ -24,8 +24,11 @@ export function AuditoriaSection() {
         .filter((o) => o.st !== "aguardando")
         .sort((a, b) => b.ts - a.ts)
         .map((o) => {
-          const total = orderTotal(o);
-          const charged = total + total * 0.08 + total * 0.1;
+          // Valor REAL cobrado do cliente (subtotal + taxas), como salvo no
+          // pedido. NUNCA recalcular taxa aqui — antes somava 8%+10% fixos, o que
+          // inflava o valor (ex.: pedido de R$11,22 aparecia como R$12,98).
+          // Pedidos reais sempre trazem `total`; `?? 0` é só guarda de tipo.
+          const charged = o.total ?? 0;
           const m = o.splits ? "split" : o.pay;
           const gw = o.splits
             ? (o.splits.paidAmt * GW.pix) / 100

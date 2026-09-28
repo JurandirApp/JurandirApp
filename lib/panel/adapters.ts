@@ -44,6 +44,7 @@ const STATUS: Record<string, Order["st"]> = {
 type DbOrder = {
   id: string; number: number; code: string; status: string; locationLabel: string;
   posto: string | null; customerName: string | null; note: string | null; createdAt: Date;
+  total: unknown;
   items: {
     id: string; qty: number; name: string; unitPrice: unknown; options?: unknown;
     qtyReady?: number; qtyOutForDelivery?: number; qtyDelivered?: number;
@@ -92,6 +93,7 @@ export function toPanelOrder(o: DbOrder): Order {
     posto: o.posto ?? undefined,
     cust: o.customerName ?? undefined,
     ts: o.createdAt.getTime(),
+    total: num(o.total),
     items,
     itemOpts,
     itemStates,
