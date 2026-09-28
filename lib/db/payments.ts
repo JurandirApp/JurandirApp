@@ -52,10 +52,28 @@ export async function reconcileByChargeId(gatewayChargeId: string): Promise<void
   if (status === "paid") await confirmChargePaid(gatewayChargeId);
 }
 
+/** Decisão PURA (testável) do fluxo resiliente de cobrança, dado o estado do
+ *  pedido:
+ *  - `notfound`: pedido não existe.
+ *  - `settled-paid`: já saiu de AWAITING_PAYMENT (pago/em produção).
+ *  - `reconcile`: já tem cobrança no gateway (gatewayChargeId) → reconcilia, não
+ *    cobra de novo (evita duplicar).
+ *  - `charge`: ainda precisa cobrar.
+ *
+ *  ⚠️ O createOrder cria uma Payment PLACEHOLDER (gatewayChargeId null) que SEMPRE
+ *  existe — por isso a decisão olha `hasGatewayCharge`, NÃO "tem payment". */
+export function decideOrderCharge(
+  o: { status: OrderStatus; hasGatewayCharge: boolean } | null,
+): "notfound" | "settled-paid" | "reconcile" | "charge" {
+  if (!o) return "notfound";
+  if (o.status !== OrderStatus.AWAITING_PAYMENT) return "settled-paid";
+  return o.hasGatewayCharge ? "reconcile" : "charge";
+}
+
 /** Fluxo resiliente do app: o pedido é criado ANTES de cobrar, então o app fica
- *  com o id e nunca trava. Aqui decidimos se ainda precisamos cobrar (`charge`)
- *  ou se já está resolvido — pago, ou com uma cobrança em andamento (`settled`) —
- *  para NÃO cobrar o mesmo pedido duas vezes numa retentativa/timeout. */
+ *  com o id e nunca trava. Decide se ainda precisamos cobrar (`charge`) ou se já
+ *  está resolvido — pago, ou com cobrança em andamento (`settled`) — para NÃO
+ *  cobrar o mesmo pedido duas vezes numa retentativa/timeout. */
 export async function resolveChargeableOrder(
   orderId: string,
 ): Promise<
@@ -67,12 +85,12 @@ export async function resolveChargeableOrder(
     where: { id: orderId },
     select: { id: true, status: true, payment: { select: { gatewayChargeId: true } } },
   });
-  if (!o) return { kind: "notfound" };
-  if (o.status !== OrderStatus.AWAITING_PAYMENT) return { kind: "settled", status: "paid" };
-  // ATENÇÃO: o createOrder já cria uma Payment PLACEHOLDER (gatewayChargeId null)
-  // — ela sempre existe. Só é "cobrança em andamento" quando já tem
-  // `gatewayChargeId` (o charge foi criado no gateway). Senão, ainda precisa cobrar.
-  if (o.payment?.gatewayChargeId) {
+  const decision = decideOrderCharge(
+    o ? { status: o.status, hasGatewayCharge: !!o.payment?.gatewayChargeId } : null,
+  );
+  if (decision === "notfound") return { kind: "notfound" };
+  if (decision === "settled-paid") return { kind: "settled", status: "paid" };
+  if (decision === "reconcile") {
     await reconcileOrder(orderId);
     const again = await prisma.order.findUnique({
       where: { id: orderId },
@@ -81,7 +99,7 @@ export async function resolveChargeableOrder(
     const paid = !!again && again.status !== OrderStatus.AWAITING_PAYMENT;
     return { kind: "settled", status: paid ? "paid" : "pending" };
   }
-  return { kind: "charge", id: o.id };
+  return { kind: "charge", id: o!.id };
 }
 
 export async function reconcileOrder(orderId: string): Promise<void> {
