@@ -65,12 +65,14 @@ export async function resolveChargeableOrder(
 > {
   const o = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true, payment: { select: { id: true } } },
+    select: { id: true, status: true, payment: { select: { gatewayChargeId: true } } },
   });
   if (!o) return { kind: "notfound" };
   if (o.status !== OrderStatus.AWAITING_PAYMENT) return { kind: "settled", status: "paid" };
-  // Já existe cobrança pra este pedido → não cobra de novo; reconcilia e devolve.
-  if (o.payment) {
+  // ATENÇÃO: o createOrder já cria uma Payment PLACEHOLDER (gatewayChargeId null)
+  // — ela sempre existe. Só é "cobrança em andamento" quando já tem
+  // `gatewayChargeId` (o charge foi criado no gateway). Senão, ainda precisa cobrar.
+  if (o.payment?.gatewayChargeId) {
     await reconcileOrder(orderId);
     const again = await prisma.order.findUnique({
       where: { id: orderId },
