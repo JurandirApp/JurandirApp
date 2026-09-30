@@ -20,6 +20,14 @@ import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloud
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
 import { createPagarmeRecipient, getPagarmeKycLink, PagarmeError } from "@/lib/payments/pagarme";
 import { createSubaccount } from "@/lib/payments/asaas";
+import { getConnectUrl as getPagbankConnectUrl, signConnectState } from "@/lib/payments/pagbank";
+import {
+  ROUTE_FALLBACK,
+  ROUTE_KEYS,
+  canCharge,
+  type RouteKey,
+  type Routing,
+} from "@/lib/payments/capabilities";
 import { periodRange, type OrdersPeriod } from "@/lib/domain/period";
 import {
   normalizeWeekly,
@@ -117,54 +125,47 @@ export async function checkPixReadyAction(): Promise<{
   return { ready: res.ready, reason: res.reason, connected: Boolean(est.mpAccessToken) };
 }
 
-// Matriz de capacidade: qual gateway implementa qual método hoje. Escolhas fora
-// da matriz (ou de um gateway não pronto) caem no Mercado Pago.
-const GATEWAY_CAP: Record<string, { pix: boolean; credit: boolean; debit: boolean }> = {
-  MERCADO_PAGO: { pix: true, credit: true, debit: true },
-  PAGARME: { pix: true, credit: true, debit: true },
-  ASAAS: { pix: true, credit: false, debit: false },
-  // Appmax não tem débito avulso (só crédito/pix/boleto/apple-pay).
-  APPMAX: { pix: true, credit: true, debit: false },
-  INFINITEPAY: { pix: false, credit: false, debit: false },
-};
+// Gateways que o painel deixa escolher (os demais do enum ficam de fora).
+const SELECTABLE_GATEWAYS = ["MERCADO_PAGO", "PAGARME", "ASAAS", "PAGBANK"] as const;
+type SelectableGateway = (typeof SELECTABLE_GATEWAYS)[number];
 
-/** Salva o gateway escolhido POR MÉTODO (Pix/Crédito/Débito), validando cada um
- *  contra a matriz de capacidade + prontidão. Retorna os valores efetivos. */
-export async function savePaymentRoutingAction(routing: {
-  pix: string;
-  credit: string;
-  debit: string;
-}): Promise<{ ok: boolean; error?: string; pix: string; credit: string; debit: string }> {
+/** Salva o gateway escolhido POR MÉTODO (Pix/Crédito/Débito/Apple Pay/Google Pay),
+ *  validando cada um contra a matriz de capacidade + prontidão. Escolha inválida
+ *  cai no fallback do método. Retorna os valores efetivos. */
+export async function savePaymentRoutingAction(
+  routing: Routing,
+): Promise<{ ok: boolean; error?: string; routing: Record<RouteKey, SelectableGateway> }> {
   const s = await requireEst();
   const est = await prisma.establishment.findUnique({
     where: { id: s.establishmentId! },
     select: { pagarmeRecipientId: true, asaasWalletId: true, appmaxRecipientHash: true },
   });
-  const ready: Record<string, boolean> = {
-    PAGARME: Boolean(est?.pagarmeRecipientId),
-    ASAAS: Boolean(est?.asaasWalletId),
-    APPMAX: Boolean(est?.appmaxRecipientHash),
+  const readiness = est ?? { pagarmeRecipientId: null };
+  const resolve = (key: RouteKey): SelectableGateway => {
+    const v = routing[key];
+    const selectable = (SELECTABLE_GATEWAYS as readonly string[]).includes(v);
+    return selectable && canCharge(readiness, key, v)
+      ? (v as SelectableGateway)
+      : (ROUTE_FALLBACK[key] as SelectableGateway);
   };
-  const resolve = (
-    v: string,
-    method: "pix" | "credit" | "debit",
-  ): "MERCADO_PAGO" | "PAGARME" | "ASAAS" => {
-    // MP faz tudo (fallback). Os demais só se implementam o método E estão prontos.
-    if (v !== "PAGARME" && v !== "ASAAS") return "MERCADO_PAGO";
-    if (!GATEWAY_CAP[v]?.[method] || !ready[v]) return "MERCADO_PAGO";
-    return v;
-  };
-  const pix = resolve(routing.pix, "pix");
-  const credit = resolve(routing.credit, "credit");
-  const debit = resolve(routing.debit, "debit");
+  const eff = Object.fromEntries(ROUTE_KEYS.map((k) => [k, resolve(k)])) as Record<
+    RouteKey,
+    SelectableGateway
+  >;
   await prisma.establishment.update({
     where: { id: s.establishmentId! },
-    data: { gatewayPix: pix, gatewayCredit: credit, gatewayDebit: debit },
+    data: {
+      gatewayPix: eff.pix,
+      gatewayCredit: eff.credit,
+      gatewayDebit: eff.debit,
+      gatewayApplePay: eff.applePay,
+      gatewayGooglePay: eff.googlePay,
+    },
   });
   // Sem revalidatePath aqui de propósito: o cliente já reflete o valor efetivo
   // pelo retorno desta action. Revalidar forçaria um re-render do servidor que
   // "pisca" a seleção (volta pro valor antigo e depois pro novo).
-  return { ok: true, pix, credit, debit };
+  return { ok: true, routing: eff };
 }
 
 /** Cria o recebedor Pagar.me do estabelecimento (dados bancários + KYC) e o vincula. */
@@ -456,6 +457,23 @@ export async function generatePrintTokenAction(): Promise<{ ok: boolean; token: 
 export async function getMpConnectUrlForMeAction(): Promise<{ ok: boolean; url?: string }> {
   const s = await requireEst();
   return { ok: true, url: getOAuthUrl(signState(s.establishmentId!, "painel")) };
+}
+
+/** URL do Connect pro estabelecimento autorizar a conta PagBank DELE (split). */
+export async function getPagbankConnectUrlAction(): Promise<{ ok: boolean; url?: string }> {
+  const s = await requireEst();
+  return { ok: true, url: getPagbankConnectUrl(signConnectState(s.establishmentId!)) };
+}
+
+/** Desvincula a conta PagBank (as cobranças PagBank voltam pra conta da plataforma). */
+export async function disconnectPagbankAction(): Promise<{ ok: boolean }> {
+  const s = await requireEst();
+  await prisma.establishment.update({
+    where: { id: s.establishmentId! },
+    data: { pagbankAccountId: null },
+  });
+  revalidatePath("/painel");
+  return { ok: true };
 }
 
 /** Desconecta a conta Mercado Pago do estabelecimento (volta ao modo conta-única). */

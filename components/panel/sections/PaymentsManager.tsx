@@ -6,38 +6,31 @@ import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import type { PagarmeRecipientForm } from "@/lib/validation";
+import { GATEWAY_CAP, type RouteKey } from "@/lib/payments/capabilities";
 import { usePanel } from "../context";
-
-type MethodKey = "pix" | "credit" | "debit";
 
 const GATEWAYS = [
   { id: "MERCADO_PAGO", label: "Mercado Pago" },
   { id: "PAGARME", label: "Pagar.me" },
   { id: "ASAAS", label: "Asaas" },
+  { id: "PAGBANK", label: "PagBank" },
   { id: "INFINITEPAY", label: "InfinitePay" },
 ] as const;
 
-// Qual gateway implementa qual método hoje (o resto aparece como "em breve").
-const CAP: Record<string, Record<MethodKey, boolean>> = {
-  MERCADO_PAGO: { pix: true, credit: true, debit: true },
-  PAGARME: { pix: true, credit: true, debit: true },
-  ASAAS: { pix: true, credit: false, debit: false },
-  INFINITEPAY: { pix: false, credit: false, debit: false },
-};
-
-const METHODS: { key: MethodKey; icon: string }[] = [
+const METHODS: { key: RouteKey; icon: string }[] = [
   { key: "pix", icon: "qr_code_2" },
   { key: "credit", icon: "credit_card" },
   { key: "debit", icon: "account_balance_wallet" },
+  { key: "applePay", icon: "phone_iphone" },
+  { key: "googlePay", icon: "contactless" },
 ];
 
 export function PaymentsManager() {
   const {
-    gatewayPix,
-    gatewayCredit,
-    gatewayDebit,
+    routing,
     setGateway,
     mpConnected,
+    pagbankConnected,
     pagarmeReady,
     asaasReady,
     createPagarmeRecipient,
@@ -46,18 +39,19 @@ export function PaymentsManager() {
   const t = useTranslations("panel.config");
   const [modal, setModal] = useState(false);
 
-  const current: Record<MethodKey, string> = {
-    pix: gatewayPix,
-    credit: gatewayCredit,
-    debit: gatewayDebit,
-  };
   const readyMap: Record<string, boolean> = {
     MERCADO_PAGO: true,
     PAGARME: pagarmeReady,
     ASAAS: asaasReady,
+    PAGBANK: true, // sem Connect, cobra na conta da plataforma
     INFINITEPAY: false,
   };
   const isReady = (g: string) => readyMap[g] ?? false;
+  // Gateways de conta conectada por OAuth: "conta conectada" vs "conta da plataforma".
+  const oauthConnected: Record<string, boolean> = {
+    MERCADO_PAGO: mpConnected,
+    PAGBANK: pagbankConnected,
+  };
 
   return (
     <div>
@@ -73,14 +67,16 @@ export function PaymentsManager() {
             </p>
             <div className="grid grid-cols-2 gap-2">
               {GATEWAYS.map((g) => {
-                const impl = CAP[g.id][m.key];
+                // Gateway que não implementa o método aparece como "em breve".
+                const impl = GATEWAY_CAP[g.id][m.key];
                 const ready = isReady(g.id);
                 const selectable = impl && ready;
-                const selected = current[m.key] === g.id;
+                const selected = routing[m.key] === g.id;
+                const oauth = oauthConnected[g.id];
                 const note = !impl
                   ? t("soon")
-                  : g.id === "MERCADO_PAGO"
-                    ? mpConnected
+                  : oauth !== undefined
+                    ? oauth
                       ? t("pgConnected")
                       : t("pgSingleAccount")
                     : ready
@@ -108,6 +104,7 @@ export function PaymentsManager() {
         <div className="flex flex-col gap-2">
           <MpConnection />
           <PagarmeConnection onOpen={() => setModal(true)} />
+          <PagbankConnection />
           <AsaasConnection />
           <SoonConnection />
         </div>
@@ -210,6 +207,54 @@ function MpConnection() {
         </div>
       )}
       <p className="m-0 mt-2 text-[11px] leading-relaxed text-ink/45">{t("mpFeeNote")}</p>
+    </div>
+  );
+}
+
+/** Conexão do PagBank — Connect (OAuth) da conta PagBank do bar, que ativa o split. */
+function PagbankConnection() {
+  const { pagbankConnected, pagbankResult, connectPagbank, disconnectPagbank } = usePanel();
+  const t = useTranslations("panel.config");
+  return (
+    <div className="rounded-xl border-2 border-ink/10 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-sm font-semibold text-ink/80">
+          <span
+            className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+            style={{ background: pagbankConnected ? "#10b981" : "rgba(20,24,33,.25)" }}
+          />
+          {pagbankConnected ? t("pbStatusConnected") : t("pbStatusNot")}
+        </span>
+        {pagbankConnected ? (
+          <button
+            type="button"
+            onClick={disconnectPagbank}
+            className="flex-shrink-0 rounded-lg bg-ink/[0.06] px-3 py-2 text-xs font-bold text-ink/70"
+          >
+            {t("mpDisconnect")}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={connectPagbank}
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-[#1a1a1a] px-3.5 py-2 text-xs font-bold text-white"
+          >
+            <Icon name="link" size={14} />
+            {t("pbConnect")}
+          </button>
+        )}
+      </div>
+      {pagbankResult === "ok" && (
+        <p className="m-0 mt-2 rounded-lg bg-[#ecfdf5] px-3 py-2 text-xs font-medium text-[#059669]">
+          {t("pbConnectedOk")}
+        </p>
+      )}
+      {pagbankResult === "error" && (
+        <p className="m-0 mt-2 rounded-lg bg-[#fef2f2] px-3 py-2 text-xs font-medium text-[#e11d48]">
+          {t("mpConnectError")}
+        </p>
+      )}
+      <p className="m-0 mt-2 text-[11px] leading-relaxed text-ink/45">{t("pbFeeNote")}</p>
     </div>
   );
 }

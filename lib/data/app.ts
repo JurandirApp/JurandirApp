@@ -9,6 +9,7 @@
  */
 
 import type { MenuItem } from "@/lib/data/panel";
+import type { Routing } from "@/lib/payments/capabilities";
 
 export type PayId = "credito" | "debito" | "pix" | "usdc";
 
@@ -64,9 +65,13 @@ export type AppEstablishment = {
   platformFeePct: number;
   serviceFeePct: number;
   posto: string;
-  /** O bar aceita carteira nativa (Apple/Google Pay via Pagar.me)? Só então o
-   *  checkout mostra o botão — senão o token não teria como ser cobrado. */
+  /** Aceita alguma carteira nativa (Apple OU Google Pay)? Compat com apps antigos. */
   walletPay: boolean;
+  /** Apple Pay / Google Pay cobráveis (gateway da carteira implementa + bar pronto). */
+  applePay: boolean;
+  googlePay: boolean;
+  /** Gateway configurado por método (nomes do enum, ex.: "PAGARME"). */
+  gateways: Routing;
   whatsapp: string;
   instagram: { url: string; handle: string };
   phone: { tel: string; display: string };
@@ -87,6 +92,15 @@ export const APP_EST: AppEstablishment = {
   serviceFeePct: 10,
   posto: "Posto 3",
   walletPay: false,
+  applePay: false,
+  googlePay: false,
+  gateways: {
+    pix: "MERCADO_PAGO",
+    credit: "MERCADO_PAGO",
+    debit: "MERCADO_PAGO",
+    applePay: "PAGARME",
+    googlePay: "PAGARME",
+  },
   whatsapp: "https://wa.me/5547999990000",
   instagram: { url: "https://instagram.com/quiosquedomar", handle: "@quiosquedomar" },
   phone: { tel: "4733445566", display: "(47) 3344-5566" },

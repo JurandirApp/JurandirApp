@@ -37,6 +37,7 @@ enum PaymentProvider {
   MERCADO_PAGO
   PAGARME
   APPMAX
+  PAGBANK
 }
 
 enum PrintJobStatus {
@@ -96,6 +97,10 @@ model Establishment {
   gatewayPix       PaymentProvider @default(MERCADO_PAGO)
   gatewayCredit    PaymentProvider @default(MERCADO_PAGO)
   gatewayDebit     PaymentProvider @default(MERCADO_PAGO)
+  // Carteiras nativas com gateway PRÓPRIO (antes seguiam o crédito). Default
+  // Pagar.me = único que implementa carteira hoje.
+  gatewayApplePay  PaymentProvider @default(PAGARME)
+  gatewayGooglePay PaymentProvider @default(PAGARME)
   ownerCpfCnpj     String?
   asaasAccountId   String?
   asaasWalletId    String?
@@ -111,6 +116,9 @@ model Establishment {
   // (split por pedido). recipientStatus = "Onboarding completed" recebe split.
   appmaxRecipientHash    String?
   appmaxRecipientStatus  String?
+  // PagBank: conta PagBank própria do bar (`ACCO_…`, via Connect). Sem ela, a
+  // cobrança cai inteira na conta da plataforma (sem split).
+  pagbankAccountId       String?
   // Conta MP conectada consegue gerar QR Pix? (null = não verificado). Se false,
   // o painel avisa o dono pra cadastrar uma chave Pix no Mercado Pago dele.
   mpPixReady       Boolean?

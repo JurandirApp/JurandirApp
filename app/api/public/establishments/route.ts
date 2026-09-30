@@ -1,4 +1,5 @@
 import { listEstablishments } from "@/lib/db/establishments";
+import { toAppPayments } from "@/lib/app/adapters";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export async function GET(): Promise<Response> {
       // Imagens do bar (thumb dos cards). logo = quadrado; cover = capa.
       logo: e.logoImg ?? null,
       cover: e.coverImg ?? null,
+      ...toAppPayments(e),
     }));
 
   return Response.json({ establishments }, { headers: CORS });

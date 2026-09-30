@@ -24,6 +24,8 @@ import {
   deleteQrSpotAction,
   deliverOrderAction,
   disconnectMpAction,
+  disconnectPagbankAction,
+  getPagbankConnectUrlAction,
   generatePrintTokenAction,
   getMpConnectUrlForMeAction,
   markItemReadyAction,
@@ -44,6 +46,7 @@ import {
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
 import type { PagarmeRecipientForm } from "@/lib/validation";
+import type { RouteKey, Routing } from "@/lib/payments/capabilities";
 import {
   PanelContext,
   type AuditFilters,
@@ -116,9 +119,9 @@ export function PanelApp({
   mpConnected: mpConnected0,
   mpPixReady: mpPixReady0,
   mpResult = null,
-  gatewayPix: gatewayPix0,
-  gatewayCredit: gatewayCredit0,
-  gatewayDebit: gatewayDebit0,
+  routing: routing0,
+  pagbankConnected: pagbankConnected0,
+  pagbankResult = null,
   pagarmeReady: pagarmeReady0,
   pagarmeStatus: pagarmeStatus0,
   asaasReady: asaasReady0,
@@ -141,9 +144,9 @@ export function PanelApp({
   mpConnected: boolean;
   mpPixReady: boolean | null;
   mpResult?: "ok" | "error" | null;
-  gatewayPix: string;
-  gatewayCredit: string;
-  gatewayDebit: string;
+  routing: Routing;
+  pagbankConnected: boolean;
+  pagbankResult?: "ok" | "error" | null;
   pagarmeReady: boolean;
   pagarmeStatus: string | null;
   asaasReady: boolean;
@@ -194,9 +197,8 @@ export function PanelApp({
   const [printToken, setPrintToken] = useState<string | null>(null);
   const [mpConnected, setMpConnected] = useState(mpConnected0);
   const [mpPixReady, setMpPixReady] = useState<boolean | null>(mpPixReady0);
-  const [gatewayPix, setGatewayPixState] = useState(gatewayPix0);
-  const [gatewayCredit, setGatewayCreditState] = useState(gatewayCredit0);
-  const [gatewayDebit, setGatewayDebitState] = useState(gatewayDebit0);
+  const [routing, setRouting] = useState<Routing>(routing0);
+  const [pagbankConnected, setPagbankConnected] = useState(pagbankConnected0);
   const [pagarmeReady, setPagarmeReady] = useState(pagarmeReady0);
   const [pagarmeStatus, setPagarmeStatus] = useState<string | null>(pagarmeStatus0);
   const [asaasReady, setAsaasReady] = useState(asaasReady0);
@@ -601,26 +603,33 @@ export function PanelApp({
           setMpPixReady(null);
         });
       },
-      gatewayPix,
-      gatewayCredit,
-      gatewayDebit,
-      setGateway: (method: "pix" | "credit" | "debit", v: string) => {
-        const prev = { pix: gatewayPix, credit: gatewayCredit, debit: gatewayDebit };
+      pagbankConnected,
+      pagbankResult,
+      connectPagbank: () => {
+        getPagbankConnectUrlAction()
+          .then((r) => {
+            if (r.ok && r.url) window.location.href = r.url;
+          })
+          .catch(() => {});
+      },
+      disconnectPagbank: () => {
+        startTransition(async () => {
+          await disconnectPagbankAction();
+          setPagbankConnected(false);
+        });
+      },
+      routing,
+      setGateway: (method: RouteKey, v: string) => {
+        const prev = routing;
         const next = { ...prev, [method]: v };
-        setGatewayPixState(next.pix);
-        setGatewayCreditState(next.credit);
-        setGatewayDebitState(next.debit);
+        setRouting(next);
         startTransition(async () => {
           const r = await savePaymentRoutingAction(next);
           if (r.ok) {
             // O servidor pode ter feito fallback (ex.: gateway não pronto) → reflete.
-            setGatewayPixState(r.pix);
-            setGatewayCreditState(r.credit);
-            setGatewayDebitState(r.debit);
+            setRouting(r.routing);
           } else {
-            setGatewayPixState(prev.pix);
-            setGatewayCreditState(prev.credit);
-            setGatewayDebitState(prev.debit);
+            setRouting(prev);
             toast(t("config.pixRoutingError"));
           }
         });
@@ -656,7 +665,7 @@ export function PanelApp({
     itemCat, qrLabel, aud, audPage, profile, weekly, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
-    gatewayPix, gatewayCredit, gatewayDebit, pagarmeReady, pagarmeStatus, asaasReady,
+    routing, pagbankConnected, pagbankResult, pagarmeReady, pagarmeStatus, asaasReady,
     waiterModule,
   ]);
 

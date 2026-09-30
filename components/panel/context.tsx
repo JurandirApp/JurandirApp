@@ -6,6 +6,7 @@ import type { MonthlyStatLite } from "@/lib/admin/scale";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
 import type { PagarmeRecipientForm } from "@/lib/validation";
+import type { RouteKey, Routing } from "@/lib/payments/capabilities";
 import type { orderTimelineAction } from "@/lib/actions/panel";
 
 /** Um evento de rastreio do pedido (Módulo do Garçom) — o shape exato que
@@ -144,12 +145,15 @@ export interface PanelValue {
   mpResult: "ok" | "error" | null;
   connectMp: () => void;
   disconnectMp: () => void;
-  // Pagamentos — roteamento por método (Pix/Crédito/Débito) × gateways
-  /** Gateway de cada método: "MERCADO_PAGO" | "PAGARME" (| "INFINITEPAY" no futuro). */
-  gatewayPix: string;
-  gatewayCredit: string;
-  gatewayDebit: string;
-  setGateway: (method: "pix" | "credit" | "debit", value: string) => void;
+  // Pagamentos — roteamento por método (Pix/Crédito/Débito/Apple Pay/Google Pay) × gateways
+  /** Gateway de cada método: "MERCADO_PAGO" | "PAGARME" | "ASAAS"… */
+  routing: Routing;
+  setGateway: (method: RouteKey, value: string) => void;
+  /** Conta PagBank do bar vinculada via Connect (ativa o split no PagBank). */
+  pagbankConnected: boolean;
+  pagbankResult: "ok" | "error" | null;
+  connectPagbank: () => void;
+  disconnectPagbank: () => void;
   /** O recebedor Pagar.me já foi cadastrado? (libera o Pagar.me). */
   pagarmeReady: boolean;
   pagarmeStatus: string | null;

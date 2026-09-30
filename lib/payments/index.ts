@@ -8,12 +8,21 @@ import { mercadoPagoProvider } from "./mercadopago";
 import { pagarmeProvider } from "./pagarme";
 import { asaasProvider } from "./asaas";
 import { appmaxProvider } from "./appmax";
+import { pagbankProvider } from "./pagbank";
 
 /** Nome do gateway configurado pro método (Pix/Crédito/Débito) do estabelecimento. */
 export function resolveGateway(est: Establishment, method: PaymentMethod): GatewayName {
   if (method === "CREDIT") return est.gatewayCredit;
   if (method === "DEBIT") return est.gatewayDebit;
   return est.gatewayPix; // PIX (e fallback pra USDC)
+}
+
+/** Gateway configurado pra carteira nativa (Apple Pay / Google Pay) — independe do crédito. */
+export function resolveWalletGateway(
+  est: Establishment,
+  walletType: "apple_pay" | "google_pay",
+): GatewayName {
+  return walletType === "apple_pay" ? est.gatewayApplePay : est.gatewayGooglePay;
 }
 
 /** Implementação (provider) a partir do nome do enum. */
@@ -25,6 +34,8 @@ export function getProviderByName(name: GatewayName): PaymentProvider {
       return asaasProvider;
     case "APPMAX":
       return appmaxProvider;
+    case "PAGBANK":
+      return pagbankProvider;
     default:
       return mercadoPagoProvider; // MERCADO_PAGO
   }

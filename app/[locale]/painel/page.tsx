@@ -40,10 +40,10 @@ export default async function PainelPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ mp?: string }>;
+  searchParams: Promise<{ mp?: string; pb?: string }>;
 }) {
   const { locale } = await params;
-  const { mp } = await searchParams;
+  const { mp, pb } = await searchParams;
   setRequestLocale(locale);
   const session = await getSession();
   if (session?.role !== "ESTABLISHMENT" || !session.establishmentId) {
@@ -109,9 +109,15 @@ export default async function PainelPage({
       mpConnected={Boolean(est.mpAccessToken)}
       mpPixReady={est.mpPixReady}
       mpResult={mp === "ok" ? "ok" : mp === "error" ? "error" : null}
-      gatewayPix={est.gatewayPix}
-      gatewayCredit={est.gatewayCredit}
-      gatewayDebit={est.gatewayDebit}
+      routing={{
+        pix: est.gatewayPix,
+        credit: est.gatewayCredit,
+        debit: est.gatewayDebit,
+        applePay: est.gatewayApplePay,
+        googlePay: est.gatewayGooglePay,
+      }}
+      pagbankConnected={Boolean(est.pagbankAccountId)}
+      pagbankResult={pb === "ok" ? "ok" : pb === "error" ? "error" : null}
       pagarmeReady={Boolean(est.pagarmeRecipientId)}
       pagarmeStatus={pagarmeStatus}
       asaasReady={Boolean(est.asaasWalletId)}

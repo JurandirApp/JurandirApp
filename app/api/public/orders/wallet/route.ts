@@ -18,9 +18,9 @@ export async function OPTIONS(): Promise<Response> {
 /**
  * POST /api/public/orders/wallet
  * Body: { order: <orderCreateInput>, walletType: "google_pay"|"apple_pay", token: <string> }
- * Cria o pedido (cartão) e cobra na hora com o token da carteira via Pagar.me.
- * Aprovado → pedido volta "em produção". O estabelecimento precisa de recebedor
- * Pagar.me e `gatewayCredit = PAGARME`.
+ * Cria o pedido (cartão) e cobra na hora com o token da carteira, pelo gateway
+ * configurado pra ela (`gatewayApplePay` / `gatewayGooglePay` — independe do
+ * crédito). Aprovado → pedido volta "em produção".
  */
 export async function POST(req: Request): Promise<Response> {
   let body: { order?: unknown; orderId?: unknown; walletType?: unknown; token?: unknown };

@@ -1,6 +1,6 @@
 import { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { getProviderByName } from "@/lib/payments";
+import { getProviderByName, resolveWalletGateway } from "@/lib/payments";
 import type { CardBillingAddress, CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
 
@@ -281,7 +281,10 @@ export async function payOrderWithWallet(
   if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) {
     return { status: "failed" };
   }
-  const provider = getProviderByName(order.payment.provider ?? "PAGARME");
+  // O pedido nasce como CREDIT (provider = gateway do crédito); a carteira tem
+  // gateway próprio, então cobra por ele e grava no payment (reconcile/webhook).
+  const gateway = resolveWalletGateway(order.establishment, walletType);
+  const provider = getProviderByName(gateway);
   if (!provider.createWalletPayment) return { status: "failed", statusDetail: "gateway sem wallet" };
   let res;
   try {
@@ -299,7 +302,7 @@ export async function payOrderWithWallet(
   }
   await prisma.payment.update({
     where: { id: order.payment.id },
-    data: { gatewayChargeId: res.chargeId },
+    data: { gatewayChargeId: res.chargeId, provider: gateway },
   });
   if (res.status === "paid") await confirmChargePaid(res.chargeId);
   return { status: res.status, statusDetail: res.statusDetail };

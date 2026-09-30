@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { getProvider, resolveGateway, getProviderByName } from "@/lib/payments";
+import { getProvider, resolveGateway, resolveWalletGateway, getProviderByName } from "@/lib/payments";
+import { canCharge } from "@/lib/payments/capabilities";
 import type { Establishment } from "@prisma/client";
 
 const est = (over: Partial<Establishment> = {}): Establishment =>
@@ -19,11 +20,42 @@ describe("resolveGateway", () => {
   });
 });
 
+describe("resolveWalletGateway", () => {
+  it("carteira usa o gateway PRÓPRIO, não o do crédito", () => {
+    const e = est({
+      gatewayCredit: "MERCADO_PAGO",
+      gatewayApplePay: "PAGARME",
+      gatewayGooglePay: "ASAAS",
+    });
+    expect(resolveWalletGateway(e, "apple_pay")).toBe("PAGARME");
+    expect(resolveWalletGateway(e, "google_pay")).toBe("ASAAS");
+  });
+});
+
+describe("canCharge", () => {
+  const ready = { pagarmeRecipientId: "re_1", asaasWalletId: null };
+  it("exige que o gateway implemente o método", () => {
+    expect(canCharge(ready, "applePay", "PAGARME")).toBe(true);
+    expect(canCharge(ready, "applePay", "MERCADO_PAGO")).toBe(false);
+    expect(canCharge(ready, "debit", "PAGARME")).toBe(true);
+  });
+  it("exige o bar pronto no gateway (recebedor)", () => {
+    expect(canCharge({ pagarmeRecipientId: null }, "googlePay", "PAGARME")).toBe(false);
+    expect(canCharge({ pagarmeRecipientId: null }, "credit", "MERCADO_PAGO")).toBe(true);
+    expect(canCharge(ready, "pix", "ASAAS")).toBe(false);
+  });
+  it("gateway desconhecido nunca cobra", () => {
+    expect(canCharge(ready, "pix", "INFINITEPAY")).toBe(false);
+    expect(canCharge(ready, "pix", "XYZ")).toBe(false);
+  });
+});
+
 describe("getProviderByName", () => {
   it("mapeia nome do enum → provider", () => {
     expect(getProviderByName("MERCADO_PAGO").name).toBe("MERCADO_PAGO");
     expect(getProviderByName("PAGARME").name).toBe("PAGARME");
     expect(getProviderByName("ASAAS").name).toBe("ASAAS");
+    expect(getProviderByName("PAGBANK").name).toBe("PAGBANK");
   });
 });
 

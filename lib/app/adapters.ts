@@ -3,6 +3,7 @@ import { isPixExpired, round2 } from "@/lib/domain/pricing";
 import { deliveryCode } from "@/lib/domain/delivery";
 import { optionLabels } from "@/lib/print/escpos";
 import type { AppEstablishment, PayId } from "@/lib/data/app";
+import { canCharge } from "@/lib/payments/capabilities";
 import { COVER_IMG } from "@/lib/data/panel";
 import type { MenuItem } from "@/lib/data/panel";
 import type { ClientOrder, Share } from "@/lib/app/helpers";
@@ -30,11 +31,40 @@ const ENUM_TO_APP: Record<string, PayId> = {
   CREDIT: "credito", DEBIT: "debito", PIX: "pix", USDC: "usdc",
 };
 
-type DbEst = {
+type DbEstPayments = {
+  gatewayPix: string; gatewayCredit: string; gatewayDebit: string;
+  gatewayApplePay: string; gatewayGooglePay: string;
+  pagarmeRecipientId: string | null; asaasWalletId: string | null; appmaxRecipientHash: string | null;
+};
+
+/** Pagamento visto pelo app: quais carteiras estão ativas e o gateway de cada
+ *  método (o app escolhe a tokenização certa do cartão/carteira por ele). */
+export function toAppPayments(e: DbEstPayments): Pick<
+  AppEstablishment,
+  "walletPay" | "applePay" | "googlePay" | "gateways"
+> {
+  // Carteira nativa só quando o gateway dela implementa carteira E o bar está
+  // pronto nele — senão o token não é cobrável.
+  const applePay = canCharge(e, "applePay", e.gatewayApplePay);
+  const googlePay = canCharge(e, "googlePay", e.gatewayGooglePay);
+  return {
+    walletPay: applePay || googlePay, // compat: versões antigas do app
+    applePay,
+    googlePay,
+    gateways: {
+      pix: e.gatewayPix,
+      credit: e.gatewayCredit,
+      debit: e.gatewayDebit,
+      applePay: e.gatewayApplePay,
+      googlePay: e.gatewayGooglePay,
+    },
+  };
+}
+
+type DbEst = DbEstPayments & {
   id: string; slug: string; name: string; tagline: string | null; coverImg: string | null; logoImg: string | null;
   address: string | null; hours: string | null; posto: string | null;
   platformFeePct: number; serviceFeePct: number;
-  gatewayCredit: string; pagarmeRecipientId: string | null;
   whatsapp: string | null; instagram: string | null; phone: string | null; website: string | null;
 };
 export function toAppEstablishment(e: DbEst): AppEstablishment {
@@ -50,9 +80,7 @@ export function toAppEstablishment(e: DbEst): AppEstablishment {
     platformFeePct: e.platformFeePct,
     serviceFeePct: e.serviceFeePct,
     posto: e.posto ?? "",
-    // Carteira nativa só quando o crédito é Pagar.me E o bar tem recebedor próprio
-    // (senão o split não paga o bar / o token não é cobrável).
-    walletPay: e.gatewayCredit === "PAGARME" && Boolean(e.pagarmeRecipientId),
+    ...toAppPayments(e),
     whatsapp: e.whatsapp || "https://wa.me/5547999990000",
     instagram: { url: e.instagram ? `https://instagram.com/${e.instagram.replace(/^@/, "")}` : "#", handle: e.instagram ?? "" },
     phone: { tel: (e.phone ?? "").replace(/\D/g, ""), display: e.phone ?? "" },

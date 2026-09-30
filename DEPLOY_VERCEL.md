@@ -27,6 +27,11 @@ Cole cada uma. **Os valores secretos você copia do seu `.env` local** — não 
 | `CLOUDINARY_API_SECRET` | copie do `.env` |
 | **`APP_BASE_URL`** | **`https://jurandir.app.br`** (domínio de produção) |
 | **`MP_REDIRECT_URI`** | **`https://jurandir.app.br/api/payments/mercadopago/callback`** |
+| `PAGBANK_BASE_URL` | Production: `https://api.pagseguro.com` · Preview: `https://sandbox.api.pagseguro.com` |
+| `PAGBANK_TOKEN` | Production: token da conta PagBank (Vendas → Integrações) · Preview: token do Portal do Desenvolvedor |
+| `PAGBANK_PLATFORM_ACCOUNT_ID` | `ACCO_…` da conta da plataforma (recebe a comissão no split). Vazio = sem split |
+| `PAGBANK_CLIENT_ID` / `PAGBANK_CLIENT_SECRET` | da aplicação Connect (criada uma vez com `POST /oauth2/application`) |
+| `PAGBANK_REDIRECT_URI` | `https://jurandir.app.br/api/payments/pagbank/callback` (igual ao cadastrado na aplicação) |
 
 > **Opcionais** (não precisa em produção): `MP_TEST_PUBLIC_KEY`, `MP_TEST_ACCESS_TOKEN` (só sandbox) e todas as `ASAAS_*` (Asaas não é mais usado — MP é o gateway fixo).
 
