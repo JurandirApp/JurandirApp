@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   pagbankProvider,
   chargeIdsOf,
@@ -6,6 +6,7 @@ import {
   getConnectUrl,
   signConnectState,
   verifyConnectState,
+  __setPagbankModeForTests,
 } from "@/lib/payments/pagbank";
 import type { Establishment } from "@prisma/client";
 
@@ -235,5 +236,44 @@ describe("chargeIdsOf", () => {
   it("extrai só ids de cobrança do pedido do webhook", () => {
     expect(chargeIdsOf({ charges: [{ id: "CHAR_1" }, { id: "x" }, {}] })).toEqual(["CHAR_1"]);
     expect(chargeIdsOf({})).toEqual([]);
+  });
+});
+
+// Modo PRODUÇÃO (switch do admin): produção usa os envs SEM sufixo, e a base é
+// sempre a URL real — NUNCA herda um PAGBANK_BASE_URL sandbox esquecido no env.
+describe("modo produção (switch do admin)", () => {
+  beforeEach(() => {
+    // Em produção o nome SEM sufixo é o valor de produção.
+    process.env.PAGBANK_TOKEN = "tok_prod";
+    process.env.PAGBANK_PLATFORM_ACCOUNT_ID = "ACCO_prod";
+    process.env.PAGBANK_CLIENT_ID = "cid_prod";
+    process.env.PAGBANK_BASE_URL = "https://sandbox.api.pagseguro.com"; // "sujeira" que prod deve ignorar
+    __setPagbankModeForTests("PRODUCTION");
+  });
+  afterEach(() => __setPagbankModeForTests(null));
+
+  it("cobra na base/token/conta de produção, ignorando o sandbox do env", async () => {
+    const fn = seq([{ id: "ORDE_P", charges: [{ id: "CHAR_P", status: "PAID" }] }]);
+    await pagbankProvider.createCardTokenPayment!({
+      est,
+      reference: "PED-P",
+      total: 20,
+      platformFee: 1.6,
+      description: "Pedido PED-P",
+      cardToken: "ENC",
+      installments: 1,
+      method: "credit",
+    });
+    const [url, init] = fn.mock.calls[0];
+    expect(url).toBe("https://api.pagseguro.com/orders"); // prod, não sandbox
+    expect(init.headers.Authorization).toBe("Bearer tok_prod");
+    const platform = JSON.parse(init.body as string).charges[0].splits.receivers[1];
+    expect(platform.account.id).toBe("ACCO_prod");
+  });
+
+  it("Connect aponta pro ambiente de produção", () => {
+    const u = new URL(getConnectUrl("st1"));
+    expect(u.origin).toBe("https://connect.pagbank.com.br");
+    expect(u.searchParams.get("client_id")).toBe("cid_prod");
   });
 });

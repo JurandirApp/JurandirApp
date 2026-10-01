@@ -51,6 +51,14 @@ enum PrintJobKind {
   TEST
 }
 
+// Ambiente de um gateway de pagamento (global da plataforma, trocado pelo admin).
+// TEST = usa a chave/token de teste (sufixo `_TEST` no env); PRODUCTION = usa a
+// chave de produção (nome do env SEM sufixo). Um por gateway (Pagar.me, PagBank).
+enum PaymentEnv {
+  TEST
+  PRODUCTION
+}
+
 model Establishment {
   id             String              @id @default(cuid())
   slug           String              @unique
@@ -413,4 +421,16 @@ model MonthlyStat {
   byUsdc          Decimal       @db.Decimal(12, 2)
 
   @@unique([establishmentId, year, month])
+}
+
+// Config global da plataforma (linha única, id = "singleton"). Os SEGREDOS
+// (tokens do PagBank) ficam no .env/Vercel; aqui só mora a ESCOLHA de qual
+// ambiente usar, que o admin troca pelo painel sem precisar de deploy.
+model AppSetting {
+  id          String     @id @default("singleton")
+  // PagBank ainda não está no ar → começa em TEST. Pagar.me está em produção
+  // cobrando de verdade → começa em PRODUCTION. Trocados independentes pelo admin.
+  pagbankMode PaymentEnv @default(TEST)
+  pagarmeMode PaymentEnv @default(PRODUCTION)
+  updatedAt   DateTime   @updatedAt
 }

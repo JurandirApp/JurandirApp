@@ -17,9 +17,59 @@ import type {
 // Pagar.me v5 (modelo marketplace): a PLATAFORMA tem a conta (secret key). Cada
 // bar é um recebedor (`recipient`); o split manda total−comissão pro recebedor do
 // bar e a comissão pro recebedor da plataforma.
-const baseUrl = () => process.env.PAGARME_BASE_URL ?? "https://api.pagar.me/core/v5";
-const secretKey = () => process.env.PAGARME_SECRET_KEY ?? "";
-const platformRecipient = () => process.env.PAGARME_PLATFORM_RECIPIENT_ID ?? "";
+
+// ---- Ambiente (teste/produção) --------------------------------------------
+// Global da plataforma, escolhido pelo admin (`AppSetting.pagarmeMode`). Convenção
+// de env: PRODUÇÃO usa o nome SEM sufixo (`PAGARME_SECRET_KEY`), TESTE usa
+// `PAGARME_SECRET_KEY_TEST` (caindo pro de produção se o `_TEST` não existir) — só
+// precisa criar o `_TEST`, sem duplicar a variável de produção. O endpoint é o
+// MESMO nos dois (o que decide simulador vs produção é o prefixo da chave:
+// sk_test_ vs sk_live_). Default PRODUCTION (a Pagar.me já está no ar cobrando).
+type Mode = "TEST" | "PRODUCTION";
+let cachedMode: Mode | null = null;
+let cachedModeAt = 0;
+const MODE_TTL_MS = 30_000;
+
+const modeSuffix = (): Mode => cachedMode ?? "PRODUCTION";
+
+/** Atualiza o modo a partir do banco (cacheado). No-op em teste (sem DB): fica
+ *  no default PRODUCTION, que lê os envs sem sufixo. */
+export async function ensurePagarmeMode(): Promise<Mode> {
+  if (process.env.VITEST || process.env.NODE_ENV === "test") return modeSuffix();
+  if (cachedMode && Date.now() - cachedModeAt < MODE_TTL_MS) return cachedMode;
+  try {
+    const { getPagarmeMode } = await import("@/lib/db/settings");
+    cachedMode = (await getPagarmeMode()) as Mode;
+  } catch {
+    cachedMode = cachedMode ?? "PRODUCTION";
+  }
+  cachedModeAt = Date.now();
+  return cachedMode;
+}
+
+/** Invalida o cache do modo — chamar quando o admin troca teste⇄produção. */
+export function bustPagarmeModeCache(): void {
+  cachedMode = null;
+  cachedModeAt = 0;
+}
+
+/** Só para testes: fixa o modo em memória sem tocar no banco (null = default). */
+export function __setPagarmeModeForTests(mode: Mode | null): void {
+  cachedMode = mode;
+  cachedModeAt = mode ? Date.now() : 0;
+}
+
+/** Lê uma env por modo. PRODUÇÃO: nome sem sufixo. TESTE: `NOME_TEST`, caindo
+ *  pro nome sem sufixo quando o `_TEST` não existe. */
+const envByMode = (name: string): string =>
+  modeSuffix() === "TEST"
+    ? (process.env[`${name}_TEST`] ?? process.env[name] ?? "")
+    : (process.env[name] ?? "");
+
+// Endpoint é o mesmo pros dois ambientes; permite override _TEST se um dia precisar.
+const baseUrl = () => envByMode("PAGARME_BASE_URL") || "https://api.pagar.me/core/v5";
+const secretKey = () => envByMode("PAGARME_SECRET_KEY");
+const platformRecipient = () => envByMode("PAGARME_PLATFORM_RECIPIENT_ID");
 /** CPF do pagador. O Pix (e cartão) da Pagar.me exige `customer.document`.
  *  Enquanto o checkout não coleta o CPF do cliente, usa um CPF de TESTE válido
  *  (env PAGARME_TEST_CPF). PRODUÇÃO: coletar o CPF real do pagador no app. */
@@ -258,6 +308,7 @@ function billingFor(billing?: CardBillingAddress) {
 export const pagarmeProvider: PaymentProvider = {
   name: "PAGARME",
   async createWalletPayment(input: WalletPaymentInput): Promise<CardPaymentResult> {
+    await ensurePagarmeMode(); // resolve teste/produção ANTES de montar split/auth
     const { est, reference, total, platformFee, description, walletType, token } = input;
     recipientFor(est); // valida recebedor (estabelecimento ou plataforma p/ testes)
     const totalCents = cents(total);
@@ -291,6 +342,7 @@ export const pagarmeProvider: PaymentProvider = {
   // "checkout" hospedado que dava 412). O app tokeniza com a chave pública e
   // manda só o `card_token`; aqui montamos o pedido credit_card/debit_card.
   async createCardTokenPayment(input: CardTokenPaymentInput): Promise<CardPaymentResult> {
+    await ensurePagarmeMode();
     const { est, reference, total, platformFee, description, cardToken, installments, method,
       customerName, customerDocument, customerPhone, billing } = input;
     recipientFor(est);
@@ -325,6 +377,7 @@ export const pagarmeProvider: PaymentProvider = {
     };
   },
   async createPixCharge(input: PixChargeInput): Promise<PixCharge> {
+    await ensurePagarmeMode();
     const { est, reference, total, platformFee, customerName, customerDocument, customerPhone, description } = input;
     recipientFor(est); // valida recebedor (estabelecimento ou plataforma p/ testes)
     const totalCents = cents(total);
@@ -354,6 +407,7 @@ export const pagarmeProvider: PaymentProvider = {
     };
   },
   async getChargeStatus(_est: Establishment, chargeId: string): Promise<ChargeStatus> {
+    await ensurePagarmeMode();
     const c = await call<PgCharge>(`/charges/${chargeId}`);
     return mapStatus(c.status);
   },
@@ -361,6 +415,7 @@ export const pagarmeProvider: PaymentProvider = {
   // checkout com split e devolve a URL pro cliente pagar (3DS do débito acontece
   // lá). Mesmo padrão de redirect do Checkout Pro do MP.
   async createCheckoutPreference(input: CheckoutPreferenceInput): Promise<CheckoutPreference> {
+    await ensurePagarmeMode();
     const { est, reference, total, platformFee, items, method } = input;
     recipientFor(est); // valida recebedor (estabelecimento ou plataforma p/ testes)
     const totalCents = cents(total);
@@ -400,6 +455,7 @@ export const pagarmeProvider: PaymentProvider = {
   // Reconciliação do checkout (o id da cobrança só existe depois que o cliente
   // paga): busca o pedido pelo nosso `code` e confirma se alguma cobrança pagou.
   async findApprovedPayment(_est: Establishment, reference: string): Promise<FoundPayment | null> {
+    await ensurePagarmeMode();
     const r = await call<{ data?: PgOrder[] }>(
       `/orders?code=${encodeURIComponent(reference)}`,
     );
@@ -541,6 +597,7 @@ function partnerBody(p: PagarmePartnerInput) {
 export async function createPagarmeRecipient(
   input: PagarmeRecipientInput,
 ): Promise<{ id: string; status: string }> {
+  await ensurePagarmeMode();
   const doc = input.document.replace(/\D/g, "");
   const phone = splitPhone(input.phone);
   const register =
@@ -601,6 +658,7 @@ export async function createPagarmeRecipient(
 export async function getPagarmeKycLink(
   recipientId: string,
 ): Promise<{ url: string; base64: string; expiresAt: string }> {
+  await ensurePagarmeMode();
   const r = await call<{ url?: string; base64?: string; expiration_date?: string }>(
     `/recipients/${recipientId}/kyc_link`,
     { method: "POST" },
@@ -614,6 +672,7 @@ export async function getPagarmeKycLink(
  *  nunca travar o carregamento do painel. */
 export async function getPagarmeRecipientStatus(recipientId: string): Promise<string> {
   try {
+    await ensurePagarmeMode();
     const res = await fetch(`${baseUrl()}/recipients/${recipientId}`, {
       headers: { "Content-Type": "application/json", Authorization: authHeader() },
       signal: AbortSignal.timeout(4000),

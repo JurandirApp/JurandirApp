@@ -18,11 +18,69 @@ import type {
 //
 // Débito NÃO é implementado: o PagBank exige 3DS no débito (só há SDK JS, sem
 // SDK nativo) e a divisão de pagamento não cobre débito (só Pix/crédito/boleto).
-const baseUrl = () =>
-  (process.env.PAGBANK_BASE_URL ?? "https://sandbox.api.pagseguro.com").replace(/\/$/, "");
-const token = () => process.env.PAGBANK_TOKEN ?? "";
+// ---- Ambiente (teste/produção) --------------------------------------------
+// O token do PagBank é da conta-mãe (marketplace) → o ambiente é GLOBAL da
+// plataforma, escolhido pelo admin (`AppSetting.pagbankMode`). Convenção de env:
+// PRODUÇÃO usa o nome SEM sufixo (`PAGBANK_TOKEN`), TESTE usa `PAGBANK_TOKEN_TEST`
+// (caindo pro de produção se o `_TEST` não existir) — assim você só precisa criar
+// o `_TEST`, sem duplicar a variável de produção. Cache em memória (TTL curto) pra
+// não ler o banco a cada chamada; `ensurePagbankMode()` atualiza antes de cobrar e
+// `bustPagbankModeCache()` invalida quando o admin troca. Default TEST (o PagBank
+// ainda não está no ar) — e mantém os testes verdes (leem os envs sem sufixo).
+type Mode = "TEST" | "PRODUCTION";
+let cachedMode: Mode | null = null;
+let cachedModeAt = 0;
+const MODE_TTL_MS = 30_000;
+
+const modeSuffix = (): Mode => cachedMode ?? "TEST";
+
+/** Atualiza o modo a partir do banco (cacheado). No-op em teste (sem DB): fica
+ *  no default TEST, que lê os envs sem sufixo. */
+export async function ensurePagbankMode(): Promise<Mode> {
+  if (process.env.VITEST || process.env.NODE_ENV === "test") return modeSuffix();
+  if (cachedMode && Date.now() - cachedModeAt < MODE_TTL_MS) return cachedMode;
+  try {
+    const { getPagbankMode } = await import("@/lib/db/settings");
+    cachedMode = (await getPagbankMode()) as Mode;
+  } catch {
+    // Banco indisponível / tabela ainda não criada → mantém o que tiver (ou TEST).
+    cachedMode = cachedMode ?? "TEST";
+  }
+  cachedModeAt = Date.now();
+  return cachedMode;
+}
+
+/** Invalida o cache do modo — chamar quando o admin troca teste⇄produção. */
+export function bustPagbankModeCache(): void {
+  cachedMode = null;
+  cachedModeAt = 0;
+}
+
+/** Só para testes: fixa o modo em memória sem tocar no banco (null = default). */
+export function __setPagbankModeForTests(mode: Mode | null): void {
+  cachedMode = mode;
+  cachedModeAt = mode ? Date.now() : 0;
+}
+
+/** Lê uma env por modo. PRODUÇÃO: nome sem sufixo. TESTE: `NOME_TEST`, caindo
+ *  pro nome sem sufixo quando o `_TEST` não existe (só cria o que precisar). */
+const envByMode = (name: string): string =>
+  modeSuffix() === "TEST"
+    ? (process.env[`${name}_TEST`] ?? process.env[name] ?? "")
+    : (process.env[name] ?? "");
+
+const baseUrl = () => {
+  if (modeSuffix() === "PRODUCTION") {
+    // Produção NUNCA herda o PAGBANK_BASE_URL genérico (pode estar em sandbox) —
+    // sempre a URL real, salvo override explícito _PRODUCTION.
+    return (process.env.PAGBANK_BASE_URL_PRODUCTION ?? "https://api.pagseguro.com").replace(/\/$/, "");
+  }
+  const override = process.env.PAGBANK_BASE_URL_TEST ?? process.env.PAGBANK_BASE_URL;
+  return (override ?? "https://sandbox.api.pagseguro.com").replace(/\/$/, "");
+};
+const token = () => envByMode("PAGBANK_TOKEN");
 /** Conta da plataforma (`ACCO_…`) — recebe a comissão no split. */
-const platformAccount = () => process.env.PAGBANK_PLATFORM_ACCOUNT_ID ?? "";
+const platformAccount = () => envByMode("PAGBANK_PLATFORM_ACCOUNT_ID");
 /** Base pública do app (notification_urls). */
 const appBase = () => (process.env.APP_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -142,6 +200,7 @@ async function createOrder(
   customer: ReturnType<typeof buildCustomer>,
   paymentMethod: Record<string, unknown>,
 ): Promise<PbCharge | undefined> {
+  await ensurePagbankMode(); // resolve sandbox/produção ANTES de montar o split/token
   const totalCents = cents(total);
   const isCard = paymentMethod.type === "CREDIT_CARD";
   const body = {
@@ -259,6 +318,7 @@ export const pagbankProvider: PaymentProvider = {
     return cardResult(charge);
   },
   async getChargeStatus(_est: Establishment, chargeId: string): Promise<ChargeStatus> {
+    await ensurePagbankMode();
     const c = await call<PbCharge>(`/charges/${chargeId}`);
     return mapStatus(c.status);
   },
@@ -271,12 +331,12 @@ export const pagbankProvider: PaymentProvider = {
 // volta no callback com um `code`; trocamos pelo `account_id` (ACCO_…) — é ele
 // que entra como recebedor no split. Doc: /docs/connect-authorization.
 
-const isSandbox = () => baseUrl().includes("sandbox");
+const isSandbox = () => modeSuffix() === "TEST";
 const connectBase = () =>
   isSandbox() ? "https://connect.sandbox.pagbank.com.br" : "https://connect.pagbank.com.br";
-const clientId = () => process.env.PAGBANK_CLIENT_ID ?? "";
-const clientSecret = () => process.env.PAGBANK_CLIENT_SECRET ?? "";
-const redirectUri = () => process.env.PAGBANK_REDIRECT_URI ?? "";
+const clientId = () => envByMode("PAGBANK_CLIENT_ID");
+const clientSecret = () => envByMode("PAGBANK_CLIENT_SECRET");
+const redirectUri = () => envByMode("PAGBANK_REDIRECT_URI");
 /** Permissões pedidas ao bar: ler pagamentos/divisões e dados da conta. */
 const CONNECT_SCOPES = ["payments.read", "payments.split.read", "accounts.read"];
 
@@ -312,6 +372,7 @@ export function getConnectUrl(state: string): string {
 
 /** Troca o `code` do callback pelo `account_id` (ACCO_…) do bar. */
 export async function exchangeConnectCode(code: string): Promise<{ accountId: string }> {
+  await ensurePagbankMode();
   const r = await call<{ account_id?: string }>("/oauth2/token", {
     method: "POST",
     headers: { X_CLIENT_ID: clientId(), X_CLIENT_SECRET: clientSecret() },
@@ -321,13 +382,18 @@ export async function exchangeConnectCode(code: string): Promise<{ accountId: st
   return { accountId: r.account_id };
 }
 
-let cardKeyCache: string | null = null;
+// Cacheada POR MODO: sandbox e produção têm chaves diferentes, então trocar o
+// ambiente não pode reaproveitar a chave do outro.
+const cardKeyCache = new Map<Mode, string>();
 
 /** Chave PÚBLICA (RSA) de cartão da conta da plataforma — o app criptografa o
  *  cartão com ela. Busca a existente; se a conta ainda não tem (404), cria.
- *  Cacheada em memória (a chave não expira; renovação mantém a antiga por 7 dias). */
+ *  Cacheada em memória por modo (a chave não expira; renovação mantém a antiga por 7 dias). */
 export async function getCardPublicKey(): Promise<string> {
-  if (cardKeyCache) return cardKeyCache;
+  await ensurePagbankMode();
+  const mode = modeSuffix();
+  const hit = cardKeyCache.get(mode);
+  if (hit) return hit;
   let r: { public_key?: string };
   try {
     r = await call<{ public_key?: string }>("/public-keys/card");
@@ -339,8 +405,8 @@ export async function getCardPublicKey(): Promise<string> {
     });
   }
   if (!r.public_key) throw new PagbankError(502, "sem public_key");
-  cardKeyCache = r.public_key;
-  return cardKeyCache;
+  cardKeyCache.set(mode, r.public_key);
+  return r.public_key;
 }
 
 /** Ids das cobranças (CHAR_…) de um pedido notificado pelo webhook. */

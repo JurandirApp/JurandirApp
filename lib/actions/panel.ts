@@ -20,7 +20,7 @@ import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloud
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
 import { createPagarmeRecipient, getPagarmeKycLink, PagarmeError } from "@/lib/payments/pagarme";
 import { createSubaccount } from "@/lib/payments/asaas";
-import { getConnectUrl as getPagbankConnectUrl, signConnectState } from "@/lib/payments/pagbank";
+import { getConnectUrl as getPagbankConnectUrl, signConnectState, ensurePagbankMode } from "@/lib/payments/pagbank";
 import {
   ROUTE_FALLBACK,
   ROUTE_KEYS,
@@ -462,6 +462,7 @@ export async function getMpConnectUrlForMeAction(): Promise<{ ok: boolean; url?:
 /** URL do Connect pro estabelecimento autorizar a conta PagBank DELE (split). */
 export async function getPagbankConnectUrlAction(): Promise<{ ok: boolean; url?: string }> {
   const s = await requireEst();
+  await ensurePagbankMode(); // Connect do sandbox vs. produção depende do modo
   return { ok: true, url: getPagbankConnectUrl(signConnectState(s.establishmentId!)) };
 }
 

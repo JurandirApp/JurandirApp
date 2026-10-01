@@ -810,6 +810,7 @@
       "buscas": "Buscas",
       "cadastros": "Cadastros",
       "taxas": "Taxas",
+      "pagamentos": "Pagamentos",
       "backlog": "Backlog"
     },
     "period": {
@@ -897,6 +898,22 @@
       "title": "Fee do Jurandir por estabelecimento",
       "desc": "Defina a taxa cobrada sobre cada venda. Ela aparece para o cliente no checkout, somada ao subtotal. Alterar a taxa do <b>Quiosque do Mar</b> reflete na hora no app do cliente.",
       "feeEst": "Receita de fee estimada (mês):"
+    },
+    "pagamentos": {
+      "title": "Pagamentos",
+      "desc": "Ambiente de cada gateway (teste/produção), usado por toda a plataforma. A troca vale na hora, sem deploy. Os tokens ficam no servidor — aqui você só escolhe qual usar, nunca vê o token.",
+      "test": "Teste",
+      "production": "Produção",
+      "testHint": "Usa a chave de teste (_TEST)",
+      "productionHint": "Usa a chave de produção",
+      "liveChip": "Produção",
+      "testChip": "Teste",
+      "pagarmeProductionWarn": "Produção: cobranças reais, com antifraude. É o ambiente que o cliente usa hoje.",
+      "pagarmeTestWarn": "Teste: chave sk_test_ cai no SIMULADOR (sem antifraude) — bom pra validar integração, mas NÃO reproduz o antifraude. ⚠️ A Pagar.me está no ar: só deixe em Teste se os pagamentos reais puderem parar.",
+      "pagarmeTokenNote": "Produção lê PAGARME_SECRET_KEY; Teste lê PAGARME_SECRET_KEY_TEST (cai na de produção se não existir).",
+      "pagbankProductionWarn": "Produção: cobranças reais — o dinheiro é descontado do cliente de verdade.",
+      "pagbankTestWarn": "Teste: o sandbox do PagBank não processa transação real — só valida configuração e tokenização.",
+      "pagbankTokenNote": "Produção lê PAGBANK_TOKEN; Teste lê PAGBANK_TOKEN_TEST (cai no de produção se não existir)."
     },
     "backlog": {
       "title": "Backlog de auditoria",

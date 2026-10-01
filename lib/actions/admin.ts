@@ -13,6 +13,10 @@ import { createSubaccount } from "@/lib/payments/asaas";
 import { getOAuthUrl, signState } from "@/lib/payments/mercadopago";
 import { enqueueTestJob } from "@/lib/db/print";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
+import { getPagbankMode, setPagbankMode, getPagarmeMode, setPagarmeMode } from "@/lib/db/settings";
+import { bustPagbankModeCache } from "@/lib/payments/pagbank";
+import { bustPagarmeModeCache } from "@/lib/payments/pagarme";
+import type { PaymentEnv } from "@prisma/client";
 
 function slugify(s: string): string {
   return s
@@ -222,4 +226,43 @@ export async function testPrintAction(estId: string): Promise<{ ok: boolean; err
   if (!est?.printAgentToken) return { ok: false, error: "noToken" };
   await enqueueTestJob(estId);
   return { ok: true };
+}
+
+// ---- Ambiente teste/produção por gateway (GLOBAL da plataforma) ------------
+// Os tokens/chaves ficam no .env/Vercel (produção = nome sem sufixo, teste =
+// `_TEST`); aqui o admin só escolhe qual usar. Separado por gateway: virar o
+// PagBank pra teste NÃO pode arrastar a Pagar.me (que está no ar) junto.
+
+const safeEnv = (mode: PaymentEnv): PaymentEnv => (mode === "PRODUCTION" ? "PRODUCTION" : "TEST");
+
+export async function getPagbankModeAction(): Promise<PaymentEnv> {
+  await assertAdmin();
+  return getPagbankMode();
+}
+
+export async function setPagbankModeAction(
+  mode: PaymentEnv,
+): Promise<{ ok: boolean; mode: PaymentEnv }> {
+  await assertAdmin();
+  const safe = safeEnv(mode);
+  await setPagbankMode(safe);
+  bustPagbankModeCache(); // o provider relê o modo na próxima cobrança
+  revalidatePath("/admin");
+  return { ok: true, mode: safe };
+}
+
+export async function getPagarmeModeAction(): Promise<PaymentEnv> {
+  await assertAdmin();
+  return getPagarmeMode();
+}
+
+export async function setPagarmeModeAction(
+  mode: PaymentEnv,
+): Promise<{ ok: boolean; mode: PaymentEnv }> {
+  await assertAdmin();
+  const safe = safeEnv(mode);
+  await setPagarmeMode(safe);
+  bustPagarmeModeCache();
+  revalidatePath("/admin");
+  return { ok: true, mode: safe };
 }

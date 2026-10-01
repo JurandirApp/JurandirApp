@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { PaymentEnv } from "@prisma/client";
 import type { AdminEst, AdminOrder, SearchEvent } from "@/lib/data/admin";
 import type { ScaledEst } from "@/lib/admin/scale";
 
@@ -10,6 +11,7 @@ export type AdminTabId =
   | "buscas"
   | "cadastros"
   | "taxas"
+  | "pagamentos"
   | "backlog";
 
 export interface AdminValue {
@@ -37,6 +39,12 @@ export interface AdminValue {
   updateFee: (id: string, value: string) => void;
   openReg: (est: AdminEst | null) => void;
   askDelete: (est: AdminEst) => void;
+
+  /** Ambiente global de cada gateway (teste/produção) + troca (persiste no banco). */
+  pagbankMode: PaymentEnv;
+  setPagbankMode: (mode: PaymentEnv) => void;
+  pagarmeMode: PaymentEnv;
+  setPagarmeMode: (mode: PaymentEnv) => void;
 }
 
 export const AdminContext = createContext<AdminValue | null>(null);
@@ -53,5 +61,6 @@ export const ADMIN_TABS: [AdminTabId, string, string][] = [
   ["buscas", "Buscas", "search"],
   ["cadastros", "Cadastros", "storefront"],
   ["taxas", "Taxas", "percent"],
+  ["pagamentos", "Pagamentos", "credit_card"],
   ["backlog", "Backlog", "receipt_long"],
 ];

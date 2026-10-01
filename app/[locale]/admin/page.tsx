@@ -14,6 +14,7 @@ import {
   toMonthlyStatLite,
   toSearchEventRows,
 } from "@/lib/admin/adapters";
+import { getAppSettings } from "@/lib/db/settings";
 import { AdminApp } from "@/components/admin/AdminApp";
 
 export async function generateMetadata({
@@ -42,11 +43,12 @@ export default async function AdminPage({
   const curY = nowD.getFullYear();
   const curM = nowD.getMonth() + 1;
 
-  const [dbEsts, dbStats, dbOrders, dbEvents] = await Promise.all([
+  const [dbEsts, dbStats, dbOrders, dbEvents, settings] = await Promise.all([
     getAdminEstablishments(),
     listMonthlyStats(),
     listAllOrders(),
     listSearchEvents(),
+    getAppSettings(),
   ]);
 
   const stats = dbStats.map(toMonthlyStatLite);
@@ -59,5 +61,15 @@ export default async function AdminPage({
   const orders = dbOrders.map((o, i) => toAdminOrder(o, i));
   const events = dbEvents.flatMap(toSearchEventRows);
 
-  return <AdminApp now={now} ests={ests} stats={stats} orders={orders} events={events} />;
+  return (
+    <AdminApp
+      now={now}
+      ests={ests}
+      stats={stats}
+      orders={orders}
+      events={events}
+      pagbankMode={settings.pagbankMode}
+      pagarmeMode={settings.pagarmeMode}
+    />
+  );
 }

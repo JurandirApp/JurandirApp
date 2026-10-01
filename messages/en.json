@@ -810,6 +810,7 @@
       "buscas": "Searches",
       "cadastros": "Establishments",
       "taxas": "Fees",
+      "pagamentos": "Payments",
       "backlog": "Backlog"
     },
     "period": {
@@ -897,6 +898,22 @@
       "title": "Jurandir fee per establishment",
       "desc": "Set the fee charged on each sale. It appears to the customer at checkout, added to the subtotal. Changing <b>Quiosque do Mar</b>'s fee reflects instantly in the customer app.",
       "feeEst": "Estimated fee revenue (month):"
+    },
+    "pagamentos": {
+      "title": "Payments",
+      "desc": "Per-gateway environment (test/production), used across the whole platform. Changes take effect immediately, no deploy. Tokens live on the server — here you only pick which one to use, never see the token.",
+      "test": "Test",
+      "production": "Production",
+      "testHint": "Uses the test key (_TEST)",
+      "productionHint": "Uses the production key",
+      "liveChip": "Production",
+      "testChip": "Test",
+      "pagarmeProductionWarn": "Production: real charges, with antifraud. This is the environment customers use today.",
+      "pagarmeTestWarn": "Test: the sk_test_ key hits the SIMULATOR (no antifraud) — good for integration testing, but does NOT reproduce antifraud. ⚠️ Pagar.me is live: only leave it on Test if real payments can stop.",
+      "pagarmeTokenNote": "Production reads PAGARME_SECRET_KEY; Test reads PAGARME_SECRET_KEY_TEST (falls back to production if unset).",
+      "pagbankProductionWarn": "Production: real charges — money is actually debited from the customer.",
+      "pagbankTestWarn": "Test: PagBank sandbox does not process real transactions — it only validates configuration and tokenization.",
+      "pagbankTokenNote": "Production reads PAGBANK_TOKEN; Test reads PAGBANK_TOKEN_TEST (falls back to production if unset)."
     },
     "backlog": {
       "title": "Audit backlog",

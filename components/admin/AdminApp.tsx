@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import type { PaymentEnv } from "@prisma/client";
 import type { AdminEst, AdminOrder, SearchEvent } from "@/lib/data/admin";
 import { scaleFromOrders, type MonthlyStatLite } from "@/lib/admin/scale";
 import {
@@ -9,6 +10,8 @@ import {
   deleteEstablishmentAction,
   updateEstablishmentAction,
   updateFeeAction,
+  setPagbankModeAction,
+  setPagarmeModeAction,
 } from "@/lib/actions/admin";
 import { Link } from "@/i18n/navigation";
 import { Icon } from "@/components/ui/Icon";
@@ -20,6 +23,7 @@ import { FaturamentoSection } from "./sections/FaturamentoSection";
 import { BuscasSection } from "./sections/BuscasSection";
 import { CadastrosSection } from "./sections/CadastrosSection";
 import { TaxasSection } from "./sections/TaxasSection";
+import { PagamentosSection } from "./sections/PagamentosSection";
 import { BacklogSection } from "./sections/BacklogSection";
 import { RegEditorModal, type RegPayload } from "./modals/RegEditorModal";
 import { ConfirmDialog } from "@/components/panel/modals/ConfirmDialog";
@@ -34,6 +38,8 @@ export function AdminApp({
   ests,
   orders,
   events,
+  pagbankMode: initialPagbankMode,
+  pagarmeMode: initialPagarmeMode,
 }: {
   now: number;
   ests: AdminEst[];
@@ -42,6 +48,8 @@ export function AdminApp({
   stats?: MonthlyStatLite[];
   orders: AdminOrder[];
   events: SearchEvent[];
+  pagbankMode: PaymentEnv;
+  pagarmeMode: PaymentEnv;
 }) {
   const t = useTranslations("admin");
   const [, startTransition] = useTransition();
@@ -50,6 +58,8 @@ export function AdminApp({
   const [period, setPeriod] = useState("mes");
   const [month, setMonth] = useState(() => currentMonth(now));
   const [estabScope, setEstabScope] = useState("");
+  const [pagbankMode, setPagbankModeState] = useState<PaymentEnv>(initialPagbankMode);
+  const [pagarmeMode, setPagarmeModeState] = useState<PaymentEnv>(initialPagarmeMode);
 
   const [editing, setEditing] = useState<{ est: AdminEst | null } | null>(null);
   const [del, setDel] = useState<AdminEst | null>(null);
@@ -89,8 +99,26 @@ export function AdminApp({
         setEditing({ est });
       },
       askDelete: (est) => setDel(est),
+      pagbankMode,
+      setPagbankMode: (mode) => {
+        const prev = pagbankMode;
+        setPagbankModeState(mode); // otimista; reverte se a action falhar
+        startTransition(async () => {
+          const r = await setPagbankModeAction(mode);
+          setPagbankModeState(r.ok ? r.mode : prev);
+        });
+      },
+      pagarmeMode,
+      setPagarmeMode: (mode) => {
+        const prev = pagarmeMode;
+        setPagarmeModeState(mode); // otimista; reverte se a action falhar
+        startTransition(async () => {
+          const r = await setPagarmeModeAction(mode);
+          setPagarmeModeState(r.ok ? r.mode : prev);
+        });
+      },
     }),
-    [now, tab, period, month, estabScope, ests, orders, events, allScaled, scopedScaled],
+    [now, tab, period, month, estabScope, ests, orders, events, allScaled, scopedScaled, pagbankMode, pagarmeMode],
   );
 
   const saveReg = (payload: RegPayload, id: string | null) => {
@@ -180,6 +208,7 @@ export function AdminApp({
             {tab === "buscas" && <BuscasSection />}
             {tab === "cadastros" && <CadastrosSection />}
             {tab === "taxas" && <TaxasSection />}
+            {tab === "pagamentos" && <PagamentosSection />}
             {tab === "backlog" && <BacklogSection />}
           </main>
         </div>
