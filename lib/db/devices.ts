@@ -18,3 +18,7 @@ export async function registerDevice(input: {
     },
   });
 }
+
+export async function deleteDeviceToken(token: string) {
+  await prisma.deviceToken.deleteMany({ where: { token } });
+}
