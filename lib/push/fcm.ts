@@ -27,6 +27,7 @@ async function accessToken(sa: ServiceAccount): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+    signal: AbortSignal.timeout(5000),
   });
   const j = (await res.json()) as { access_token?: string; expires_in?: number };
   if (!j.access_token) throw new Error("FCM OAuth falhou");
@@ -45,6 +46,7 @@ export async function sendPush(tokens: string[], title: string, body: string): P
     try {
       const res = await fetch(`https://fcm.googleapis.com/v1/projects/${pid}/messages:send`, {
         method: "POST",
+        signal: AbortSignal.timeout(5000),
         headers: { Authorization: `Bearer ${at}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           message: {
@@ -56,7 +58,7 @@ export async function sendPush(tokens: string[], title: string, body: string): P
       });
       if (!res.ok) {
         const t = await res.text();
-        if (res.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/i.test(t)) await deleteDeviceToken(token);
+        if (res.status === 404 || /UNREGISTERED/i.test(t)) await deleteDeviceToken(token);
       }
     } catch { /* best-effort */ }
   }
