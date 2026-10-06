@@ -262,3 +262,11 @@ export const deviceRegisterSchema = z.object({
   token: z.string().min(1),
   clientId: z.string().optional(),
 });
+
+export const helpCallSchema = z.object({
+  establishmentId: z.string().min(1),
+  locationLabel: z.string().min(1).max(80),
+  clientId: z.string().optional(),
+  orderId: z.string().optional(),
+  reason: z.enum(["PAYMENT", "GENERAL"]).optional(),
+});
