@@ -1,5 +1,6 @@
 import { createHelpRequest } from "@/lib/db/help";
 import { helpCallSchema } from "@/lib/validation";
+import { notifyWaitersHelp } from "@/lib/push/notify";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export async function POST(req: Request): Promise<Response> {
   if (!parsed.success) return Response.json({ ok: false, error: "invalid" }, { status: 422, headers: CORS });
   const { establishmentId, locationLabel, clientId, orderId, reason } = parsed.data;
   const r = await createHelpRequest({ establishmentId, locationLabel, clientId, orderId, reason });
-  // TODO(Fase 2 / Plano 5): push aos garçons (notifyWaitersHelp) aqui, best-effort.
+  if (!r.reused) {
+    try { await notifyWaitersHelp(establishmentId, locationLabel); } catch { /* best-effort */ }
+  }
   return Response.json({ ok: true, reused: r.reused }, { headers: CORS });
 }
