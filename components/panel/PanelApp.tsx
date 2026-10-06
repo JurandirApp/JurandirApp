@@ -32,6 +32,8 @@ import {
   orderTimelineAction,
   printOrderAction,
   refreshOrdersAction,
+  listPendingCallsAction,
+  handleCallAction,
   refreshPrintJobsAction,
   saveEstablishmentImageAction,
   savePaymentRoutingAction,
@@ -207,6 +209,8 @@ export function PanelApp({
 
   const [toastText, setToastText] = useState<string | null>(null);
   const [notif, setNotif] = useState<Order | null>(null);
+  const [calls, setCalls] = useState<Awaited<ReturnType<typeof listPendingCallsAction>>>([]);
+  const seenCalls = useRef<Set<string>>(new Set());
 
   // Modals held locally (sections trigger them via actions).
   const [editing, setEditing] = useState<{ item: MenuItem | null } | null>(null);
@@ -229,6 +233,12 @@ export function PanelApp({
   );
   // Período exibido, vivo para o poll de 15s decidir se dá ping de novo pedido.
   const ordersPeriodRef = useRef<OrdersPeriod>({ kind: "hoje" });
+
+  const onHandleCall = (id: string) => {
+    setCalls((cs) => cs.filter((c) => c.id !== id));
+    seenCalls.current.add(id);
+    void handleCallAction(id).catch(() => {});
+  };
 
   const toast = (msg: string) => {
     setToastText(msg);
@@ -259,6 +269,20 @@ export function PanelApp({
           } catch {}
           if (notifTimer.current) clearTimeout(notifTimer.current);
           notifTimer.current = setTimeout(() => setNotif(null), 6500);
+        }
+      } catch {
+        /* transient — the next tick retries */
+      }
+      // Chamados de ajuda: try/catch próprio — nunca derruba o poll de pedidos.
+      try {
+        const freshCalls = await listPendingCallsAction();
+        const newCalls = freshCalls.filter((c) => !seenCalls.current.has(c.id));
+        freshCalls.forEach((c) => seenCalls.current.add(c.id));
+        setCalls(freshCalls);
+        if (newCalls.length > 0) {
+          try {
+            navigator.vibrate?.([120, 60, 120]);
+          } catch {}
         }
       } catch {
         /* transient — the next tick retries */
@@ -751,6 +775,29 @@ export function PanelApp({
         </header>
 
         <NotificationBell />
+
+        {calls.length > 0 && (
+          <div
+            role="alert"
+            className="sticky top-[84px] z-30 flex flex-col gap-1.5 bg-red-600 px-4 py-2.5 text-white shadow-[0_8px_20px_-8px_rgba(0,0,0,.4)]"
+          >
+            {calls.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-3">
+                <span className="flex min-w-0 items-center gap-2 text-sm font-bold">
+                  <Icon name="notifications_active" size={20} />
+                  <span className="truncate">{c.locationLabel} — ajuda no pagamento</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onHandleCall(c.id)}
+                  className="flex-shrink-0 rounded-[10px] bg-sand px-3 py-1.5 text-[13px] font-bold text-ink"
+                >
+                  Atendido
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="flex min-h-[calc(100vh-84px)] items-stretch">
           {navOpen && (
