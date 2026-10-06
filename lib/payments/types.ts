@@ -111,7 +111,7 @@ export type WalletPaymentInput = {
 export interface PaymentProvider {
   readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME" | "APPMAX" | "PAGBANK";
   createPixCharge(input: PixChargeInput): Promise<PixCharge>;
-  getChargeStatus(est: Establishment, chargeId: string): Promise<ChargeStatus>;
+  getChargeStatus(est: Establishment, chargeId: string, opts?: { debit?: boolean }): Promise<ChargeStatus>;
   /** Cria a preferência do checkout hospedado e devolve a URL de redirecionamento. */
   createCheckoutPreference?(input: CheckoutPreferenceInput): Promise<CheckoutPreference>;
   /** Cobra um cartão via token (checkout transparente / Payment Brick) — sem redirect. */

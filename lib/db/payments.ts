@@ -48,6 +48,7 @@ export async function reconcileByChargeId(gatewayChargeId: string): Promise<void
   const status = await getProviderByName(payment.provider ?? "MERCADO_PAGO").getChargeStatus(
     payment.order.establishment,
     gatewayChargeId,
+    { debit: payment.method === "DEBIT" },
   );
   if (status === "paid") await confirmChargePaid(gatewayChargeId);
 }
@@ -144,6 +145,7 @@ async function reconcileSplitShares(
     const status = await getProviderByName(sh.provider ?? "PAGARME").getChargeStatus(
       order.establishment,
       sh.gatewayChargeId,
+      { debit: sh.method === "DEBIT" },
     );
     if (status === "paid") {
       await prisma.splitShare.update({

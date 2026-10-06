@@ -416,9 +416,9 @@ export const pagarmeProvider: PaymentProvider = {
       status: mapStatus(charge?.status ?? order.status),
     };
   },
-  async getChargeStatus(_est: Establishment, chargeId: string): Promise<ChargeStatus> {
+  async getChargeStatus(_est: Establishment, chargeId: string, opts?: { debit?: boolean }): Promise<ChargeStatus> {
     await ensurePagarmeMode();
-    const c = await call<PgCharge>(`/charges/${chargeId}`);
+    const c = await call<PgCharge>(`/charges/${chargeId}`, undefined, opts?.debit ? debitSecretKey() : undefined);
     return mapStatus(c.status);
   },
   // Cartão (crédito/débito) via CHECKOUT HOSPEDADO do Pagar.me: cria um pedido de
