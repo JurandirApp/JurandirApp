@@ -59,6 +59,32 @@ enum PaymentEnv {
   PRODUCTION
 }
 
+enum HelpStatus {
+  PENDING
+  HANDLED
+}
+
+enum HelpReason {
+  PAYMENT
+  GENERAL
+}
+
+model HelpRequest {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+  locationLabel   String
+  clientId        String?
+  orderId         String?
+  reason          HelpReason    @default(PAYMENT)
+  status          HelpStatus    @default(PENDING)
+  createdAt       DateTime      @default(now())
+  handledAt       DateTime?
+  handledByUserId String?
+
+  @@index([establishmentId, status])
+}
+
 model Establishment {
   id             String              @id @default(cuid())
   slug           String              @unique
@@ -147,6 +173,7 @@ model Establishment {
   monthlyStats MonthlyStat[]
   printJobs    PrintJob[]
   printers     Printer[]
+  helpRequests HelpRequest[]
 }
 
 model User {
