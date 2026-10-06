@@ -41,8 +41,11 @@ export async function sendPush(tokens: string[], title: string, body: string): P
   if (!sa || tokens.length === 0) return;
   const pid = process.env.FCM_PROJECT_ID || sa.project_id;
   let at: string;
-  try { at = await accessToken(sa); } catch { return; }
-  for (const token of tokens) {
+  try { at = await accessToken(sa); } catch (e) {
+    console.error("[fcm] OAuth falhou:", e instanceof Error ? e.message : e);
+    return;
+  }
+  const sendOne = async (token: string): Promise<void> => {
     try {
       const res = await fetch(`https://fcm.googleapis.com/v1/projects/${pid}/messages:send`, {
         method: "POST",
@@ -59,7 +62,9 @@ export async function sendPush(tokens: string[], title: string, body: string): P
       if (!res.ok) {
         const t = await res.text();
         if (res.status === 404 || /UNREGISTERED/i.test(t)) await deleteDeviceToken(token);
+        else console.error("[fcm] send falhou:", res.status, t.slice(0, 200));
       }
     } catch { /* best-effort */ }
-  }
+  };
+  await Promise.allSettled(tokens.map((token) => sendOne(token)));
 }
