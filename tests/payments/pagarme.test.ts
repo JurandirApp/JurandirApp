@@ -154,6 +154,53 @@ describe("pagarmeProvider.createCheckoutPreference (cartão)", () => {
   });
 });
 
+describe("pagarmeProvider.createCardTokenPayment (débito na conta dedicada)", () => {
+  const input = (method: "credit" | "debit") => ({
+    est,
+    reference: "PED-D",
+    total: 100,
+    platformFee: 8,
+    description: "Pedido PED-D",
+    cardToken: "token_x",
+    installments: 1,
+    method,
+  });
+  const okOrder = { id: "or_x", status: "paid", charges: [{ id: "ch_x", status: "paid" }] };
+
+  it("débito: sem split e Authorization com a chave da conta B", async () => {
+    process.env.PAGARME_DEBIT_SECRET_KEY = "sk_test_debitoB";
+    const fn = seq([okOrder]);
+    await pagarmeProvider.createCardTokenPayment!(input("debit"));
+    const body = JSON.parse(fn.mock.calls[0][1].body as string);
+    expect(body.payments[0].payment_method).toBe("debit_card");
+    expect("split" in body.payments[0]).toBe(false);
+    expect(fn.mock.calls[0][1].headers.Authorization).toBe(
+      "Basic " + Buffer.from("sk_test_debitoB:").toString("base64"),
+    );
+    delete process.env.PAGARME_DEBIT_SECRET_KEY;
+  });
+
+  it("crédito: continua com split e chave principal", async () => {
+    process.env.PAGARME_DEBIT_SECRET_KEY = "sk_test_debitoB";
+    const fn = seq([okOrder]);
+    await pagarmeProvider.createCardTokenPayment!(input("credit"));
+    const body = JSON.parse(fn.mock.calls[0][1].body as string);
+    expect(body.payments[0].payment_method).toBe("credit_card");
+    expect(body.payments[0].split).toHaveLength(2);
+    expect(fn.mock.calls[0][1].headers.Authorization).toBe(
+      "Basic " + Buffer.from("sk_test:").toString("base64"),
+    );
+    delete process.env.PAGARME_DEBIT_SECRET_KEY;
+  });
+
+  it("débito sem PAGARME_DEBIT_SECRET_KEY → erro claro, sem chamar a API", async () => {
+    delete process.env.PAGARME_DEBIT_SECRET_KEY;
+    const fn = seq([okOrder]);
+    await expect(pagarmeProvider.createCardTokenPayment!(input("debit"))).rejects.toThrow(/conta de débito/);
+    expect(fn).not.toHaveBeenCalled();
+  });
+});
+
 describe("pagarmeProvider.findApprovedPayment", () => {
   it("acha a cobrança paga pelo code do pedido", async () => {
     seq([{ data: [{ id: "or_1", status: "paid", charges: [{ id: "ch_9", status: "paid" }] }] }]);

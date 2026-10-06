@@ -69,6 +69,8 @@ const envByMode = (name: string): string =>
 // Endpoint é o mesmo pros dois ambientes; permite override _TEST se um dia precisar.
 const baseUrl = () => envByMode("PAGARME_BASE_URL") || "https://api.pagar.me/core/v5";
 const secretKey = () => envByMode("PAGARME_SECRET_KEY");
+/** Chave da conta Pagar.me DEDICADA ao débito (conta B) — débito não aceita split. */
+const debitSecretKey = () => envByMode("PAGARME_DEBIT_SECRET_KEY");
 const platformRecipient = () => envByMode("PAGARME_PLATFORM_RECIPIENT_ID");
 /** CPF do pagador. O Pix (e cartão) da Pagar.me exige `customer.document`.
  *  Enquanto o checkout não coleta o CPF do cliente, usa um CPF de TESTE válido
@@ -109,8 +111,8 @@ const appBase = () =>
   (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 /** Basic auth do Pagar.me: usuário = secret key, senha vazia. */
-function authHeader(): string {
-  return "Basic " + Buffer.from(`${secretKey()}:`).toString("base64");
+function authHeader(key?: string): string {
+  return "Basic " + Buffer.from(`${key ?? secretKey()}:`).toString("base64");
 }
 
 export class PagarmeError extends Error {
@@ -123,12 +125,12 @@ export class PagarmeError extends Error {
   }
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+async function call<T>(path: string, init?: RequestInit, keyOverride?: string): Promise<T> {
   const res = await fetch(`${baseUrl()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: authHeader(),
+      Authorization: authHeader(keyOverride),
       ...(init?.headers ?? {}),
     },
   });
@@ -356,6 +358,9 @@ export const pagarmeProvider: PaymentProvider = {
       ...(isDebit ? {} : { installments: installments > 0 ? installments : 1 }),
       card: { billing_address: billingFor(billing) },
     };
+    if (isDebit && !debitSecretKey()) {
+      throw new PagarmeError(500, "conta de débito Pagar.me não configurada (PAGARME_DEBIT_SECRET_KEY)");
+    }
     const body = {
       code: reference,
       items: [{ amount: totalCents, description, quantity: 1, code: reference }],
@@ -364,11 +369,16 @@ export const pagarmeProvider: PaymentProvider = {
         {
           payment_method: isDebit ? "debit_card" : "credit_card",
           [isDebit ? "debit_card" : "credit_card"]: cardObj,
-          split: buildSplit(est, totalCents, cents(platformFee)),
+          // Débito NÃO tem split na Pagar.me → cai inteiro na conta dedicada (conta B).
+          ...(isDebit ? {} : { split: buildSplit(est, totalCents, cents(platformFee)) }),
         },
       ],
     };
-    const order = await call<PgOrder>("/orders", { method: "POST", body: JSON.stringify(body) });
+    const order = await call<PgOrder>(
+      "/orders",
+      { method: "POST", body: JSON.stringify(body) },
+      isDebit ? debitSecretKey() : undefined,
+    );
     const charge = order.charges?.[0];
     return {
       chargeId: charge?.id ?? order.id,
