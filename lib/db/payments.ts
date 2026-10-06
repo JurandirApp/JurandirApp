@@ -319,6 +319,10 @@ export async function createCardCheckout(orderId: string): Promise<string | null
   });
   if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) return null;
   if (order.payment.method !== "CREDIT" && order.payment.method !== "DEBIT") return null;
+  // Débito Pagar.me vai pela conta dedicada (conta B) via token path (createCardTokenPayment).
+  // O checkout hospedado do débito ainda manda split + chave principal e NÃO reconcilia na conta B
+  // (findApprovedPayment usa a chave principal) — desabilitado aqui até ter o wiring completo da conta B (3DS).
+  if (order.payment.method === "DEBIT") return null;
   const provider = getProviderByName(order.payment.provider ?? "MERCADO_PAGO");
   if (!provider.createCheckoutPreference) return null;
   const pref = await provider.createCheckoutPreference({
