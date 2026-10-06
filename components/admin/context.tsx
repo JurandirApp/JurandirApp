@@ -12,7 +12,8 @@ export type AdminTabId =
   | "cadastros"
   | "taxas"
   | "pagamentos"
-  | "backlog";
+  | "backlog"
+  | "repasse-debito";
 
 export interface AdminValue {
   now: number;
@@ -63,4 +64,5 @@ export const ADMIN_TABS: [AdminTabId, string, string][] = [
   ["taxas", "Taxas", "percent"],
   ["pagamentos", "Pagamentos", "credit_card"],
   ["backlog", "Backlog", "receipt_long"],
+  ["repasse-debito", "Repasse Débito", "payments"],
 ];

@@ -811,7 +811,8 @@
       "cadastros": "Cadastros",
       "taxas": "Taxas",
       "pagamentos": "Pagamentos",
-      "backlog": "Backlog"
+      "backlog": "Backlog",
+      "repasse-debito": "Repasse Débito"
     },
     "period": {
       "establishment": "Estabelecimento:",
@@ -914,6 +915,13 @@
       "pagbankProductionWarn": "Produção: cobranças reais — o dinheiro é descontado do cliente de verdade.",
       "pagbankTestWarn": "Teste: o sandbox do PagBank não processa transação real — só valida configuração e tokenização.",
       "pagbankTokenNote": "Produção lê PAGBANK_TOKEN; Teste lê PAGBANK_TOKEN_TEST (cai no de produção se não existir)."
+    },
+    "repasseDebito": {
+      "title": "Repasse de débito (Pix)",
+      "desc": "Débitos Pagar.me pagos no período. Valor a repassar por bar = total menos taxa Jurandir.",
+      "hoje": "Hoje", "7d": "7 dias", "30d": "30 dias", "tudo": "Tudo",
+      "bar": "Bar", "qtd": "Qtd", "bruto": "Bruto", "taxa": "Taxa Jurandir", "repassar": "A repassar (Pix)",
+      "total": "Total", "empty": "Nenhum débito no período.", "loading": "Carregando…", "error": "Erro ao carregar."
     },
     "backlog": {
       "title": "Backlog de auditoria",

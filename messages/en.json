@@ -811,7 +811,8 @@
       "cadastros": "Establishments",
       "taxas": "Fees",
       "pagamentos": "Payments",
-      "backlog": "Backlog"
+      "backlog": "Backlog",
+      "repasse-debito": "Debit payout"
     },
     "period": {
       "establishment": "Establishment:",
@@ -914,6 +915,13 @@
       "pagbankProductionWarn": "Production: real charges — money is actually debited from the customer.",
       "pagbankTestWarn": "Test: PagBank sandbox does not process real transactions — it only validates configuration and tokenization.",
       "pagbankTokenNote": "Production reads PAGBANK_TOKEN; Test reads PAGBANK_TOKEN_TEST (falls back to production if unset)."
+    },
+    "repasseDebito": {
+      "title": "Debit payout (Pix)",
+      "desc": "Paid Pagar.me debit in the period. Amount to pay each bar = total minus Jurandir fee.",
+      "hoje": "Today", "7d": "7 days", "30d": "30 days", "tudo": "All",
+      "bar": "Bar", "qtd": "Qty", "bruto": "Gross", "taxa": "Jurandir fee", "repassar": "To pay (Pix)",
+      "total": "Total", "empty": "No debit in the period.", "loading": "Loading…", "error": "Failed to load."
     },
     "backlog": {
       "title": "Audit backlog",

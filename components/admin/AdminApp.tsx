@@ -24,6 +24,7 @@ import { BuscasSection } from "./sections/BuscasSection";
 import { CadastrosSection } from "./sections/CadastrosSection";
 import { TaxasSection } from "./sections/TaxasSection";
 import { PagamentosSection } from "./sections/PagamentosSection";
+import { RepasseDebitoSection } from "./sections/RepasseDebitoSection";
 import { BacklogSection } from "./sections/BacklogSection";
 import { RegEditorModal, type RegPayload } from "./modals/RegEditorModal";
 import { ConfirmDialog } from "@/components/panel/modals/ConfirmDialog";
@@ -210,6 +211,7 @@ export function AdminApp({
             {tab === "taxas" && <TaxasSection />}
             {tab === "pagamentos" && <PagamentosSection />}
             {tab === "backlog" && <BacklogSection />}
+            {tab === "repasse-debito" && <RepasseDebitoSection />}
           </main>
         </div>
 

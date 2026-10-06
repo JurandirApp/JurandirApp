@@ -17,6 +17,8 @@ import { getPagbankMode, setPagbankMode, getPagarmeMode, setPagarmeMode } from "
 import { bustPagbankModeCache } from "@/lib/payments/pagbank";
 import { bustPagarmeModeCache } from "@/lib/payments/pagarme";
 import type { PaymentEnv } from "@prisma/client";
+import { periodRange } from "@/lib/domain/period";
+import { listDebitPayout } from "@/lib/db/admin";
 
 function slugify(s: string): string {
   return s
@@ -265,4 +267,26 @@ export async function setPagarmeModeAction(
   bustPagarmeModeCache();
   revalidatePath("/admin");
   return { ok: true, mode: safe };
+}
+
+export type DebitPayoutPeriod = "hoje" | "7d" | "30d" | "tudo";
+
+/** Relatório read-only: débito Pagar.me pago a repassar (Pix) por bar. */
+export async function listDebitPayoutAction(period: DebitPayoutPeriod) {
+  await assertAdmin();
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  let from: Date;
+  let to: Date;
+  if (period === "tudo") {
+    from = new Date(0);
+    to = new Date(now + DAY);
+  } else if (period === "hoje") {
+    ({ from, to } = periodRange({ kind: "hoje" }, 0, now));
+  } else {
+    const r = periodRange({ kind: "d7" }, 0, now);
+    to = r.to;
+    from = period === "7d" ? r.from : new Date(r.from.getTime() - 23 * DAY);
+  }
+  return listDebitPayout(from, to);
 }
