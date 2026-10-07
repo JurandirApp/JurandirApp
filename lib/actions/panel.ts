@@ -9,6 +9,7 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { deliverOrder } from "@/lib/db/orders";
 import { markItemReady, buildOrderTimeline } from "@/lib/db/delivery";
 import { upsertWaiter, deleteWaiter } from "@/lib/db/waiters";
+import { listPendingCalls, handleCall } from "@/lib/db/help";
 import { upsertMenuItem, deleteMenuItem, bulkAdjustPrices } from "@/lib/db/menu";
 import type { ItemChange } from "@/lib/pricing/bulk-adjust";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
@@ -78,6 +79,18 @@ export async function tableDetailAction(day: string, label: string) {
   const s = await getSession();
   if (s?.role !== "ESTABLISHMENT" || !s.establishmentId) throw new Error("unauthorized");
   return listTableDetail(s.establishmentId, day, label);
+}
+
+/** Chamados de ajuda ("chamar garçom") pendentes do estabelecimento — banner do painel. */
+export async function listPendingCallsAction() {
+  const s = await requireEst();
+  return listPendingCalls(s.establishmentId!);
+}
+
+/** Marca um chamado como atendido pelo usuário da sessão. */
+export async function handleCallAction(id: string): Promise<{ ok: boolean }> {
+  const s = await requireEst();
+  return handleCall(id, s.sub ?? null, s.establishmentId!);
 }
 
 export async function refreshOrdersAction(period?: OrdersPeriod): Promise<Order[]> {
