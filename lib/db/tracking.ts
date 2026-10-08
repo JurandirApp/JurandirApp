@@ -9,6 +9,7 @@ export type TrackedTable = {
   customers: number; // clientes distintos no dia
   orderCount: number;
   revenue: number; // faturamento do dia nessa mesa (R$)
+  lastOrderAt: Date | null; // horário do último pedido pago no dia (null = sem pedidos)
 };
 
 /** Um pedido dentro do detalhe de uma mesa. */
@@ -61,6 +62,20 @@ function clientKey(o: {
 }
 
 /**
+ * Chave canônica de mesa — pra NÃO dividir a mesma mesa por variação de
+ * digitação: minúsculas + espaços colapsados + zero à esquerda removido nos
+ * números. "Mesa 02" = "Mesa 2" = "mesa  2" → "mesa 2". ("T", "Fumodromo"
+ * continuam distintos; "Mesa 10" ≠ "Mesa 1".)
+ */
+function normLabel(s: string): string {
+  return (s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\d+/g, (n) => String(parseInt(n, 10)));
+}
+
+/**
  * RESUMO por mesa de um dia. Só pedidos pagos (IN_PRODUCTION ou DELIVERED).
  * Mostra TODAS as mesas cadastradas (QrSpot) mesmo sem pedido, + labels avulsos
  * que tiveram pedido. Não traz os pedidos — isso é o `listTableDetail`.
@@ -92,46 +107,68 @@ export async function listTableTracking(
         clientId: true,
         code: true,
         total: true,
+        createdAt: true,
       },
     }),
   ]);
 
-  type Agg = { count: number; revenue: number; customers: Set<string> };
-  const byLabel = new Map<string, Agg>();
+  // Agrupa por CHAVE NORMALIZADA (não pela digitação crua), pra "Mesa 02" e
+  // "Mesa 2" caírem na MESMA mesa. Guarda o label cru (pra exibir labels avulsos)
+  // e o horário do pedido mais recente.
+  type Agg = {
+    count: number;
+    revenue: number;
+    customers: Set<string>;
+    lastOrderAt: Date;
+    displayLabel: string;
+  };
+  const byKey = new Map<string, Agg>();
   for (const o of orders) {
-    const label = o.locationLabel || "Sem mesa";
-    let agg = byLabel.get(label);
+    const raw = o.locationLabel || "Sem mesa";
+    const key = normLabel(raw);
+    let agg = byKey.get(key);
     if (!agg) {
-      agg = { count: 0, revenue: 0, customers: new Set() };
-      byLabel.set(label, agg);
+      agg = { count: 0, revenue: 0, customers: new Set(), lastOrderAt: o.createdAt, displayLabel: raw };
+      byKey.set(key, agg);
     }
     agg.count += 1;
     agg.revenue += Number(o.total);
     agg.customers.add(clientKey(o));
+    if (o.createdAt > agg.lastOrderAt) agg.lastOrderAt = o.createdAt;
   }
 
-  const registered = new Set(spots.map((s) => s.label));
+  // Mesas cadastradas (QrSpot) por chave normalizada → exibe o nome OFICIAL do
+  // QR. 1ª ocorrência por chave vence (ignora QR duplicado por digitação).
+  const registeredByKey = new Map<string, string>();
+  for (const s of spots) {
+    const key = normLabel(s.label);
+    if (!registeredByKey.has(key)) registeredByKey.set(key, s.label);
+  }
+
   const tables: TrackedTable[] = [];
   // 1) Todas as mesas cadastradas (mesmo sem pedidos no dia).
-  for (const s of spots) {
-    const agg = byLabel.get(s.label);
+  for (const [key, display] of registeredByKey) {
+    const agg = byKey.get(key);
     tables.push({
-      label: s.label,
+      label: display,
       registered: true,
       customers: agg?.customers.size ?? 0,
       orderCount: agg?.count ?? 0,
       revenue: agg?.revenue ?? 0,
+      lastOrderAt: agg?.lastOrderAt ?? null,
     });
   }
-  // 2) Labels avulsos (app / mesa não cadastrada) que tiveram pedido.
-  for (const [label, agg] of byLabel) {
-    if (registered.has(label)) continue;
+  // 2) Labels avulsos (app / mesa não cadastrada) que tiveram pedido e NÃO batem
+  //    (normalizados) com nenhuma mesa cadastrada.
+  for (const [key, agg] of byKey) {
+    if (registeredByKey.has(key)) continue;
     tables.push({
-      label,
+      label: agg.displayLabel,
       registered: false,
       customers: agg.customers.size,
       orderCount: agg.count,
       revenue: agg.revenue,
+      lastOrderAt: agg.lastOrderAt,
     });
   }
   return { tables };
@@ -151,16 +188,17 @@ export async function listTableDetail(
   const base: TableDetail = { label, registered: false, customers: 0, orderCount: 0, total: 0, clients: [] };
   if (!win) return base;
 
-  const [isRegistered, orders] = await Promise.all([
-    prisma.qrSpot.count({ where: { establishmentId, label } }),
+  const target = normLabel(label);
+  const [spots, allOrders] = await Promise.all([
+    prisma.qrSpot.findMany({ where: { establishmentId }, select: { label: true } }),
     prisma.order.findMany({
       where: {
         establishmentId,
-        locationLabel: label,
         status: { in: [OrderStatus.IN_PRODUCTION, OrderStatus.DELIVERED] },
         createdAt: { gte: win.start, lt: win.end },
       },
       select: {
+        locationLabel: true,
         number: true,
         code: true,
         customerName: true,
@@ -179,6 +217,10 @@ export async function listTableDetail(
       orderBy: { createdAt: "desc" },
     }),
   ]);
+  // Mesma normalização do resumo: todos os pedidos cuja mesa (normalizada) bate
+  // com a pedida — assim "Mesa 02" traz também os de "Mesa 2".
+  const orders = allOrders.filter((o) => normLabel(o.locationLabel || "Sem mesa") === target);
+  const isRegistered = spots.some((s) => normLabel(s.label) === target) ? 1 : 0;
 
   const byClient = new Map<string, TrackedClient>();
   let total = 0;

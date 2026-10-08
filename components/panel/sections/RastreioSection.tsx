@@ -23,6 +23,26 @@ function brl(n: number): string {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/** Hora "HH:MM" no fuso do Brasil. */
+function hhmm(d: Date | string): string {
+  return new Date(d).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
+/** "há 12 min" / "há 2 h" / "há 3 dias" (desde o último pedido). */
+function ago(d: Date | string): string {
+  const min = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h} h`;
+  const days = Math.floor(h / 24);
+  return `há ${days} ${days === 1 ? "dia" : "dias"}`;
+}
+
 export function RastreioSection() {
   const today = brToday();
   const [day, setDay] = useState(today);
@@ -138,6 +158,11 @@ function TableCard({ t, onOpen }: { t: TrackedTable; onOpen: () => void }) {
             ? "Sem pedidos"
             : `${t.customers} ${t.customers === 1 ? "cliente" : "clientes"} · ${t.orderCount} ${t.orderCount === 1 ? "pedido" : "pedidos"} · ${brl(t.revenue)}`}
         </div>
+        {!empty && t.lastOrderAt && (
+          <div className="truncate text-[11.5px] font-medium text-ink/45">
+            Último pedido {hhmm(t.lastOrderAt)} · {ago(t.lastOrderAt)}
+          </div>
+        )}
       </div>
       {!empty && <Icon name="chevron_right" size={20} className="text-ink/40" />}
     </button>
