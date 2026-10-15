@@ -682,6 +682,7 @@
       "pixRoutingError": "Não foi possível trocar o gateway do Pix.",
       "pgConnected": "conta conectada",
       "pgSingleAccount": "conta da plataforma",
+      "ipNote": "Conta da plataforma Jurandir (sem split): o cliente paga Pix ou crédito em até 12x na página da InfinitePay, o valor cai na conta do Jurandir e o repasse pro seu bar é feito pela plataforma.",
       "pgRecipientReady": "recebedor pronto",
       "pgNeedsRecipient": "cadastre o recebedor abaixo",
       "pgSectionTitle": "Recebedor Pagar.me",

@@ -17,12 +17,14 @@ export async function createOrderAction(
   if (!parsed.success) return { ok: false, error: "invalid" };
   try {
     const created = await createOrder(parsed.data);
-    // Cartão via Mercado Pago nasce AWAITING_PAYMENT → cria a preferência do
-    // Checkout Pro e devolve a URL pro cliente ser redirecionado ao MP.
+    // Cartão (e Pix via InfinitePay) nasce AWAITING_PAYMENT → cria o checkout
+    // hospedado e devolve a URL pro cliente ser redirecionado ao gateway.
     let checkoutUrl: string | undefined;
     if (
       created.status === "AWAITING_PAYMENT" &&
-      (created.payment?.method === "CREDIT" || created.payment?.method === "DEBIT")
+      (created.payment?.method === "CREDIT" ||
+        created.payment?.method === "DEBIT" ||
+        (created.payment?.method === "PIX" && created.payment?.provider === "INFINITEPAY"))
     ) {
       checkoutUrl = (await createCardCheckout(created.id)) ?? undefined;
     }

@@ -38,6 +38,7 @@ enum PaymentProvider {
   PAGARME
   APPMAX
   PAGBANK
+  INFINITEPAY
 }
 
 enum PrintJobStatus {

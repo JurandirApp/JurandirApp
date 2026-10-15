@@ -45,8 +45,14 @@ describe("canCharge", () => {
     expect(canCharge(ready, "pix", "ASAAS")).toBe(false);
   });
   it("gateway desconhecido nunca cobra", () => {
-    expect(canCharge(ready, "pix", "INFINITEPAY")).toBe(false);
     expect(canCharge(ready, "pix", "XYZ")).toBe(false);
+  });
+  it("InfinitePay: Pix + crédito na conta da plataforma, sem débito/carteira", () => {
+    const noRecipient = { pagarmeRecipientId: null };
+    expect(canCharge(noRecipient, "pix", "INFINITEPAY")).toBe(true);
+    expect(canCharge(noRecipient, "credit", "INFINITEPAY")).toBe(true);
+    expect(canCharge(noRecipient, "debit", "INFINITEPAY")).toBe(false);
+    expect(canCharge(noRecipient, "googlePay", "INFINITEPAY")).toBe(false);
   });
 });
 
@@ -56,6 +62,7 @@ describe("getProviderByName", () => {
     expect(getProviderByName("PAGARME").name).toBe("PAGARME");
     expect(getProviderByName("ASAAS").name).toBe("ASAAS");
     expect(getProviderByName("PAGBANK").name).toBe("PAGBANK");
+    expect(getProviderByName("INFINITEPAY").name).toBe("INFINITEPAY");
   });
 });
 

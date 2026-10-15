@@ -1,6 +1,12 @@
 import { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getProviderByName, resolveWalletGateway } from "@/lib/payments";
+import {
+  amountCovers,
+  buildChargeId,
+  checkInfinitePayment,
+  parseChargeId,
+} from "@/lib/payments/infinitepay";
 import type { CardBillingAddress, CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
 
@@ -310,15 +316,17 @@ export async function payOrderWithWallet(
   return { status: res.status, statusDetail: res.statusDetail };
 }
 
-/** Cria a preferência de Checkout Pro para um pedido de cartão e devolve a URL de
- *  redirecionamento. Null se não for um pedido de cartão via gateway. */
+/** Cria o checkout HOSPEDADO (Checkout Pro do MP / link da InfinitePay) de um
+ *  pedido e devolve a URL de redirecionamento. Null se o pedido não for de
+ *  cartão — ou de Pix via InfinitePay, que também é hospedado. */
 export async function createCardCheckout(orderId: string): Promise<string | null> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { establishment: true, payment: true },
   });
   if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) return null;
-  if (order.payment.method !== "CREDIT" && order.payment.method !== "DEBIT") return null;
+  const hostedPix = order.payment.method === "PIX" && order.payment.provider === "INFINITEPAY";
+  if (order.payment.method !== "CREDIT" && order.payment.method !== "DEBIT" && !hostedPix) return null;
   // Débito Pagar.me vai pela conta dedicada (conta B) via token path (createCardTokenPayment).
   // O checkout hospedado do débito ainda manda split + chave principal e NÃO reconcilia na conta B
   // (findApprovedPayment usa a chave principal) — desabilitado aqui até ter o wiring completo da conta B (3DS).
@@ -332,7 +340,60 @@ export async function createCardCheckout(orderId: string): Promise<string | null
     platformFee: Number(order.platformFee),
     items: [{ title: `Pedido ${order.code}`, quantity: 1, unitPrice: Number(order.total) }],
     description: `Pedido ${order.code}`,
-    method: order.payment.method as "CREDIT" | "DEBIT",
+    method: hostedPix ? undefined : (order.payment.method as "CREDIT" | "DEBIT"),
   });
+  // Gateway que reconcilia pelo próprio link (InfinitePay): já grava o id.
+  if (pref.chargeId) {
+    await prisma.payment.update({
+      where: { id: order.payment.id },
+      data: { gatewayChargeId: pref.chargeId },
+    });
+  }
   return pref.checkoutUrl;
+}
+
+export type InfinitePayConfirm =
+  | "paid"
+  | "already"
+  | "pending"
+  | "ignored"
+  | "mismatch";
+
+/** Confirma um pagamento InfinitePay vindo do webhook OU do retorno da página.
+ *  O webhook não é assinado e criar link não exige auth — então nada do payload é
+ *  confiável: (1) o pedido tem que ser InfinitePay e estar aguardando; (2) se já
+ *  temos o slug do NOSSO link, tem que bater; (3) o `payment_check` tem que dizer
+ *  pago; (4) o valor tem que cobrir o total do pedido. Só aí confirma. */
+export async function confirmInfinitePayment(input: {
+  orderNsu: string;
+  slug: string;
+  transactionNsu?: string;
+}): Promise<{ result: InfinitePayConfirm; estSlug?: string }> {
+  const order = await prisma.order.findUnique({
+    where: { code: input.orderNsu },
+    include: { payment: true, establishment: { select: { slug: true } } },
+  });
+  const estSlug = order?.establishment?.slug;
+  if (!order?.payment || order.payment.provider !== "INFINITEPAY") {
+    return { result: "ignored", estSlug };
+  }
+  if (order.status !== OrderStatus.AWAITING_PAYMENT) return { result: "already", estSlug };
+  const known = order.payment.gatewayChargeId ? parseChargeId(order.payment.gatewayChargeId) : null;
+  if (known && known.slug !== input.slug) {
+    console.warn("[infinitepay] slug divergente — ignorado", JSON.stringify({ input, known }));
+    return { result: "mismatch", estSlug };
+  }
+  const r = await checkInfinitePayment(input);
+  if (!r.paid) return { result: "pending", estSlug };
+  if (!amountCovers(Number(order.total), r.amount ?? r.paid_amount)) {
+    console.warn(
+      "[infinitepay] valor não cobre o pedido — NÃO confirmado",
+      JSON.stringify({ code: order.code, total: Number(order.total), r }),
+    );
+    return { result: "mismatch", estSlug };
+  }
+  const chargeId = buildChargeId(input.orderNsu, input.slug, input.transactionNsu);
+  await prisma.payment.update({ where: { id: order.payment.id }, data: { gatewayChargeId: chargeId } });
+  await confirmChargePaid(chargeId);
+  return { result: "paid", estSlug };
 }

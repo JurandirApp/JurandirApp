@@ -9,6 +9,7 @@ import { pagarmeProvider } from "./pagarme";
 import { asaasProvider } from "./asaas";
 import { appmaxProvider } from "./appmax";
 import { pagbankProvider } from "./pagbank";
+import { infinitePayProvider } from "./infinitepay";
 
 /** Nome do gateway configurado pro método (Pix/Crédito/Débito) do estabelecimento. */
 export function resolveGateway(est: Establishment, method: PaymentMethod): GatewayName {
@@ -36,6 +37,8 @@ export function getProviderByName(name: GatewayName): PaymentProvider {
       return appmaxProvider;
     case "PAGBANK":
       return pagbankProvider;
+    case "INFINITEPAY":
+      return infinitePayProvider;
     default:
       return mercadoPagoProvider; // MERCADO_PAGO
   }

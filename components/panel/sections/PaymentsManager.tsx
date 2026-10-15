@@ -44,13 +44,14 @@ export function PaymentsManager() {
     PAGARME: pagarmeReady,
     ASAAS: asaasReady,
     PAGBANK: true, // sem Connect, cobra na conta da plataforma
-    INFINITEPAY: false,
+    INFINITEPAY: true, // tag única da plataforma (sem split)
   };
   const isReady = (g: string) => readyMap[g] ?? false;
   // Gateways de conta conectada por OAuth: "conta conectada" vs "conta da plataforma".
   const oauthConnected: Record<string, boolean> = {
     MERCADO_PAGO: mpConnected,
     PAGBANK: pagbankConnected,
+    INFINITEPAY: false, // sempre "conta da plataforma"
   };
 
   return (
@@ -106,7 +107,7 @@ export function PaymentsManager() {
           <PagarmeConnection onOpen={() => setModal(true)} />
           <PagbankConnection />
           <AsaasConnection />
-          <SoonConnection />
+          <InfinitePayConnection />
         </div>
       </div>
 
@@ -350,15 +351,18 @@ function AsaasConnection() {
   );
 }
 
-/** InfinitePay — placeholder até a integração existir. */
-function SoonConnection() {
+/** InfinitePay — conta ÚNICA da plataforma (sem split): nada pra conectar aqui. */
+function InfinitePayConnection() {
   const t = useTranslations("panel.config");
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl border-2 border-dashed border-ink/12 p-3 opacity-70">
-      <span className="text-sm font-semibold text-ink/60">InfinitePay</span>
-      <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink/50">
-        {t("soon")}
-      </span>
+    <div className="rounded-xl border-2 border-ink/10 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-ink/80">InfinitePay</span>
+        <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink/50">
+          {t("pgSingleAccount")}
+        </span>
+      </div>
+      <p className="m-0 mt-2 text-[11px] leading-relaxed text-ink/45">{t("ipNote")}</p>
     </div>
   );
 }

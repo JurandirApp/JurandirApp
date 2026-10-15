@@ -139,7 +139,7 @@ export async function checkPixReadyAction(): Promise<{
 }
 
 // Gateways que o painel deixa escolher (os demais do enum ficam de fora).
-const SELECTABLE_GATEWAYS = ["MERCADO_PAGO", "PAGARME", "ASAAS", "PAGBANK"] as const;
+const SELECTABLE_GATEWAYS = ["MERCADO_PAGO", "PAGARME", "ASAAS", "PAGBANK", "INFINITEPAY"] as const;
 type SelectableGateway = (typeof SELECTABLE_GATEWAYS)[number];
 
 /** Salva o gateway escolhido POR MÉTODO (Pix/Crédito/Débito/Apple Pay/Google Pay),

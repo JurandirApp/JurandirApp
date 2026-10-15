@@ -45,15 +45,19 @@ export async function createOrder(input: OrderCreateInput) {
   //    pra produção quando TODAS as partes forem pagas (reconcile).
   //  - Cartão (crédito/débito) → Checkout Pro; aqui o pedido só nasce
   //    AWAITING_PAYMENT e a preferência/URL é criada na action (createCardCheckout).
-  const isPixGateway = payment.kind === "full" && payment.method === "PIX";
+  // Gateway resolvido pelo método escolhido (split é sempre Pix).
+  const providerName =
+    payment.kind === "full" ? resolveGateway(est, payment.method) : null;
+  //  - Pix via InfinitePay → também CHECKOUT HOSPEDADO (não há QR por API): o
+  //    pedido nasce AWAITING_PAYMENT e o link vem do createCardCheckout.
+  const isHostedPix =
+    payment.kind === "full" && payment.method === "PIX" && providerName === "INFINITEPAY";
+  const isPixGateway = payment.kind === "full" && payment.method === "PIX" && !isHostedPix;
   const isCardGateway =
     payment.kind === "full" &&
     (payment.method === "CREDIT" || payment.method === "DEBIT");
   const isSplit = payment.kind === "split";
-  const useGateway = isPixGateway || isCardGateway;
-  // Gateway resolvido pelo método escolhido (split é sempre Pix).
-  const providerName =
-    payment.kind === "full" ? resolveGateway(est, payment.method) : null;
+  const useGateway = isPixGateway || isCardGateway || isHostedPix;
   const splitProvider = isSplit ? resolveGateway(est, "PIX") : null;
 
   let pix: PixCharge | null = null;

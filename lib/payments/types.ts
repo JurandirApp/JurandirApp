@@ -36,6 +36,9 @@ export type CheckoutPreferenceInput = {
 export type CheckoutPreference = {
   preferenceId: string;
   checkoutUrl: string; // init_point (ou sandbox_init_point em teste)
+  /** Id a gravar JÁ como `gatewayChargeId` (gateway que reconcilia pelo próprio
+   *  link, ex.: InfinitePay). Ausente = reconcilia pela referência (MP). */
+  chargeId?: string;
 };
 
 /** Dados que o Payment Brick (onSubmit.formData) devolve pra cobrar o cartão. */
@@ -109,7 +112,7 @@ export type WalletPaymentInput = {
 };
 
 export interface PaymentProvider {
-  readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME" | "APPMAX" | "PAGBANK";
+  readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME" | "APPMAX" | "PAGBANK" | "INFINITEPAY";
   createPixCharge(input: PixChargeInput): Promise<PixCharge>;
   getChargeStatus(est: Establishment, chargeId: string, opts?: { debit?: boolean }): Promise<ChargeStatus>;
   /** Cria a preferência do checkout hospedado e devolve a URL de redirecionamento. */

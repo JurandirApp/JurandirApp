@@ -19,7 +19,9 @@ export const GATEWAY_CAP: Record<string, Record<RouteKey, boolean>> = {
   APPMAX: { pix: true, credit: true, debit: false, applePay: false, googlePay: false },
   // PagBank: débito exige 3DS (só SDK JS) e não entra no split → fora por ora.
   PAGBANK: { pix: true, credit: true, debit: false, applePay: true, googlePay: true },
-  INFINITEPAY: { pix: false, credit: false, debit: false, applePay: false, googlePay: false },
+  // InfinitePay: checkout HOSPEDADO (Pix + crédito até 12x na página deles), sem
+  // débito e sem carteira por API. Conta da plataforma (tag única), sem split.
+  INFINITEPAY: { pix: true, credit: true, debit: false, applePay: false, googlePay: false },
 };
 
 /** Fallback quando a escolha é inválida: MP faz Pix/cartão; carteira só existe no Pagar.me. */
@@ -38,12 +40,13 @@ export type GatewayReadiness = {
   appmaxRecipientHash?: string | null;
 };
 
-/** Gateway pronto pra cobrar por este estabelecimento. MP e PagBank sempre (conta
- *  da plataforma como fallback, sem split); os demais exigem o recebedor do bar. */
+/** Gateway pronto pra cobrar por este estabelecimento. MP, PagBank e InfinitePay
+ *  sempre (conta da plataforma, sem split); os demais exigem o recebedor do bar. */
 export function isGatewayReady(est: GatewayReadiness, gateway: string): boolean {
   switch (gateway) {
     case "MERCADO_PAGO":
     case "PAGBANK":
+    case "INFINITEPAY":
       return true;
     case "PAGARME":
       return Boolean(est.pagarmeRecipientId);
