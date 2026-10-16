@@ -31,6 +31,15 @@ const appBase = () => (process.env.APP_BASE_URL ?? "http://localhost:3000").repl
 /** InfiniteTag da plataforma, sem o "$". Vazio = gateway não configurado. */
 export const infinitePayHandle = () => (process.env.INFINITEPAY_HANDLE ?? "").trim().replace(/^\$/, "");
 
+/** Pro log: NUNCA vaza segredo. Se colaram uma CHAVE (inchk_…) no lugar da tag,
+ *  avisa em vez de imprimir o valor. */
+export function safeHandleForLog(handle: string): string {
+  if (/^inchk_/i.test(handle) || handle.length > 40) {
+    return `CHAVE_NO_LUGAR_DA_TAG(${handle.slice(0, 6)}…, ${handle.length} chars) — INFINITEPAY_HANDLE deve ser a InfiniteTag`;
+  }
+  return handle;
+}
+
 export class InfinitePayError extends Error {
   constructor(
     public status: number,
@@ -167,7 +176,11 @@ export const infinitePayProvider: PaymentProvider = {
     } catch (e) {
       // Ex.: 404 external_checkout_not_enabled (checkout não habilitado na conta),
       // 401 (chave exigida), tag errada. Sem isso a falha some no 500 da rota.
-      console.error("[infinitepay] links ERRO", JSON.stringify({ order_nsu: input.reference, handle }), e);
+      console.error(
+        "[infinitepay] links ERRO",
+        JSON.stringify({ order_nsu: input.reference, handle: safeHandleForLog(handle) }),
+        e,
+      );
       throw e;
     }
     console.log("[infinitepay] links", JSON.stringify({ order_nsu: input.reference, r }));

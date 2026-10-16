@@ -4,6 +4,7 @@ import {
   buildChargeId,
   parseChargeId,
   readLinkResponse,
+  safeHandleForLog,
 } from "@/lib/payments/infinitepay";
 
 describe("InfinitePay chargeId", () => {
@@ -46,5 +47,16 @@ describe("amountCovers (anti link forjado)", () => {
     expect(amountCovers(25, 25)).toBe(false); // 25 centavos != R$ 25
     expect(amountCovers(25.5, undefined)).toBe(false);
     expect(amountCovers(25.5, "abc")).toBe(false);
+  });
+});
+
+describe("safeHandleForLog", () => {
+  it("nunca imprime uma chave inchk_ (avisa que está no lugar da tag)", () => {
+    const out = safeHandleForLog("inchk_AZsecretsecretsecret");
+    expect(out).not.toContain("secretsecret");
+    expect(out).toContain("CHAVE_NO_LUGAR_DA_TAG");
+  });
+  it("tag normal passa", () => {
+    expect(safeHandleForLog("jurandir")).toBe("jurandir");
   });
 });
