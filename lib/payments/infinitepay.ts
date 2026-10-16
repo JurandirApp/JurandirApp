@@ -146,7 +146,10 @@ export const infinitePayProvider: PaymentProvider = {
 
   async createCheckoutPreference(input: CheckoutPreferenceInput): Promise<CheckoutPreference> {
     const handle = infinitePayHandle();
-    if (!handle) throw new Error("infinitepay: INFINITEPAY_HANDLE não configurado");
+    if (!handle) {
+      console.error("[infinitepay] INFINITEPAY_HANDLE vazio na Vercel");
+      throw new Error("infinitepay: INFINITEPAY_HANDLE não configurado");
+    }
     const body = {
       handle,
       order_nsu: input.reference,
@@ -158,7 +161,15 @@ export const infinitePayProvider: PaymentProvider = {
       redirect_url: `${appBase()}/api/payments/infinitepay/return`,
       webhook_url: `${appBase()}/api/webhooks/infinitepay`,
     };
-    const r = await post<unknown>("/links", body);
+    let r: unknown;
+    try {
+      r = await post<unknown>("/links", body);
+    } catch (e) {
+      // Ex.: 404 external_checkout_not_enabled (checkout não habilitado na conta),
+      // 401 (chave exigida), tag errada. Sem isso a falha some no 500 da rota.
+      console.error("[infinitepay] links ERRO", JSON.stringify({ order_nsu: input.reference, handle }), e);
+      throw e;
+    }
     console.log("[infinitepay] links", JSON.stringify({ order_nsu: input.reference, r }));
     const { url, slug } = readLinkResponse(r);
     if (!url) throw new Error(`infinitepay: resposta sem URL do link: ${JSON.stringify(r).slice(0, 300)}`);

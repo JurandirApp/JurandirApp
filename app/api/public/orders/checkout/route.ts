@@ -43,7 +43,8 @@ export async function POST(req: Request): Promise<Response> {
       { ok: !!checkoutUrl, checkoutUrl: checkoutUrl ?? null, order: toClientOrder(fresh ?? created) },
       { status: 201, headers: CORS },
     );
-  } catch {
+  } catch (e) {
+    console.error("[orders/checkout] erro", e);
     return Response.json({ ok: false, error: "failed" }, { status: 500, headers: CORS });
   }
 }
