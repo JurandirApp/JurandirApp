@@ -111,7 +111,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /** Reais → centavos (PagBank trabalha em inteiros). */
-const cents = (v: number) => Math.round(v * 100);
+export const cents = (v: number) => Math.round(v * 100);
 
 function mapStatus(s: string | undefined): ChargeStatus {
   if (s === "PAID") return "paid";
@@ -428,6 +428,27 @@ export async function getCardPublicKey(): Promise<string> {
   if (!r.public_key) throw new PagbankError(502, "sem public_key");
   cardKeyCache.set(mode, r.public_key);
   return r.public_key;
+}
+
+/** Sessão do SDK 3DS (WebView do app). Host próprio do SDK — não o `baseUrl()` de
+ *  Orders. O token fica no servidor; o app só recebe a sessão (curta). */
+export async function createThreeDsSession(): Promise<{
+  session: string;
+  expiresAt: number;
+  env: "PROD" | "SANDBOX";
+}> {
+  await ensurePagbankMode();
+  const prod = modeSuffix() === "PRODUCTION";
+  const host = prod ? "https://sdk.pagseguro.com" : "https://sandbox.sdk.pagseguro.com";
+  const res = await fetch(`${host}/checkout-sdk/sessions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token()}` },
+  });
+  const text = await res.text();
+  if (!res.ok) throw new PagbankError(res.status, text);
+  const r = (text ? JSON.parse(text) : {}) as { session?: string; expires_at?: number };
+  if (!r.session) throw new PagbankError(502, "sem session");
+  return { session: r.session, expiresAt: Number(r.expires_at), env: prod ? "PROD" : "SANDBOX" };
 }
 
 /** Ids das cobranças (CHAR_…) de um pedido notificado pelo webhook. */

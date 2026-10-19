@@ -7,6 +7,7 @@ import {
   signConnectState,
   verifyConnectState,
   __setPagbankModeForTests,
+  createThreeDsSession,
 } from "@/lib/payments/pagbank";
 import type { Establishment } from "@prisma/client";
 
@@ -302,5 +303,37 @@ describe("modo produção (switch do admin)", () => {
     const u = new URL(getConnectUrl("st1"));
     expect(u.origin).toBe("https://connect.pagbank.com.br");
     expect(u.searchParams.get("client_id")).toBe("cid_prod");
+  });
+});
+
+describe("createThreeDsSession", () => {
+  afterEach(() => __setPagbankModeForTests(null));
+
+  it("cria sessão 3DS no host SDK do sandbox", async () => {
+    const fn = seq([{ session: "S1", expires_at: 123 }]);
+    const r = await createThreeDsSession();
+    expect(r).toEqual({ session: "S1", expiresAt: 123, env: "SANDBOX" });
+    const [url, init] = fn.mock.calls[0];
+    expect(url).toBe("https://sandbox.sdk.pagseguro.com/checkout-sdk/sessions");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer tok_test");
+  });
+
+  it("em produção usa o host SDK de produção e env PROD", async () => {
+    process.env.PAGBANK_TOKEN = "tok_prod";
+    __setPagbankModeForTests("PRODUCTION");
+    const fn = seq([{ session: "S2", expires_at: 456 }]);
+    const r = await createThreeDsSession();
+    expect(r).toEqual({ session: "S2", expiresAt: 456, env: "PROD" });
+    expect(fn.mock.calls[0][0]).toBe("https://sdk.pagseguro.com/checkout-sdk/sessions");
+    expect(fn.mock.calls[0][1].headers.Authorization).toBe("Bearer tok_prod");
+  });
+
+  it("não-2xx lança PagbankError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => "nope" }),
+    );
+    await expect(createThreeDsSession()).rejects.toMatchObject({ name: "PagbankError", status: 401 });
   });
 });
