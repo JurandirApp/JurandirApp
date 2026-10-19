@@ -8,9 +8,11 @@ import { listDebitPayoutAction, type DebitPayoutPeriod } from "@/lib/actions/adm
 
 type Row = Awaited<ReturnType<typeof listDebitPayoutAction>>[number];
 
+const GATEWAY_LABEL: Record<string, string> = { PAGARME: "Pagar.me", PAGBANK: "PagBank" };
+
 const PERIODS: DebitPayoutPeriod[] = ["hoje", "7d", "30d", "tudo"];
 
-/** Relatório read-only: quanto repassar (Pix) a cada bar do débito Pagar.me pago. */
+/** Relatório read-only: quanto repassar (Pix) a cada bar do débito pago (Pagar.me e PagBank), por gateway. */
 export function RepasseDebitoSection() {
   const t = useTranslations("admin.repasseDebito");
   const [period, setPeriod] = useState<DebitPayoutPeriod>("hoje");
@@ -68,6 +70,7 @@ export function RepasseDebitoSection() {
             <thead>
               <tr className="border-b-2 border-ink text-left text-xs uppercase text-ink/60">
                 <th className="px-3 py-2">{t("bar")}</th>
+                <th className="px-3 py-2">{t("gateway")}</th>
                 <th className="px-3 py-2 text-right">{t("qtd")}</th>
                 <th className="px-3 py-2 text-right">{t("bruto")}</th>
                 <th className="px-3 py-2 text-right">{t("taxa")}</th>
@@ -76,8 +79,9 @@ export function RepasseDebitoSection() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.establishmentId} className="border-b border-ink/10">
+                <tr key={r.establishmentId + r.gateway} className="border-b border-ink/10">
                   <td className="px-3 py-2 font-semibold">{r.nome}</td>
+                  <td className="px-3 py-2">{GATEWAY_LABEL[r.gateway] ?? r.gateway}</td>
                   <td className="px-3 py-2 text-right">{r.qtd}</td>
                   <td className="px-3 py-2 text-right">{money(r.bruto)}</td>
                   <td className="px-3 py-2 text-right">{money(r.taxa)}</td>
@@ -87,7 +91,7 @@ export function RepasseDebitoSection() {
             </tbody>
             <tfoot>
               <tr className="font-bold">
-                <td className="px-3 py-2" colSpan={4}>
+                <td className="px-3 py-2" colSpan={5}>
                   {t("total")}
                 </td>
                 <td className="px-3 py-2 text-right">{money(total)}</td>

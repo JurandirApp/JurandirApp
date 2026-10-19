@@ -923,9 +923,9 @@
     },
     "repasseDebito": {
       "title": "Repasse de débito (Pix)",
-      "desc": "Débitos Pagar.me pagos no período. Valor a repassar por bar = total menos taxa Jurandir.",
+      "desc": "Débitos pagos no período (Pagar.me e PagBank). Uma linha por bar e por gateway — o dinheiro está na conta de cada gateway. Valor a repassar = total menos taxa Jurandir.",
       "hoje": "Hoje", "7d": "7 dias", "30d": "30 dias", "tudo": "Tudo",
-      "bar": "Bar", "qtd": "Qtd", "bruto": "Bruto", "taxa": "Taxa Jurandir", "repassar": "A repassar (Pix)",
+      "bar": "Bar", "gateway": "Gateway", "qtd": "Qtd", "bruto": "Bruto", "taxa": "Taxa Jurandir", "repassar": "A repassar (Pix)",
       "total": "Total", "empty": "Nenhum débito no período.", "loading": "Carregando…", "error": "Erro ao carregar."
     },
     "backlog": {

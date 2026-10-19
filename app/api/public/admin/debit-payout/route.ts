@@ -18,9 +18,9 @@ type Period = "hoje" | "7d" | "30d" | "tudo";
 
 /**
  * GET /api/public/admin/debit-payout?period=hoje|7d|30d|tudo (ADMIN, Bearer):
- * débito Pagar.me pago a repassar (Pix) por bar. Espelha o server action
+ * débito (Pagar.me/PagBank) pago a repassar (Pix) por bar e gateway. Espelha o server action
  * `listDebitPayoutAction` (mesma janela de datas + mesma agregação) pro app.
- * Resposta: { rows: Row[] }, Row = { establishmentId, nome, qtd, bruto, taxa, aRepassar }.
+ * Resposta: { rows: Row[] }, Row = { establishmentId, nome, gateway: "PAGARME"|"PAGBANK", qtd, bruto, taxa, aRepassar }.
  */
 export async function GET(req: Request): Promise<Response> {
   const s = await authAdmin(req);

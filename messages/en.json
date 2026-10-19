@@ -923,9 +923,9 @@
     },
     "repasseDebito": {
       "title": "Debit payout (Pix)",
-      "desc": "Paid Pagar.me debit in the period. Amount to pay each bar = total minus Jurandir fee.",
+      "desc": "Paid debit in the period (Pagar.me and PagBank). One row per bar and gateway — the money sits in each gateway account. Amount to pay = total minus Jurandir fee.",
       "hoje": "Today", "7d": "7 days", "30d": "30 days", "tudo": "All",
-      "bar": "Bar", "qtd": "Qty", "bruto": "Gross", "taxa": "Jurandir fee", "repassar": "To pay (Pix)",
+      "bar": "Bar", "gateway": "Gateway", "qtd": "Qty", "bruto": "Gross", "taxa": "Jurandir fee", "repassar": "To pay (Pix)",
       "total": "Total", "empty": "No debit in the period.", "loading": "Loading…", "error": "Failed to load."
     },
     "backlog": {
