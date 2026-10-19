@@ -1,16 +1,17 @@
 import { request } from "node:https";
 import { NextResponse } from "next/server";
-import { isAppleValidationUrl } from "@/lib/payments/wallet-web";
 import {
   decodePem,
-  readWalletWebEnv,
+  isAppleValidationUrl,
   resolveInitiativeContext,
-} from "@/lib/payments/wallet-web-env";
+} from "@/lib/payments/wallet-web";
+import { readWalletWebEnv } from "@/lib/payments/wallet-web-env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TIMEOUT_MS = 10_000;
+const MAX_BYTES = 64 * 1024;
 
 function postToApple(
   url: string,
@@ -19,6 +20,11 @@ function postToApple(
   key: string,
 ): Promise<{ status: number; text: string }> {
   return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const done = <T,>(fn: (v: T) => void, v: T) => {
+      clearTimeout(timer);
+      fn(v);
+    };
     const req = request(
       url,
       {
@@ -32,18 +38,26 @@ function postToApple(
       },
       (res) => {
         const chunks: Buffer[] = [];
-        res.on("data", (c: Buffer) => chunks.push(c));
+        let size = 0;
+        res.on("data", (c: Buffer) => {
+          size += c.length;
+          if (size > MAX_BYTES) {
+            req.destroy(new Error("resposta grande demais"));
+            return;
+          }
+          chunks.push(c);
+        });
         res.on("end", () =>
-          resolve({
+          done(resolve, {
             status: res.statusCode ?? 0,
             text: Buffer.concat(chunks).toString("utf8"),
           }),
         );
-        res.on("error", reject);
+        res.on("error", (e) => done(reject, e));
       },
     );
-    req.setTimeout(TIMEOUT_MS, () => req.destroy(new Error("timeout")));
-    req.on("error", reject);
+    timer = setTimeout(() => req.destroy(new Error("timeout")), TIMEOUT_MS);
+    req.on("error", (e) => done(reject, e));
     req.end(body);
   });
 }
@@ -60,9 +74,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalidUrl" }, { status: 400 });
   }
 
-  const cert = decodePem(process.env.APPLE_PAY_MERCHANT_CERT);
-  const key = decodePem(process.env.APPLE_PAY_MERCHANT_KEY);
-  const initiativeContext = resolveInitiativeContext();
+  const cert = process.env.APPLE_PAY_MERCHANT_CERT?.trim()
+    ? decodePem(process.env.APPLE_PAY_MERCHANT_CERT)
+    : null;
+  const key = process.env.APPLE_PAY_MERCHANT_KEY?.trim()
+    ? decodePem(process.env.APPLE_PAY_MERCHANT_KEY)
+    : null;
+  const initiativeContext = resolveInitiativeContext(
+    process.env.APPLE_PAY_DOMAIN,
+    process.env.APP_BASE_URL,
+  );
   if (!cert || !key || !initiativeContext) {
     return NextResponse.json({ error: "notConfigured" }, { status: 503 });
   }
@@ -81,7 +102,13 @@ export async function POST(req: Request) {
       console.error(`[applepay/session] apple status ${res.status}`);
       return NextResponse.json({ error: "appleFailed" }, { status: 502 });
     }
-    const session = JSON.parse(res.text);
+    let session: unknown;
+    try {
+      session = JSON.parse(res.text);
+    } catch {
+      console.error("[applepay/session] resposta inválida da Apple");
+      return NextResponse.json({ error: "appleFailed" }, { status: 502 });
+    }
     return NextResponse.json(session, { status: 200 });
   } catch (e) {
     console.error(

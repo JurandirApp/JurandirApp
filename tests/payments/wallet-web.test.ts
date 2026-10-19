@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   walletWebConfig,
   isAppleValidationUrl,
+  decodePem,
+  resolveInitiativeContext,
   type WalletWebEnv,
   type GatewayModes,
 } from "@/lib/payments/wallet-web";
@@ -112,5 +114,52 @@ describe("isAppleValidationUrl", () => {
     "https://apple-pay-gateway.apple.com.evil.com/x",
     "https://evilapple-pay-gateway.apple.com/x",
     "lixo",
+    "https://apple-pay-gateway.apple.com:8443/x",
+    "https://user:pw@apple-pay-gateway.apple.com/x",
   ])("recusa %s", (u) => expect(isAppleValidationUrl(u)).toBe(false));
+});
+
+describe("Google Pay - modo por gateway", () => {
+  const modes: GatewayModes = { PAGARME: "TEST", PAGBANK: "PRODUCTION" };
+  it("PagBank em PRODUCTION", () => {
+    const g = walletWebConfig(est(false, true, "PAGARME", "PAGBANK"), env, modes)
+      .googlePay!;
+    expect(g.environment).toBe("PRODUCTION");
+  });
+  it("Pagar.me em TEST", () => {
+    const g = walletWebConfig(est(false, true), env, modes).googlePay!;
+    expect(g.environment).toBe("TEST");
+  });
+});
+
+describe("decodePem", () => {
+  const pem = "-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----\n";
+  it("base64 do PEM", () => {
+    expect(decodePem(Buffer.from(pem).toString("base64"))).toBe(pem);
+  });
+  it("PEM cru multilinha", () => {
+    expect(decodePem(pem)).toBe(pem.trim());
+  });
+  it("PEM de uma linha com barra-n literal", () => {
+    const BS = String.fromCharCode(92);
+    const one = pem.trim().split("\n").join(BS + "n");
+    expect(one).toContain(BS + "n");
+    expect(one).not.toContain("\n");
+    expect(decodePem(one)).toBe(pem.trim());
+  });
+});
+
+describe("resolveInitiativeContext", () => {
+  it("APPLE_PAY_DOMAIN vence", () => {
+    expect(resolveInitiativeContext("a.com", "https://b.com")).toBe("a.com");
+  });
+  it("host de APP_BASE_URL", () => {
+    expect(resolveInitiativeContext(undefined, "https://jurandir.app.br/x")).toBe(
+      "jurandir.app.br",
+    );
+  });
+  it("inválido/ausente -> null", () => {
+    expect(resolveInitiativeContext(undefined, "lixo")).toBeNull();
+    expect(resolveInitiativeContext("", undefined)).toBeNull();
+  });
 });

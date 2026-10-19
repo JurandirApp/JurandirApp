@@ -89,6 +89,7 @@ export function isAppleValidationUrl(url: string): boolean {
     return false;
   }
   if (u.protocol !== "https:") return false;
+  if (u.port !== "" || u.username || u.password) return false;
   const host = u.hostname.toLowerCase();
   if (!host.endsWith(".apple.com")) return false;
   const first = host.split(".")[0];
@@ -96,4 +97,28 @@ export function isAppleValidationUrl(url: string): boolean {
     first.startsWith("apple-pay-gateway") ||
     first.startsWith("cn-apple-pay-gateway")
   );
+}
+
+/** PEM vindo do env: base64 do PEM (preferido), PEM cru ou PEM de uma linha com \n literais. */
+export function decodePem(value: string): string {
+  const v = value.trim();
+  const decoded = Buffer.from(v, "base64").toString("utf8");
+  if (decoded.includes("-----BEGIN")) return decoded;
+  return v.replace(/\\n/g, "\n");
+}
+
+/** Domínio do Apple Pay: APPLE_PAY_DOMAIN, senão o host de APP_BASE_URL. */
+export function resolveInitiativeContext(
+  domain: string | undefined,
+  appBaseUrl: string | undefined,
+): string | null {
+  const d = domain?.trim();
+  if (d) return d;
+  const base = appBaseUrl?.trim();
+  if (!base) return null;
+  try {
+    return new URL(base).hostname || null;
+  } catch {
+    return null;
+  }
 }
