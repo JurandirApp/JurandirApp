@@ -286,7 +286,7 @@ export const pagbankProvider: PaymentProvider = {
       status: mapStatus(charge.status),
     };
   },
-  // Cartão de CRÉDITO: o app criptografa o cartão com a chave pública do PagBank
+  // Cartão de CRÉDITO ou DÉBITO (3DS): o app criptografa o cartão com a chave pública do PagBank
   // (`encrypted`) — o cartão cru nunca chega aqui. `cardToken` = esse encrypted.
   async createCardTokenPayment(input: CardTokenPaymentInput): Promise<CardPaymentResult> {
     const { est, reference, total, platformFee, description, cardToken, installments, method,

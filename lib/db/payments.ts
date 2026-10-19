@@ -228,9 +228,20 @@ export async function payOrderWithCard(
   return { status: res.status, statusDetail: res.statusDetail };
 }
 
-/** Cobra o cartão do pedido via `card_token` da tokenização (Pagar.me v5). O CPF
- *  vem por parâmetro (não é gravado no Order). Aprovado → confirma e vai pra
- *  produção; devolve o status pra UI reagir. */
+/** Tipo de cobrança de cartão derivado do método GRAVADO no pagamento do pedido
+ *  (nunca do cliente). Não-cartão (PIX/USDC/null) → null. */
+export function cardChargeMethod(orderMethod: string | null | undefined): "credit" | "debit" | null {
+  if (orderMethod === "DEBIT") return "debit";
+  if (orderMethod === "CREDIT") return "credit";
+  return null;
+}
+
+/** Cobra o cartão do pedido via token do cartão (tokenização/criptografia do
+ *  gateway). O CPF vem por parâmetro (não é gravado no Order). Aprovado →
+ *  confirma e vai pra produção; devolve o status pra UI reagir.
+ *  O parâmetro `method` é mantido só por compatibilidade: o tipo da cobrança
+ *  vem de `order.payment.method` (evita crédito cobrado como débito sem split
+ *  e vice-versa). */
 export async function payOrderWithCardToken(
   orderId: string,
   cardToken: string,
@@ -247,6 +258,8 @@ export async function payOrderWithCardToken(
   if (!order?.payment || order.status !== OrderStatus.AWAITING_PAYMENT) {
     return { status: "failed" };
   }
+  const chargeMethod = cardChargeMethod(order.payment.method);
+  if (!chargeMethod) return { status: "failed", statusDetail: "pedido não é de cartão" };
   const provider = getProviderByName(order.payment.provider ?? "PAGARME");
   if (!provider.createCardTokenPayment) return { status: "failed" };
   let res;
@@ -259,7 +272,7 @@ export async function payOrderWithCardToken(
       description: `Pedido ${order.code}`,
       cardToken,
       installments,
-      method,
+      method: chargeMethod,
       customerName: order.customerName ?? undefined,
       customerDocument: customerDocument ?? undefined,
       customerPhone: order.customerPhone ?? undefined,

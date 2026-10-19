@@ -139,7 +139,7 @@ describe("pagbankProvider.createCardTokenPayment", () => {
       platformFee: 1.6,
       description: "Pedido PED-4",
       cardToken: "ENC",
-      installments: 1,
+      installments: 3,
       method: "debit",
       authenticationId: "3DS_ABC",
     });
@@ -152,6 +152,7 @@ describe("pagbankProvider.createCardTokenPayment", () => {
       card: { encrypted: "ENC" },
       authentication_method: { type: "THREEDS", id: "3DS_ABC" },
     });
+    expect(charge.amount.value).toBe(2000);
     expect(charge.splits).toBeUndefined();
   });
 
@@ -168,7 +169,7 @@ describe("pagbankProvider.createCardTokenPayment", () => {
         installments: 1,
         method: "debit",
       }),
-    ).rejects.toThrow(/3DS/);
+    ).rejects.toThrow(/authenticationId/);
     expect(fn).toHaveBeenCalledTimes(0);
   });
 });
