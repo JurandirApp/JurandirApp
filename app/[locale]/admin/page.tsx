@@ -70,6 +70,7 @@ export default async function AdminPage({
       events={events}
       pagbankMode={settings.pagbankMode}
       pagarmeMode={settings.pagarmeMode}
+      pagbankDebitEnabled={settings.pagbankDebitEnabled}
     />
   );
 }

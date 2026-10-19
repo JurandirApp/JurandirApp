@@ -11,6 +11,7 @@ import {
   updateEstablishmentAction,
   updateFeeAction,
   setPagbankModeAction,
+  setPagbankDebitEnabledAction,
   setPagarmeModeAction,
 } from "@/lib/actions/admin";
 import { Link } from "@/i18n/navigation";
@@ -41,6 +42,7 @@ export function AdminApp({
   events,
   pagbankMode: initialPagbankMode,
   pagarmeMode: initialPagarmeMode,
+  pagbankDebitEnabled: initialDebitEnabled,
 }: {
   now: number;
   ests: AdminEst[];
@@ -51,6 +53,7 @@ export function AdminApp({
   events: SearchEvent[];
   pagbankMode: PaymentEnv;
   pagarmeMode: PaymentEnv;
+  pagbankDebitEnabled: boolean;
 }) {
   const t = useTranslations("admin");
   const [, startTransition] = useTransition();
@@ -61,6 +64,7 @@ export function AdminApp({
   const [estabScope, setEstabScope] = useState("");
   const [pagbankMode, setPagbankModeState] = useState<PaymentEnv>(initialPagbankMode);
   const [pagarmeMode, setPagarmeModeState] = useState<PaymentEnv>(initialPagarmeMode);
+  const [pagbankDebitEnabled, setPagbankDebitEnabledState] = useState(initialDebitEnabled);
 
   const [editing, setEditing] = useState<{ est: AdminEst | null } | null>(null);
   const [del, setDel] = useState<AdminEst | null>(null);
@@ -109,6 +113,19 @@ export function AdminApp({
           setPagbankModeState(r.ok ? r.mode : prev);
         });
       },
+      pagbankDebitEnabled,
+      setPagbankDebitEnabled: (on) => {
+        const prev = pagbankDebitEnabled;
+        setPagbankDebitEnabledState(on); // otimista; reverte se a action falhar
+        startTransition(async () => {
+          try {
+            const r = await setPagbankDebitEnabledAction(on);
+            setPagbankDebitEnabledState(r.ok ? r.enabled : prev);
+          } catch {
+            setPagbankDebitEnabledState(prev);
+          }
+        });
+      },
       pagarmeMode,
       setPagarmeMode: (mode) => {
         const prev = pagarmeMode;
@@ -119,7 +136,7 @@ export function AdminApp({
         });
       },
     }),
-    [now, tab, period, month, estabScope, ests, orders, events, allScaled, scopedScaled, pagbankMode, pagarmeMode],
+    [now, tab, period, month, estabScope, ests, orders, events, allScaled, scopedScaled, pagbankMode, pagarmeMode, pagbankDebitEnabled],
   );
 
   const saveReg = (payload: RegPayload, id: string | null) => {

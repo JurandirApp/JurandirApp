@@ -151,6 +151,8 @@ export interface PanelValue {
   setGateway: (method: RouteKey, value: string) => void;
   /** Conta PagBank do bar vinculada via Connect (ativa o split no PagBank). */
   pagbankConnected: boolean;
+  /** Chave global do admin: sem ela, PagBank não é selecionável no débito. */
+  pagbankDebitEnabled: boolean;
   pagbankResult: "ok" | "error" | null;
   connectPagbank: () => void;
   disconnectPagbank: () => void;

@@ -6,7 +6,7 @@ import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import type { PagarmeRecipientForm } from "@/lib/validation";
-import { GATEWAY_CAP, type RouteKey } from "@/lib/payments/capabilities";
+import { gatewayImplements, type RouteKey } from "@/lib/payments/capabilities";
 import { usePanel } from "../context";
 
 const GATEWAYS = [
@@ -31,6 +31,7 @@ export function PaymentsManager() {
     setGateway,
     mpConnected,
     pagbankConnected,
+    pagbankDebitEnabled,
     pagarmeReady,
     asaasReady,
     createPagarmeRecipient,
@@ -69,7 +70,7 @@ export function PaymentsManager() {
             <div className="grid grid-cols-2 gap-2">
               {GATEWAYS.map((g) => {
                 // Gateway que não implementa o método aparece como "em breve".
-                const impl = GATEWAY_CAP[g.id][m.key];
+                const impl = gatewayImplements(g.id, m.key, { pagbankDebitEnabled });
                 const ready = isReady(g.id);
                 const selectable = impl && ready;
                 const selected = routing[m.key] === g.id;

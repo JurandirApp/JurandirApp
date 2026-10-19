@@ -123,6 +123,7 @@ export function PanelApp({
   mpResult = null,
   routing: routing0,
   pagbankConnected: pagbankConnected0,
+  pagbankDebitEnabled,
   pagbankResult = null,
   pagarmeReady: pagarmeReady0,
   pagarmeStatus: pagarmeStatus0,
@@ -148,6 +149,7 @@ export function PanelApp({
   mpResult?: "ok" | "error" | null;
   routing: Routing;
   pagbankConnected: boolean;
+  pagbankDebitEnabled: boolean;
   pagbankResult?: "ok" | "error" | null;
   pagarmeReady: boolean;
   pagarmeStatus: string | null;
@@ -628,6 +630,7 @@ export function PanelApp({
         });
       },
       pagbankConnected,
+      pagbankDebitEnabled,
       pagbankResult,
       connectPagbank: () => {
         getPagbankConnectUrlAction()
@@ -689,7 +692,7 @@ export function PanelApp({
     itemCat, qrLabel, aud, audPage, profile, weekly, profSaved, pw, pwMsg,
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
-    routing, pagbankConnected, pagbankResult, pagarmeReady, pagarmeStatus, asaasReady,
+    routing, pagbankConnected, pagbankDebitEnabled, pagbankResult, pagarmeReady, pagarmeStatus, asaasReady,
     waiterModule,
   ]);
 

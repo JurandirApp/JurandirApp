@@ -15,6 +15,7 @@ import type { ItemChange } from "@/lib/pricing/bulk-adjust";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
 import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
 import { reconcileOrder } from "@/lib/db/payments";
+import { getPagbankDebitEnabled } from "@/lib/db/settings";
 import { listPanelOrders, listPanelPrintJobs } from "@/lib/db/panel";
 import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adapters";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
@@ -153,7 +154,10 @@ export async function savePaymentRoutingAction(
     where: { id: s.establishmentId! },
     select: { pagarmeRecipientId: true, asaasWalletId: true, appmaxRecipientHash: true },
   });
-  const readiness = est ?? { pagarmeRecipientId: null };
+  const readiness = {
+    ...(est ?? { pagarmeRecipientId: null }),
+    pagbankDebitEnabled: await getPagbankDebitEnabled(),
+  };
   const resolve = (key: RouteKey): SelectableGateway => {
     const v = routing[key];
     const selectable = (SELECTABLE_GATEWAYS as readonly string[]).includes(v);

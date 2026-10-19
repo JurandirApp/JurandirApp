@@ -44,6 +44,9 @@ export interface AdminValue {
   /** Ambiente global de cada gateway (teste/produção) + troca (persiste no banco). */
   pagbankMode: PaymentEnv;
   setPagbankMode: (mode: PaymentEnv) => void;
+  /** Chave global do débito PagBank (3DS). */
+  pagbankDebitEnabled: boolean;
+  setPagbankDebitEnabled: (on: boolean) => void;
   pagarmeMode: PaymentEnv;
   setPagarmeMode: (mode: PaymentEnv) => void;
 }

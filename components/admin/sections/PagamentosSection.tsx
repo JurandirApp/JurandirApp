@@ -9,7 +9,14 @@ import { useAdmin } from "../context";
  *  Um switch por gateway — virar um pra teste NÃO arrasta o outro (a Pagar.me
  *  está no ar; o PagBank ainda não). Os tokens ficam no backend; aqui só escolhe. */
 export function PagamentosSection() {
-  const { pagbankMode, setPagbankMode, pagarmeMode, setPagarmeMode } = useAdmin();
+  const {
+    pagbankMode,
+    setPagbankMode,
+    pagarmeMode,
+    setPagarmeMode,
+    pagbankDebitEnabled,
+    setPagbankDebitEnabled,
+  } = useAdmin();
   const t = useTranslations("admin.pagamentos");
 
   return (
@@ -42,6 +49,34 @@ export function PagamentosSection() {
           tokenNote={t("pagbankTokenNote")}
           t={t}
         />
+      </div>
+
+      <div className="mt-3 rounded-xl border-2 border-ink bg-white p-4 shadow-hard">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="font-display text-sm font-extrabold">{t("debitTitle")}</span>
+          <StatusChip
+            live={pagbankDebitEnabled}
+            liveLabel={t("debitOn")}
+            testLabel={t("debitOff")}
+          />
+        </div>
+        <p className="m-0 mb-3 text-[12px] leading-snug text-ink/60">{t("debitDesc")}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <ModeButton
+            active={pagbankDebitEnabled}
+            icon="toggle_on"
+            label={t("debitOn")}
+            hint=""
+            onClick={() => !pagbankDebitEnabled && setPagbankDebitEnabled(true)}
+          />
+          <ModeButton
+            active={!pagbankDebitEnabled}
+            icon="toggle_off"
+            label={t("debitOff")}
+            hint=""
+            onClick={() => pagbankDebitEnabled && setPagbankDebitEnabled(false)}
+          />
+        </div>
       </div>
     </div>
   );

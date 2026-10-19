@@ -13,7 +13,13 @@ import { createSubaccount } from "@/lib/payments/asaas";
 import { getOAuthUrl, signState } from "@/lib/payments/mercadopago";
 import { enqueueTestJob } from "@/lib/db/print";
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
-import { getPagbankMode, setPagbankMode, getPagarmeMode, setPagarmeMode } from "@/lib/db/settings";
+import {
+  getPagbankMode,
+  setPagbankMode,
+  getPagarmeMode,
+  setPagarmeMode,
+  setPagbankDebitEnabled,
+} from "@/lib/db/settings";
 import { bustPagbankModeCache } from "@/lib/payments/pagbank";
 import { bustPagarmeModeCache } from "@/lib/payments/pagarme";
 import type { PaymentEnv } from "@prisma/client";
@@ -251,6 +257,17 @@ export async function setPagbankModeAction(
   bustPagbankModeCache(); // o provider relê o modo na próxima cobrança
   revalidatePath("/admin");
   return { ok: true, mode: safe };
+}
+
+/** Chave GLOBAL do débito PagBank (3DS). Desligada até o app novo estar nas lojas. */
+export async function setPagbankDebitEnabledAction(
+  on: boolean,
+): Promise<{ ok: boolean; enabled: boolean }> {
+  await assertAdmin();
+  const enabled = on === true;
+  await setPagbankDebitEnabled(enabled);
+  revalidatePath("/admin");
+  return { ok: true, enabled };
 }
 
 export async function getPagarmeModeAction(): Promise<PaymentEnv> {

@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/panel";
 import { listWaiters } from "@/lib/db/waiters";
 import { syncPagarmeRecipientStatus } from "@/lib/db/payments";
+import { getPagbankDebitEnabled } from "@/lib/db/settings";
 import { getPagarmeRecipientStatus } from "@/lib/payments/pagarme";
 import { toMonthlyStatLite } from "@/lib/admin/adapters";
 import {
@@ -53,6 +54,7 @@ export default async function PainelPage({
 
   const estId = session.establishmentId;
   const est = await getEstablishment(estId);
+  const pagbankDebitEnabled = await getPagbankDebitEnabled();
   if (!est) {
     redirect({ href: "/login", locale });
     return null;
@@ -117,6 +119,7 @@ export default async function PainelPage({
         googlePay: est.gatewayGooglePay,
       }}
       pagbankConnected={Boolean(est.pagbankAccountId)}
+      pagbankDebitEnabled={pagbankDebitEnabled}
       pagbankResult={pb === "ok" ? "ok" : pb === "error" ? "error" : null}
       pagarmeReady={Boolean(est.pagarmeRecipientId)}
       pagarmeStatus={pagarmeStatus}

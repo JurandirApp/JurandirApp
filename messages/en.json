@@ -915,7 +915,11 @@
       "pagarmeTokenNote": "Production reads PAGARME_SECRET_KEY; Test reads PAGARME_SECRET_KEY_TEST (falls back to production if unset).",
       "pagbankProductionWarn": "Production: real charges — money is actually debited from the customer.",
       "pagbankTestWarn": "Test: PagBank sandbox does not process real transactions — it only validates configuration and tokenization.",
-      "pagbankTokenNote": "Production reads PAGBANK_TOKEN; Test reads PAGBANK_TOKEN_TEST (falls back to production if unset)."
+      "pagbankTokenNote": "Production reads PAGBANK_TOKEN; Test reads PAGBANK_TOKEN_TEST (falls back to production if unset).",
+      "debitTitle": "PagBank debit (3DS)",
+      "debitDesc": "Keep it OFF until the new app (with the bank confirmation step) is on the Play Store and App Store. While off, no bar can choose PagBank for debit.",
+      "debitOn": "On",
+      "debitOff": "Off"
     },
     "repasseDebito": {
       "title": "Debit payout (Pix)",
