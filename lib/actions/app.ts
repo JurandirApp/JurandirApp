@@ -106,6 +106,12 @@ export async function chargeWalletAction(
       return { ok: true, status: r.status, order: row ? toClientOrder(row) : undefined };
     }
     const res = await payOrderWithWallet(orderId, walletType, token);
+    if (res.uncertain) {
+      // Pode ter cobrado: sem pedido na resposta o cliente vai pra "Meus pedidos"
+      // (nunca "recusado") e o polling confirma.
+      console.error("[chargeWallet] resultado incerto", orderId);
+      return { ok: false, status: "failed" };
+    }
     const [fresh] = await getOrdersByIds([orderId]);
     return {
       ok: res.status !== "failed",

@@ -1,6 +1,7 @@
 import { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getProviderByName, resolveWalletGateway } from "@/lib/payments";
+import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
 import {
   amountCovers,
   buildChargeId,
@@ -296,7 +297,7 @@ export async function payOrderWithWallet(
   orderId: string,
   walletType: "google_pay" | "apple_pay",
   token: string,
-): Promise<{ status: ChargeStatus; statusDetail?: string }> {
+): Promise<{ status: ChargeStatus; statusDetail?: string; uncertain?: boolean }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { establishment: true, payment: true },
@@ -321,7 +322,11 @@ export async function payOrderWithWallet(
       token,
     });
   } catch (e) {
-    return { status: "failed", statusDetail: e instanceof Error ? e.message.slice(0, 160) : "erro" };
+    const statusDetail = e instanceof Error ? e.message.slice(0, 160) : "erro";
+    // Só um 4xx do gateway prova que NÃO cobrou; 5xx/rede/timeout/parse → incerto
+    // (pode ter cobrado): quem chama não pode tratar como recusa.
+    if (isDefiniteGatewayFailure(e)) return { status: "failed", statusDetail };
+    return { status: "failed", statusDetail, uncertain: true };
   }
   await prisma.payment.update({
     where: { id: order.payment.id },
