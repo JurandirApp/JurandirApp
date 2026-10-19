@@ -151,6 +151,15 @@
 - [ ] **Step 4:** PASS + `npx tsc --noEmit` → 0 erros. Verificação manual opcional: `npm run dev`, abrir `http://localhost:3000/api/public/pagbank/3ds` e ver `{"type":"ready"}` no console.
 - [ ] **Step 5: Commit** `feat(pagbank): pagina 3DS hospedada (SDK JS do PagBank)`.
 
+### Task 5b: Log do webhook PagBank (evidência de notificação pra homologação)
+
+**Files:**
+- Modify: `app/api/webhooks/pagbank/route.ts`
+
+- [ ] **Step 1:** Logar cada notificação recebida: `console.log("[pagbank/webhook]", JSON.stringify({ orderId: order.id, reference: order.reference_id, charges: chargeIdsOf(order) }))` (sem cliente, sem cartão) e, depois de cada `reconcileByChargeId`, `console.log("[pagbank/webhook] reconciliado", id)`. Corpo inválido: `console.warn("[pagbank/webhook] corpo inválido")`. Comportamento inalterado (sempre 200; nunca confia no status do corpo).
+- [ ] **Step 2:** `npx tsc --noEmit` → 0 erros; `npx vitest run tests/payments` → verde (exceto a falha pré-existente).
+- [ ] **Step 3: Commit** `chore(pagbank): log das notificacoes do webhook (evidencia de homologacao)`.
+
 ### Task 6: Relatório "Repasse Débito" com PagBank
 
 **Files:**
