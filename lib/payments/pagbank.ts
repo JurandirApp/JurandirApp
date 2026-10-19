@@ -16,8 +16,10 @@ import type {
 // total−comissão pro bar e a comissão pra conta da plataforma.
 // Doc: https://developer.pagbank.com.br/reference/criar-pedido
 //
-// Débito NÃO é implementado: o PagBank exige 3DS no débito (só há SDK JS, sem
-// SDK nativo) e a divisão de pagamento não cobre débito (só Pix/crédito/boleto).
+// Débito É suportado, com autenticação 3DS obtida pelo SDK JS do PagBank (o app
+// roda numa WebView e manda o `authenticationId`); SEM split — a divisão de
+// pagamento não cobre débito (só Pix/crédito/boleto), então cai na conta da
+// plataforma. Débito sem 3DS nunca chega ao PagBank.
 // ---- Ambiente (teste/produção) --------------------------------------------
 // O token do PagBank é da conta-mãe (marketplace) → o ambiente é GLOBAL da
 // plataforma, escolhido pelo admin (`AppSetting.pagbankMode`). Convenção de env:
@@ -130,7 +132,7 @@ type PbOrder = { id: string; charges?: PbCharge[] };
 /** Customer do pedido. `tax_id` (CPF) é obrigatório e o nome precisa ter nome e
  *  sobrenome. Sem CPF real do pagador, usa o de TESTE (env PAGBANK_TEST_CPF).
  *  PRODUÇÃO: o app já coleta o CPF real no cartão/Pix. */
-function buildCustomer(reference: string, opts?: { name?: string; document?: string; phone?: string }) {
+export function buildCustomer(reference: string, opts?: { name?: string; document?: string; phone?: string }) {
   const rawDoc = (opts?.document ?? "").replace(/\D/g, "");
   const taxId = rawDoc.length >= 11
     ? rawDoc
@@ -214,7 +216,11 @@ async function createOrder(
         description: description.slice(0, 64),
         amount: { value: totalCents, currency: "BRL" },
         payment_method: paymentMethod,
-        splits: buildSplits(est, totalCents, cents(platformFee), isCard),
+        // Débito: a divisão de pagamento do PagBank não cobre — sem split.
+        splits:
+          paymentMethod.type === "DEBIT_CARD"
+            ? undefined
+            : buildSplits(est, totalCents, cents(platformFee), isCard),
       },
     ],
   };
@@ -284,11 +290,26 @@ export const pagbankProvider: PaymentProvider = {
   // (`encrypted`) — o cartão cru nunca chega aqui. `cardToken` = esse encrypted.
   async createCardTokenPayment(input: CardTokenPaymentInput): Promise<CardPaymentResult> {
     const { est, reference, total, platformFee, description, cardToken, installments, method,
-      customerName, customerDocument, customerPhone } = input;
-    if (method === "debit") {
-      throw new PagbankError(422, "débito PagBank exige 3DS (não suportado no app)");
+      customerName, customerDocument, customerPhone, authenticationId } = input;
+    if (method === "debit" && !authenticationId) {
+      throw new PagbankError(422, "débito PagBank exige autenticação 3DS (authenticationId)");
     }
     const customer = buildCustomer(reference, { name: customerName, document: customerDocument, phone: customerPhone });
+    if (method === "debit") {
+      const charge = await createOrder(est, reference, total, platformFee, description, customer, {
+        type: "DEBIT_CARD",
+        installments: 1,
+        capture: true,
+        soft_descriptor: "JURANDIR",
+        card: {
+          encrypted: cardToken,
+          store: false,
+          holder: { name: customer.name.slice(0, 30), tax_id: customer.tax_id },
+        },
+        authentication_method: { type: "THREEDS", id: authenticationId },
+      });
+      return cardResult(charge);
+    }
     const charge = await createOrder(est, reference, total, platformFee, description, customer, {
       type: "CREDIT_CARD",
       installments: installments > 0 ? installments : 1,

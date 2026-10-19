@@ -31,6 +31,7 @@ export async function POST(req: Request): Promise<Response> {
     installments?: unknown;
     method?: unknown;
     billing?: unknown;
+    authenticationId?: unknown;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -49,6 +50,11 @@ export async function POST(req: Request): Promise<Response> {
   const billing =
     str(b.line_1) && str(b.zip_code) && str(b.city) && str(b.state)
       ? { line_1: str(b.line_1), zip_code: str(b.zip_code), city: str(b.city), state: str(b.state) }
+      : undefined;
+  // Id do 3DS (`3DS_…`, PagBank débito). Opcional: só string não-vazia, senão ignora.
+  const authenticationId =
+    typeof body.authenticationId === "string" && body.authenticationId.trim()
+      ? body.authenticationId.trim()
       : undefined;
   const method = body.method === "debit" ? "debit" : "credit";
   const installments =
@@ -89,7 +95,7 @@ export async function POST(req: Request): Promise<Response> {
       payerDoc = parsed.data.customerDocument;
     }
 
-    const pay = await payOrderWithCardToken(targetId, cardToken, installments, method, payerDoc, billing);
+    const pay = await payOrderWithCardToken(targetId, cardToken, installments, method, payerDoc, billing, authenticationId);
     const [fresh] = await getOrdersByIds([targetId]);
     return Response.json(
       {

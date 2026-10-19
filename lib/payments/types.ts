@@ -85,6 +85,8 @@ export type CardTokenPaymentInput = {
   /** Endereço de cobrança do portador — EXIGIDO pelo antifraude do Pagar.me em
    *  cartão. O app resolve o CEP (ViaCEP) e manda os campos prontos. */
   billing?: CardBillingAddress;
+  /** Id da autenticação 3DS (`3DS_…`) do SDK JS do PagBank — obrigatório no débito PagBank. */
+  authenticationId?: string;
 };
 
 /** billing_address do cartão (formato Pagar.me v5). */

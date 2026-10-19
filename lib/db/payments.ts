@@ -238,6 +238,7 @@ export async function payOrderWithCardToken(
   method: "credit" | "debit",
   customerDocument?: string,
   billing?: CardBillingAddress,
+  authenticationId?: string,
 ): Promise<{ status: ChargeStatus; statusDetail?: string }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -263,6 +264,7 @@ export async function payOrderWithCardToken(
       customerDocument: customerDocument ?? undefined,
       customerPhone: order.customerPhone ?? undefined,
       billing,
+      authenticationId,
     });
   } catch (e) {
     return { status: "failed", statusDetail: e instanceof Error ? e.message : String(e) };

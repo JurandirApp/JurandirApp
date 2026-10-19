@@ -130,8 +130,33 @@ describe("pagbankProvider.createCardTokenPayment", () => {
     expect(platform.configurations.liable).toBe(false);
   });
 
-  it("débito é recusado (PagBank exige 3DS)", async () => {
-    seq([]);
+  it("débito com 3DS: DEBIT_CARD + authentication_method, sem split mesmo com conta Connect", async () => {
+    const fn = seq([{ id: "ORDE_4", charges: [{ id: "CHAR_1", status: "PAID" }] }]);
+    const r = await pagbankProvider.createCardTokenPayment!({
+      est,
+      reference: "PED-4",
+      total: 20,
+      platformFee: 1.6,
+      description: "Pedido PED-4",
+      cardToken: "ENC",
+      installments: 1,
+      method: "debit",
+      authenticationId: "3DS_ABC",
+    });
+    expect(r).toMatchObject({ chargeId: "CHAR_1", status: "paid" });
+    const charge = JSON.parse(fn.mock.calls[0][1].body as string).charges[0];
+    expect(charge.payment_method).toMatchObject({
+      type: "DEBIT_CARD",
+      installments: 1,
+      capture: true,
+      card: { encrypted: "ENC" },
+      authentication_method: { type: "THREEDS", id: "3DS_ABC" },
+    });
+    expect(charge.splits).toBeUndefined();
+  });
+
+  it("débito sem authenticationId é recusado sem chamar o PagBank", async () => {
+    const fn = seq([]);
     await expect(
       pagbankProvider.createCardTokenPayment!({
         est,
@@ -144,6 +169,7 @@ describe("pagbankProvider.createCardTokenPayment", () => {
         method: "debit",
       }),
     ).rejects.toThrow(/3DS/);
+    expect(fn).toHaveBeenCalledTimes(0);
   });
 });
 
