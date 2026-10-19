@@ -7,9 +7,22 @@ import { chargeIdsOf } from "@/lib/payments/pagbank";
 export async function POST(req: Request): Promise<Response> {
   try {
     const raw = await req.text();
-    const order = (raw ? JSON.parse(raw) : {}) as { charges?: { id?: string }[] };
-    for (const id of chargeIdsOf(order)) await reconcileByChargeId(id);
+    const order = (raw ? JSON.parse(raw) : {}) as {
+      id?: string;
+      reference_id?: string;
+      charges?: { id?: string }[];
+    };
+    const charges = chargeIdsOf(order);
+    console.log(
+      "[pagbank/webhook]",
+      JSON.stringify({ orderId: order.id, reference: order.reference_id, charges }),
+    );
+    for (const id of charges) {
+      await reconcileByChargeId(id);
+      console.log("[pagbank/webhook] reconciliado", id);
+    }
   } catch {
+    console.warn("[pagbank/webhook] corpo inválido");
     // ignora corpo inválido
   }
   return new Response("ok", { status: 200 });
