@@ -12,7 +12,7 @@ export function threeDsPageHtml(): string {
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Confirmando com o seu banco</title>
 <style>
@@ -36,7 +36,12 @@ p{margin:20px 0 0;font-size:16px}
     }
   }
   function fail(code, message) {
-    post({ type: "error", code: String(code || "SDK_ERROR"), message: String(message || "").slice(0, 200) });
+    var msg = String(message || "").replace(/\\d{8,}/g, "***").slice(0, 200);
+    post({ type: "error", code: String(code || "SDK_ERROR"), message: msg });
+  }
+  function failFrom(err, fallback) {
+    var m = err && err.detail && err.detail.errorMessages && err.detail.errorMessages[0];
+    fail(m && m.code, (m && (m.description || m.message)) || fallback);
   }
   var running = false;
   window.jurandir3ds = {
@@ -44,29 +49,31 @@ p{margin:20px 0 0;font-size:16px}
       if (running) return;
       running = true;
       try {
-        if (!window.PagSeguro) { running = false; fail("SDK_LOAD_FAILED", "SDK do PagBank indisponivel"); return; }
+        if (!window.PagSeguro) { running = false; fail("SDK_LOAD_FAILED", "SDK do PagBank indisponível"); return; }
         window.PagSeguro.setUp({ session: params.session, env: params.env });
         window.PagSeguro.authenticate3DS({
           data: params.data,
           beforeChallenge: function (ctx) { post({ type: "challenge" }); ctx.open(); }
         }).then(function (r) {
           running = false;
-          post({ type: "result", status: r && r.status, id: (r && r.id) || null });
+          post({ type: "result", status: (r && r.status) || null, id: (r && r.id) || null });
         }).catch(function (err) {
           running = false;
-          var m = err && err.detail && err.detail.errorMessages && err.detail.errorMessages[0];
-          fail(m && m.code, (m && (m.description || m.message)) || "Falha na autenticacao 3DS");
+          failFrom(err, "Falha na autenticação 3DS");
         });
       } catch (e) {
         running = false;
-        fail("SDK_ERROR", "Falha ao iniciar o 3DS");
+        failFrom(e, "Falha ao iniciar o 3DS");
       }
     }
   };
   var sc = document.createElement("script");
   sc.src = "${SDK_URL}";
-  sc.onload = function () { post({ type: "ready" }); };
-  sc.onerror = function () { fail("SDK_LOAD_FAILED", "Nao foi possivel carregar o SDK do PagBank"); };
+  sc.onload = function () {
+    if (window.PagSeguro) post({ type: "ready" });
+    else fail("SDK_LOAD_FAILED", "SDK do PagBank indisponível");
+  };
+  sc.onerror = function () { fail("SDK_LOAD_FAILED", "Não foi possível carregar o SDK do PagBank"); };
   document.head.appendChild(sc);
 })();
 </script>

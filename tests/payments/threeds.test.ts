@@ -1,20 +1,43 @@
 import { describe, it, expect } from "vitest";
-import { threeDsPageHtml } from "@/lib/payments/threeds-page";
+import { OrderStatus } from "@prisma/client";
+import { decideThreeDsSession, threeDsAmountCents } from "@/lib/payments/threeds";
 
-describe("threeDsPageHtml", () => {
-  const html = threeDsPageHtml();
-  it("contém o contrato com o app", () => {
-    expect(html).toContain("https://assets.pagseguro.com.br/checkout-sdk-js/rc/dist/browser/pagseguro.min.js");
-    expect(html).toContain("jurandir3ds");
-    expect(html).toContain("ThreeDS.postMessage");
-    expect(html).toContain("beforeChallenge");
-    expect(html).toContain("open()");
-    expect(html).toContain("SDK_LOAD_FAILED");
-    expect(html).toContain("Confirmando com o seu banco");
+const valid = {
+  status: OrderStatus.AWAITING_PAYMENT,
+  method: "DEBIT",
+  provider: "PAGBANK",
+  hasGatewayCharge: false,
+};
+
+describe("decideThreeDsSession", () => {
+  it("chave desligada -> disabled (mesmo com pedido válido)", () => {
+    expect(decideThreeDsSession(valid, false)).toBe("disabled");
   });
-  it("não loga params/data nem faz fetch", () => {
-    expect(html).not.toContain("console.log(params");
-    expect(html).not.toContain("console.log(data");
-    expect(html).not.toContain("fetch(");
+  it("pedido inexistente -> notfound", () => {
+    expect(decideThreeDsSession(null, true)).toBe("notfound");
+  });
+  it("método CREDIT -> notChargeable", () => {
+    expect(decideThreeDsSession({ ...valid, method: "CREDIT" }, true)).toBe("notChargeable");
+  });
+  it("provider PAGARME -> notChargeable", () => {
+    expect(decideThreeDsSession({ ...valid, provider: "PAGARME" }, true)).toBe("notChargeable");
+  });
+  it("já tem cobrança no gateway -> notChargeable", () => {
+    expect(decideThreeDsSession({ ...valid, hasGatewayCharge: true }, true)).toBe("notChargeable");
+  });
+  it("status IN_PRODUCTION -> notChargeable", () => {
+    expect(decideThreeDsSession({ ...valid, status: OrderStatus.IN_PRODUCTION }, true)).toBe(
+      "notChargeable",
+    );
+  });
+  it("válido -> ok", () => {
+    expect(decideThreeDsSession(valid, true)).toBe("ok");
+  });
+});
+
+describe("threeDsAmountCents", () => {
+  it("arredonda como o cents do pagbank", () => {
+    expect(threeDsAmountCents(10.05)).toBe(1005);
+    expect(threeDsAmountCents(19.9)).toBe(1990);
   });
 });
