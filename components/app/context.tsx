@@ -5,12 +5,16 @@ import type { MenuItem } from "@/lib/data/panel";
 import type { AppEstablishment, PayId } from "@/lib/data/app";
 import type { CartLine, ClientOrder } from "@/lib/app/helpers";
 
+import type { WalletWebConfig } from "@/lib/payments/wallet-web";
+
 export type Step = "qr" | "menu" | "checkout" | "done" | "myorders";
 export type PayMode = "full" | "split";
 
 export interface AppValue {
   // Identity / context
   est: AppEstablishment;
+  /** Config das carteiras (Apple/Google Pay) do bar; null = indisponível. */
+  wallets: WalletWebConfig;
   beach: boolean;
   loc: string;
   setLoc: (v: string) => void;

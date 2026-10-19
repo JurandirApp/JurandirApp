@@ -19,6 +19,8 @@ import { CartDrawer } from "./CartDrawer";
 import { CardPaymentModal } from "./CardPaymentModal";
 import { ClientToast } from "./ClientToast";
 
+import type { WalletWebConfig } from "@/lib/payments/wallet-web";
+
 const CAT0 = "Combos & Combinações";
 
 export function ClientApp({
@@ -30,6 +32,7 @@ export function ClientApp({
   spots = [],
   popularNames = [],
   paidReturn = false,
+  wallets,
 }: {
   est: AppEstablishment;
   menu: MenuItem[];
@@ -39,6 +42,7 @@ export function ClientApp({
   spots?: string[];
   popularNames?: string[];
   paidReturn?: boolean;
+  wallets: WalletWebConfig;
 }) {
   const t = useTranslations("app");
   const storageKey = `jur_orders_${est.slug}`;
@@ -375,6 +379,7 @@ export function ClientApp({
 
     return {
       est,
+      wallets,
       beach,
       loc,
       setLoc,
@@ -505,7 +510,7 @@ export function ClientApp({
       toastMsg,
     };
   }, [
-    est, beach, loc, spotFromQr, spots, popularNames, menu, step, cart, cartOpen, cat, sub, query, custName, note,
+    est, wallets, beach, loc, spotFromQr, spots, popularNames, menu, step, cart, cartOpen, cat, sub, query, custName, note,
     mode, selPay, parc, people, paid, paying, myOrders, lastOrder, exp, toast,
     storageKey, pendingKey, t,
   ]);

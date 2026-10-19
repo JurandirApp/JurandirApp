@@ -122,3 +122,12 @@ export function resolveInitiativeContext(
     return null;
   }
 }
+
+/** Decisão pura da cobrança por carteira: pedido já quitado/pendente NUNCA é cobrado de novo. */
+export function walletChargeDecision(
+  r: { kind: "charge" } | { kind: "settled"; status: "paid" | "pending" } | { kind: "notfound" },
+): "charge" | "settled" | "notfound" {
+  if (r.kind === "charge") return "charge";
+  if (r.kind === "settled") return "settled";
+  return "notfound";
+}

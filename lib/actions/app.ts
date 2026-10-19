@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import type { PaymentMethod } from "@prisma/client";
 import { createOrder, payShare, getOrdersByIds } from "@/lib/db/orders";
-import { createCardCheckout, reconcileOrder, payOrderWithCard } from "@/lib/db/payments";
+import {
+  createCardCheckout,
+  reconcileOrder,
+  payOrderWithCard,
+  payOrderWithWallet,
+  resolveChargeableOrder,
+} from "@/lib/db/payments";
+import { walletChargeDecision } from "@/lib/payments/wallet-web";
 import { orderCreateSchema, type OrderCreateInput } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
 import type { ClientOrder } from "@/lib/app/helpers";
@@ -53,6 +60,61 @@ export async function payCardAction(
       detail: res.statusDetail,
     };
   } catch {
+    return { ok: false, status: "failed" };
+  }
+}
+
+/** Carteira (Apple/Google Pay) no site, passo 1: cria o pedido CREDIT SEM checkout
+ *  hospedado; o id fica no cliente e a cobrança é feita por chargeWalletAction. */
+export async function createWalletOrderAction(
+  input: OrderCreateInput,
+): Promise<{ ok: boolean; order?: ClientOrder; error?: string }> {
+  const parsed = orderCreateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const pay = parsed.data.payment;
+  if (!pay || pay.kind !== "full" || pay.method !== "CREDIT") return { ok: false, error: "invalid" };
+  try {
+    const created = await createOrder(parsed.data);
+    return { ok: true, order: toClientOrder(created) };
+  } catch {
+    return { ok: false, error: "failed" };
+  }
+}
+
+/** Carteira no site, passo 2: cobra o pedido já criado com o token da carteira.
+ *  Pedido já quitado/pendente não é cobrado de novo. Nunca loga o token. */
+export async function chargeWalletAction(
+  orderId: string,
+  walletType: "apple_pay" | "google_pay",
+  token: string,
+): Promise<{ ok: boolean; status: ChargeStatus; order?: ClientOrder; detail?: string }> {
+  if (
+    (walletType !== "apple_pay" && walletType !== "google_pay") ||
+    typeof token !== "string" ||
+    !token ||
+    typeof orderId !== "string" ||
+    !orderId
+  ) {
+    return { ok: false, status: "failed" };
+  }
+  try {
+    const r = await resolveChargeableOrder(orderId);
+    const decision = walletChargeDecision(r);
+    if (decision === "notfound") return { ok: false, status: "failed" };
+    if (decision === "settled" && r.kind === "settled") {
+      const [row] = await getOrdersByIds([orderId]);
+      return { ok: true, status: r.status, order: row ? toClientOrder(row) : undefined };
+    }
+    const res = await payOrderWithWallet(orderId, walletType, token);
+    const [fresh] = await getOrdersByIds([orderId]);
+    return {
+      ok: res.status !== "failed",
+      status: res.status,
+      order: fresh ? toClientOrder(fresh) : undefined,
+      detail: res.statusDetail,
+    };
+  } catch (e) {
+    console.error("[chargeWallet]", e instanceof Error ? e.message : "erro");
     return { ok: false, status: "failed" };
   }
 }

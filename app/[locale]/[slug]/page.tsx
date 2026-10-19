@@ -5,6 +5,7 @@ import { getEstablishmentBySlug } from "@/lib/db/establishments";
 import { listMenu, getPopularItemNames } from "@/lib/db/menu";
 import { listQrSpots } from "@/lib/db/qr";
 import { toAppEstablishment, toAppMenuItem } from "@/lib/app/adapters";
+import { getWalletWebConfig } from "@/lib/payments/wallet-web-env";
 import { ClientApp } from "@/components/app/ClientApp";
 import { BEACH_TYPES } from "@/lib/data/admin";
 import { DEFAULT_LOC_BEACH, DEFAULT_LOC_TABLE } from "@/lib/data/app";
@@ -43,9 +44,13 @@ export default async function ClientAppPage({
   const { local, paid } = await searchParams;
   const loc = local ?? (beach ? DEFAULT_LOC_BEACH : DEFAULT_LOC_TABLE);
 
+  const appEst = toAppEstablishment(dbEst);
+  const wallets = await getWalletWebConfig(appEst);
+
   return (
     <ClientApp
-      est={toAppEstablishment(dbEst)}
+      est={appEst}
+      wallets={wallets}
       menu={dbMenu.map(toAppMenuItem)}
       beach={beach}
       loc={loc}
