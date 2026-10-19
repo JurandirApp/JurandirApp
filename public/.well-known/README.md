@@ -14,13 +14,5 @@ serve o conteúdo de `public/` a partir da raiz `/`).
    `https://jurandir.app.br/.well-known/apple-developer-merchantid-domain-association`
 6. Volte ao portal da Apple e clique **Verify**.
 
-Conversão do certificado: a Apple entrega `merchant_id.cer` em DER. Converta:
-`openssl x509 -inform der -in merchant_id.cer -out merchant_id.pem`. Depois gere
-o base64 de cada PEM (certificado e chave privada) em uma única linha, por
-exemplo `base64 -w0 merchant_id.pem`, para as variáveis da Vercel.
-
-O certificado de identidade do comerciante (Merchant Identity Certificate) e a
-chave privada vão na Vercel em `APPLE_PAY_MERCHANT_CERT` e
-`APPLE_PAY_MERCHANT_KEY`, como PEM codificado em base64 (uma linha). Defina
-`APPLE_PAY_DOMAIN=jurandir.app.br` explicitamente (padrão: host de
-`APP_BASE_URL`). Sem domínio resolvível o Apple Pay não aparece.
+Depois de verificado, o restante da configuração do Apple Pay fica no guia de
+deploy do projeto (fora desta pasta pública).

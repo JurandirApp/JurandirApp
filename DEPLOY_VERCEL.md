@@ -35,6 +35,25 @@ Cole cada uma. **Os valores secretos você copia do seu `.env` local** — não 
 
 > **Opcionais** (não precisa em produção): `MP_TEST_PUBLIC_KEY`, `MP_TEST_ACCESS_TOKEN` (só sandbox) e todas as `ASAAS_*` (Asaas não é mais usado — MP é o gateway fixo).
 
+### Carteiras no site (Apple Pay / Google Pay — só crédito)
+Sem estas variáveis os botões simplesmente não aparecem (o resto do checkout segue igual).
+
+| Variável | Significado |
+|---|---|
+| `APPLE_PAY_MERCHANT_ID` | Merchant ID da Apple (padrão `merchant.br.app.jurandir`) |
+| `APPLE_PAY_DISPLAY_NAME` | Nome mostrado na folha do Apple Pay (padrão `Jurandir`) |
+| `APPLE_PAY_DOMAIN` | Domínio verificado na Apple (`jurandir.app.br`; se vier URL, vale só o host). Padrão: host do `APP_BASE_URL`. O botão só aparece nesse domínio |
+| `APPLE_PAY_MERCHANT_CERT` | **Secreto.** Merchant Identity Certificate da Apple, PEM em base64 numa linha |
+| `APPLE_PAY_MERCHANT_KEY` | **Secreto.** Chave privada desse certificado, PEM em base64 numa linha |
+| `GOOGLE_PAY_MERCHANT_ID` | Merchant ID do console do Google Pay & Wallet (ex. `BCR2DN…`). Sem ele o Google Pay nunca roda em PRODUCTION |
+| `GOOGLE_PAY_PAGARME_GATEWAY_MERCHANT_ID` (+ `_TEST`) | `gatewayMerchantId` do Pagar.me (conta `acc_…`). O `_TEST` vale quando o Pagar.me está em TEST no admin (cai no sem sufixo se não existir) |
+| `GOOGLE_PAY_PAGBANK_GATEWAY_MERCHANT_ID` (+ `_TEST`) | `gatewayMerchantId` do PagBank (conta `ACCO_…`). Mesma regra do `_TEST` pelo modo do PagBank no admin |
+| `GOOGLE_PAY_TEST_SLUGS` | Slugs de bares (separados por vírgula) que veem o Google Pay em TEST. Os demais só veem em PRODUCTION (gateway em Produção + `GOOGLE_PAY_MERCHANT_ID`) |
+
+> **Têm que bater:** `PAGARME_GOOGLE_PAY_MERCHANT_ID` = `GOOGLE_PAY_MERCHANT_ID` e `PAGARME_APPLE_PAY_MERCHANT_ID` = `APPLE_PAY_MERCHANT_ID` — as `PAGARME_*` vão no payload da cobrança do Pagar.me e dizem qual merchant/certificado usar pra descriptografar o token.
+
+**Certificado da Apple (Merchant Identity):** a Apple entrega `merchant_id.cer` em DER. Converta com `openssl x509 -inform der -in merchant_id.cer -out merchant_id.pem`, gere o base64 de uma linha de cada PEM (certificado e chave privada), por exemplo `base64 -w0 merchant_id.pem`, e cole em `APPLE_PAY_MERCHANT_CERT` / `APPLE_PAY_MERCHANT_KEY`. Nunca commitar esses arquivos. A verificação do domínio está em `public/.well-known/README.md`.
+
 ### Sobre as 2 últimas (a URL de produção)
 O domínio de produção é **`https://jurandir.app.br`** (apontado pro Vercel via DNS). Use ele nas duas — é pra lá que o cliente volta depois de pagar (back_urls) e é o callback do OAuth do marketplace.
 
