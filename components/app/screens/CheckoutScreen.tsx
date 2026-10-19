@@ -6,12 +6,14 @@ import { money } from "@/lib/panel/helpers";
 import { PAY_IDS, PM, isComingSoon, type PayId } from "@/lib/data/app";
 import { cartTotal, fees, shares as splitShares } from "@/lib/app/helpers";
 import { useApp } from "../context";
+import { WalletButtons } from "../WalletButtons";
 
 export function CheckoutScreen() {
   const {
     est, loc, menu, cart, addItem, decItem, removeItem, goMenu,
     note, setNote, mode, setMode, selPay, pickPay,
     people, pplPlus, pplMinus, paid, setShare, undoShare, paying, finish,
+    wallets, payWithWallet, toastMsg,
   } = useApp();
   const t = useTranslations("app");
   const tPay = useTranslations("app.pay");
@@ -225,6 +227,16 @@ export function CheckoutScreen() {
       {full ? (
         <>
           <h2 className="m-0 mb-2 text-sm font-semibold text-ink/70">{t("paymentMethod")}</h2>
+          {/* Apple Pay / Google Pay (somente crédito) — só no pagamento inteiro. */}
+          <WalletButtons
+            config={wallets}
+            total={grand}
+            disabled={paying}
+            onToken={(walletType, token, complete) => {
+              payWithWallet(walletType, token).then(complete, () => complete(false));
+            }}
+            onError={() => toastMsg(t("walletUnavailable"))}
+          />
           <div className="grid grid-cols-2 gap-2">
             {PAY_IDS.map((id) => {
               const soon = isComingSoon(id);
