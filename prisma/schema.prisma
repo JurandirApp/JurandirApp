@@ -460,5 +460,7 @@ model AppSetting {
   // cobrando de verdade → começa em PRODUCTION. Trocados independentes pelo admin.
   pagbankMode PaymentEnv @default(TEST)
   pagarmeMode PaymentEnv @default(PRODUCTION)
+  // Chave geral do débito PagBank (3DS): off até o app com 3DS estar nas lojas.
+  pagbankDebitEnabled Boolean @default(false)
   updatedAt   DateTime   @updatedAt
 }

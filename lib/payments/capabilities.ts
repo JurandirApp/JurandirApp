@@ -17,8 +17,8 @@ export const GATEWAY_CAP: Record<string, Record<RouteKey, boolean>> = {
   ASAAS: { pix: true, credit: false, debit: false, applePay: false, googlePay: false },
   // Appmax não tem débito avulso; carteira ainda não implementada no provider.
   APPMAX: { pix: true, credit: true, debit: false, applePay: false, googlePay: false },
-  // PagBank: débito exige 3DS (só SDK JS) e não entra no split → fora por ora.
-  PAGBANK: { pix: true, credit: true, debit: false, applePay: true, googlePay: true },
+  // PagBank: débito com 3DS, sem split, atrás da chave geral (gatewayImplements).
+  PAGBANK: { pix: true, credit: true, debit: true, applePay: true, googlePay: true },
   // InfinitePay: checkout HOSPEDADO (Pix + crédito até 12x na página deles), sem
   // débito e sem carteira por API. Conta da plataforma (tag única), sem split.
   INFINITEPAY: { pix: true, credit: true, debit: false, applePay: false, googlePay: false },
@@ -38,6 +38,8 @@ export type GatewayReadiness = {
   pagarmeRecipientId: string | null;
   asaasWalletId?: string | null;
   appmaxRecipientHash?: string | null;
+  /** Chave geral (AppSetting): débito PagBank liberado pra plataforma. */
+  pagbankDebitEnabled?: boolean;
 };
 
 /** Gateway pronto pra cobrar por este estabelecimento. MP, PagBank e InfinitePay
@@ -59,7 +61,18 @@ export function isGatewayReady(est: GatewayReadiness, gateway: string): boolean 
   }
 }
 
+/** O gateway implementa o método? Débito PagBank só com a chave geral ligada
+ *  (o app já publicado não faz 3DS). */
+export function gatewayImplements(
+  gateway: string,
+  key: RouteKey,
+  flags?: { pagbankDebitEnabled?: boolean },
+): boolean {
+  if (gateway === "PAGBANK" && key === "debit" && !flags?.pagbankDebitEnabled) return false;
+  return Boolean(GATEWAY_CAP[gateway]?.[key]);
+}
+
 /** O gateway escolhido pro método pode de fato cobrar (implementa + está pronto)? */
 export function canCharge(est: GatewayReadiness, key: RouteKey, gateway: string): boolean {
-  return Boolean(GATEWAY_CAP[gateway]?.[key]) && isGatewayReady(est, gateway);
+  return gatewayImplements(gateway, key, est) && isGatewayReady(est, gateway);
 }

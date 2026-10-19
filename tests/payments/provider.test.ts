@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getProvider, resolveGateway, resolveWalletGateway, getProviderByName } from "@/lib/payments";
-import { canCharge } from "@/lib/payments/capabilities";
+import { canCharge, gatewayImplements } from "@/lib/payments/capabilities";
 import type { Establishment } from "@prisma/client";
 
 const est = (over: Partial<Establishment> = {}): Establishment =>
@@ -29,6 +29,19 @@ describe("resolveWalletGateway", () => {
     });
     expect(resolveWalletGateway(e, "apple_pay")).toBe("PAGARME");
     expect(resolveWalletGateway(e, "google_pay")).toBe("ASAAS");
+  });
+});
+
+describe("débito PagBank atrás da chave geral", () => {
+  it("gatewayImplements respeita a chave", () => {
+    expect(gatewayImplements("PAGBANK", "debit")).toBe(false);
+    expect(gatewayImplements("PAGBANK", "debit", { pagbankDebitEnabled: true })).toBe(true);
+    expect(gatewayImplements("PAGBANK", "credit")).toBe(true);
+    expect(gatewayImplements("PAGARME", "debit")).toBe(true);
+  });
+  it("canCharge débito PagBank só com a chave ligada", () => {
+    expect(canCharge({ pagarmeRecipientId: null }, "debit", "PAGBANK")).toBe(false);
+    expect(canCharge({ pagarmeRecipientId: null, pagbankDebitEnabled: true }, "debit", "PAGBANK")).toBe(true);
   });
 });
 

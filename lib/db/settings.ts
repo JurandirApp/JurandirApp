@@ -44,3 +44,18 @@ export async function setPagarmeMode(mode: PaymentEnv): Promise<void> {
     create: { id: SINGLETON, pagarmeMode: mode },
   });
 }
+
+/** Débito PagBank liberado pra plataforma? (default false) */
+export async function getPagbankDebitEnabled(): Promise<boolean> {
+  const s = await getAppSettings();
+  return s.pagbankDebitEnabled;
+}
+
+/** Liga/desliga o débito PagBank (só o admin chama, via server action). */
+export async function setPagbankDebitEnabled(on: boolean): Promise<void> {
+  await prisma.appSetting.upsert({
+    where: { id: SINGLETON },
+    update: { pagbankDebitEnabled: on },
+    create: { id: SINGLETON, pagbankDebitEnabled: on },
+  });
+}
