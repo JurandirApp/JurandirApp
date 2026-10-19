@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  canUseApplePay,
   walletAmount,
   googleIsReadyToPayRequest,
   googlePaymentDataRequest,
@@ -22,6 +23,7 @@ const ap: ApplePayWebConfig = {
   merchantCapabilities: ["supports3DS", "supportsCredit"],
   countryCode: "BR",
   currencyCode: "BRL",
+  domain: "jurandir.app.br",
 };
 
 describe("walletAmount", () => {
@@ -96,5 +98,39 @@ describe("applePayRequest", () => {
       merchantCapabilities: ["supports3DS", "supportsCredit"],
       total: { label: "Jurandir", amount: "12.50" },
     });
+  });
+});
+
+describe("canUseApplePay", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  const APS = { canMakePayments: () => true, supportsVersion: () => true };
+  const win = (hostname: string, ApplePaySession: unknown = APS) => ({
+    location: { hostname },
+    ApplePaySession,
+  });
+
+  it("aparelho com Apple Pay no domínio verificado -> true", () => {
+    vi.stubGlobal("window", win("jurandir.app.br"));
+    expect(canUseApplePay({ domain: "jurandir.app.br" })).toBe(true);
+  });
+  it("outro host (ex.: *.vercel.app) -> false", () => {
+    vi.stubGlobal("window", win("jurandir-app.vercel.app"));
+    expect(canUseApplePay({ domain: "jurandir.app.br" })).toBe(false);
+  });
+  it("sem ApplePaySession -> false", () => {
+    vi.stubGlobal("window", win("jurandir.app.br", null));
+    expect(canUseApplePay({ domain: "jurandir.app.br" })).toBe(false);
+  });
+  it("canMakePayments false -> false", () => {
+    vi.stubGlobal(
+      "window",
+      win("jurandir.app.br", { canMakePayments: () => false, supportsVersion: () => true }),
+    );
+    expect(canUseApplePay({ domain: "jurandir.app.br" })).toBe(false);
+  });
+  it("sem window (servidor) -> false", () => {
+    expect(canUseApplePay({ domain: "jurandir.app.br" })).toBe(false);
   });
 });

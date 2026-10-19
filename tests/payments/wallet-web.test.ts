@@ -12,8 +12,10 @@ const env: WalletWebEnv = {
   appleMerchantId: "merchant.br.app.jurandir",
   appleDisplayName: "Jurandir",
   appleCertReady: true,
+  appleDomain: "jurandir.app.br",
   googleMerchantId: "BCR2DN123",
   googleGatewayMerchantIds: { PAGARME: "acc_pagarme", PAGBANK: "pb_merchant" },
+  googleTestSlugs: [],
 };
 const test: GatewayModes = { PAGARME: "TEST", PAGBANK: "TEST" };
 const prod: GatewayModes = { PAGARME: "PRODUCTION", PAGBANK: "PRODUCTION" };
@@ -22,7 +24,9 @@ const est = (
   googlePay: boolean,
   a = "PAGARME",
   g = "PAGARME",
-) => ({ applePay, googlePay, gateways: { applePay: a, googlePay: g } });
+  slug = "bar-do-ze",
+) => ({ slug, applePay, googlePay, gateways: { applePay: a, googlePay: g } });
+const allow: WalletWebEnv = { ...env, googleTestSlugs: ["bar-do-ze"] };
 
 describe("walletWebConfig - Apple Pay", () => {
   it("presente com cert pronto", () => {
@@ -34,7 +38,13 @@ describe("walletWebConfig - Apple Pay", () => {
       merchantCapabilities: ["supports3DS", "supportsCredit"],
       countryCode: "BR",
       currencyCode: "BRL",
+      domain: "jurandir.app.br",
     });
+  });
+  it("ausente sem domínio resolvido", () => {
+    expect(
+      walletWebConfig(est(true, false), { ...env, appleDomain: "" }, test).applePay,
+    ).toBeNull();
   });
   it("ausente sem cert", () => {
     expect(
@@ -49,7 +59,7 @@ describe("walletWebConfig - Apple Pay", () => {
 
 describe("walletWebConfig - Google Pay", () => {
   it("Pagar.me", () => {
-    const g = walletWebConfig(est(false, true), env, test).googlePay!;
+    const g = walletWebConfig(est(false, true), env, prod).googlePay!;
     expect(g.gateway).toBe("pagarme");
     expect(g.allowedCardNetworks).toEqual(["VISA", "MASTERCARD"]);
     expect(g.gatewayMerchantId).toBe("acc_pagarme");
@@ -57,7 +67,7 @@ describe("walletWebConfig - Google Pay", () => {
     expect(g.merchantName).toBe("Jurandir");
   });
   it("PagBank", () => {
-    const g = walletWebConfig(est(false, true, "PAGARME", "PAGBANK"), env, test)
+    const g = walletWebConfig(est(false, true, "PAGARME", "PAGBANK"), env, prod)
       .googlePay!;
     expect(g.gateway).toBe("pagbank");
     expect(g.allowedCardNetworks).toEqual(["VISA", "MASTERCARD", "ELO"]);
@@ -67,34 +77,63 @@ describe("walletWebConfig - Google Pay", () => {
     expect(
       walletWebConfig(
         est(false, true),
-        { ...env, googleGatewayMerchantIds: {} },
-        test,
+        { ...allow, googleGatewayMerchantIds: {} },
+        prod,
       ).googlePay,
     ).toBeNull();
   });
   it("gateway MERCADO_PAGO -> null", () => {
     expect(
-      walletWebConfig(est(false, true, "PAGARME", "MERCADO_PAGO"), env, test)
+      walletWebConfig(est(false, true, "PAGARME", "MERCADO_PAGO"), allow, prod)
         .googlePay,
     ).toBeNull();
   });
   it("est.googlePay=false -> null", () => {
-    expect(walletWebConfig(est(false, false), env, test).googlePay).toBeNull();
+    expect(walletWebConfig(est(false, false), allow, prod).googlePay).toBeNull();
   });
-  it("TEST sem merchantId", () => {
-    const g = walletWebConfig(est(false, true), env, test).googlePay!;
+  it("TEST sem allowlist -> null (cliente real nunca vê o Google Pay de teste)", () => {
+    expect(walletWebConfig(est(false, true), env, test).googlePay).toBeNull();
+  });
+  it("TEST com o slug na allowlist -> TEST sem merchantId", () => {
+    const g = walletWebConfig(est(false, true), allow, test).googlePay!;
     expect(g.environment).toBe("TEST");
     expect(g.merchantId).toBeUndefined();
+    expect(g.gatewayMerchantId).toBe("acc_pagarme");
+  });
+  it("allowlist compara sem caixa e com trim", () => {
+    const g = walletWebConfig(
+      est(false, true, "PAGARME", "PAGARME", " Bar-Do-Ze "),
+      { ...env, googleTestSlugs: ["BAR-do-ze"] },
+      test,
+    ).googlePay!;
+    expect(g.environment).toBe("TEST");
+  });
+  it("TEST com outro slug na allowlist -> null", () => {
+    expect(
+      walletWebConfig(est(false, true, "PAGARME", "PAGARME", "outro-bar"), allow, test)
+        .googlePay,
+    ).toBeNull();
   });
   it("PRODUCTION com merchantId", () => {
     const g = walletWebConfig(est(false, true), env, prod).googlePay!;
     expect(g.environment).toBe("PRODUCTION");
     expect(g.merchantId).toBe("BCR2DN123");
   });
-  it("PRODUCTION sem merchantId -> TEST", () => {
+  it("PRODUCTION com merchantId e slug na allowlist -> PRODUCTION (gateway real)", () => {
+    const g = walletWebConfig(est(false, true), allow, prod).googlePay!;
+    expect(g.environment).toBe("PRODUCTION");
+    expect(g.merchantId).toBe("BCR2DN123");
+  });
+  it("PRODUCTION sem merchantId -> null (sem allowlist)", () => {
+    expect(
+      walletWebConfig(est(false, true), { ...env, googleMerchantId: "" }, prod)
+        .googlePay,
+    ).toBeNull();
+  });
+  it("PRODUCTION sem merchantId + allowlist -> TEST", () => {
     const g = walletWebConfig(
       est(false, true),
-      { ...env, googleMerchantId: "" },
+      { ...allow, googleMerchantId: "" },
       prod,
     ).googlePay!;
     expect(g.environment).toBe("TEST");
@@ -126,8 +165,11 @@ describe("Google Pay - modo por gateway", () => {
       .googlePay!;
     expect(g.environment).toBe("PRODUCTION");
   });
-  it("Pagar.me em TEST", () => {
-    const g = walletWebConfig(est(false, true), env, modes).googlePay!;
+  it("Pagar.me em TEST sem allowlist -> null", () => {
+    expect(walletWebConfig(est(false, true), env, modes).googlePay).toBeNull();
+  });
+  it("Pagar.me em TEST com allowlist -> TEST", () => {
+    const g = walletWebConfig(est(false, true), allow, modes).googlePay!;
     expect(g.environment).toBe("TEST");
   });
 });
@@ -161,5 +203,24 @@ describe("resolveInitiativeContext", () => {
   it("inválido/ausente -> null", () => {
     expect(resolveInitiativeContext(undefined, "lixo")).toBeNull();
     expect(resolveInitiativeContext("", undefined)).toBeNull();
+  });
+  it("normaliza APPLE_PAY_DOMAIN: tira esquema, caminho e porta; minúsculo", () => {
+    expect(resolveInitiativeContext("https://jurandir.app.br/x", undefined)).toBe(
+      "jurandir.app.br",
+    );
+    expect(resolveInitiativeContext("JURANDIR.App.BR:443", undefined)).toBe(
+      "jurandir.app.br",
+    );
+    expect(resolveInitiativeContext(" jurandir.app.br/ ", undefined)).toBe(
+      "jurandir.app.br",
+    );
+    expect(resolveInitiativeContext("http://Jurandir.app.br:8080/a?b=1", undefined)).toBe(
+      "jurandir.app.br",
+    );
+  });
+  it("host de APP_BASE_URL também sai minúsculo", () => {
+    expect(resolveInitiativeContext(undefined, "https://Jurandir.APP.br/x")).toBe(
+      "jurandir.app.br",
+    );
   });
 });

@@ -211,9 +211,11 @@ export function prepareGooglePay(cfg: GooglePayWebConfig): Promise<GooglePayment
   return p;
 }
 
-/** Apple Pay disponível neste navegador (Safari + aparelho com Apple Pay). */
-export function canUseApplePay(): boolean {
+/** Apple Pay disponível neste navegador (Safari + aparelho com Apple Pay) E a
+ *  página está no domínio verificado na Apple (fora dele a validação falha). */
+export function canUseApplePay(cfg: Pick<ApplePayWebConfig, "domain">): boolean {
   if (typeof window === "undefined") return false;
+  if (window.location?.hostname?.toLowerCase() !== cfg.domain) return false;
   const APS = window.ApplePaySession;
   if (!APS) return false;
   try {

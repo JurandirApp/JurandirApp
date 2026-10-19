@@ -53,8 +53,12 @@ export function WalletButtons({
   const ap = config.applePay;
   const gp = config.googlePay;
 
-  // Apple: API nativa e síncrona (sem SDK). Snapshot no servidor = false.
-  const appleAvailable = useSyncExternalStore(noopSubscribe, canUseApplePay, () => false);
+  // Apple: API nativa e síncrona (sem SDK), só no domínio verificado. Snapshot no servidor = false.
+  const appleAvailable = useSyncExternalStore(
+    noopSubscribe,
+    () => !!ap && canUseApplePay(ap),
+    () => false,
+  );
   const showApple = !!ap && appleAvailable;
 
   // Google: pay.js + isReadyToPay já na montagem → o clique não espera rede.
