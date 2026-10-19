@@ -53,6 +53,14 @@ export async function getWalletWebConfig(est: {
   googlePay: boolean;
   gateways: { applePay: string; googlePay: string };
 }): Promise<WalletWebConfig> {
+  // Os modos do admin só importam pro Google Pay: sem chance de Google (bar não
+  // aceita ou nenhum id de gateway no env) não consulta o banco.
+  const anyGoogleGatewayId = Object.values(GATEWAY_MERCHANT_ENV).some(
+    (name) => !!envValue(name) || !!envValue(`${name}_TEST`),
+  );
+  if (!est.googlePay || !anyGoogleGatewayId) {
+    return walletWebConfig(est, readWalletWebEnv(DEFAULT_MODES), DEFAULT_MODES);
+  }
   let modes: GatewayModes = DEFAULT_MODES;
   try {
     const s = await getAppSettings();

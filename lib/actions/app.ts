@@ -10,7 +10,6 @@ import {
   payOrderWithWallet,
   resolveChargeableOrder,
 } from "@/lib/db/payments";
-import { walletChargeDecision } from "@/lib/payments/wallet-web";
 import { orderCreateSchema, type OrderCreateInput } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
 import type { ClientOrder } from "@/lib/app/helpers";
@@ -74,7 +73,8 @@ export async function createWalletOrderAction(
   const pay = parsed.data.payment;
   if (!pay || pay.kind !== "full" || pay.method !== "CREDIT") return { ok: false, error: "invalid" };
   try {
-    const created = await createOrder(parsed.data);
+    // Carteira é sempre crédito à vista.
+    const created = await createOrder({ ...parsed.data, payment: { ...pay, installments: 1 } });
     return { ok: true, order: toClientOrder(created) };
   } catch {
     return { ok: false, error: "failed" };
@@ -99,11 +99,13 @@ export async function chargeWalletAction(
   }
   try {
     const r = await resolveChargeableOrder(orderId);
-    const decision = walletChargeDecision(r);
-    if (decision === "notfound") return { ok: false, status: "failed" };
-    if (decision === "settled" && r.kind === "settled") {
-      const [row] = await getOrdersByIds([orderId]);
-      return { ok: true, status: r.status, order: row ? toClientOrder(row) : undefined };
+    // Fail-closed: só cobra quando a decisão é explicitamente "charge".
+    if (r.kind !== "charge") {
+      if (r.kind === "settled") {
+        const [row] = await getOrdersByIds([orderId]);
+        return { ok: true, status: r.status, order: row ? toClientOrder(row) : undefined };
+      }
+      return { ok: false, status: "failed" };
     }
     const res = await payOrderWithWallet(orderId, walletType, token);
     if (res.uncertain) {

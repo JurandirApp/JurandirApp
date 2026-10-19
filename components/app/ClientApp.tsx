@@ -28,7 +28,13 @@ import { ClientToast } from "./ClientToast";
 
 import type { WalletWebConfig } from "@/lib/payments/wallet-web";
 import type { WalletType } from "@/lib/payments/wallet-sdk";
-import { amountMatches, toCents, walletOutcome, type WalletAttempt } from "@/lib/app/wallet-outcome";
+import {
+  WALLET_TOAST_MS,
+  amountMatches,
+  toCents,
+  walletOutcome,
+  type WalletAttempt,
+} from "@/lib/app/wallet-outcome";
 
 const CAT0 = "Combos & Combinações";
 
@@ -298,11 +304,12 @@ export function ClientApp({
   }, [est.slug]);
 
   const value = useMemo<AppValue>(() => {
-    const toastMsg = (msg: string) => {
+    const toastMsg = (msg: string, ms = 2400) => {
       setToast(msg);
       if (toastTimer.current) clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => setToast(null), 2400);
+      toastTimer.current = setTimeout(() => setToast(null), ms);
     };
+
 
     const finish = (sharesArg: Share[] | null) => {
       const items = cart.flatMap((c) => {
@@ -436,12 +443,12 @@ export function ClientApp({
         const r = await createWalletOrderAction(attempt.input);
         const dbId = r.order?.dbId;
         if (!r.ok || !r.order || !dbId) {
-          toastMsg(t("walletUnavailable"));
+          toastMsg(t("walletUnavailable"), WALLET_TOAST_MS);
           return false;
         }
         // Valor autorizado na folha ≠ total do pedido → não cobra.
         if (!amountMatches(r.order.grand, toCents(attempt.amount))) {
-          toastMsg(t("walletUnavailable"));
+          toastMsg(t("walletUnavailable"), WALLET_TOAST_MS);
           return false;
         }
         created = r.order;
@@ -462,7 +469,7 @@ export function ClientApp({
         const outcome = walletOutcome(c);
         if (outcome === "declined") {
           // Recusa real: fica no checkout; a próxima tentativa cria outro pedido.
-          toastMsg(t("walletDeclined"));
+          toastMsg(t("walletDeclined"), WALLET_TOAST_MS);
           return false;
         }
         if (outcome === "unknown") {
@@ -489,7 +496,7 @@ export function ClientApp({
           toMyOrders(created);
           return true;
         }
-        toastMsg(t("walletUnavailable"));
+        toastMsg(t("walletUnavailable"), WALLET_TOAST_MS);
         return false;
       } finally {
         setPaying(false);

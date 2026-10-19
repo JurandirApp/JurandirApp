@@ -7,6 +7,7 @@ import { PAY_IDS, PM, isComingSoon, type PayId } from "@/lib/data/app";
 import { cartTotal, fees, shares as splitShares } from "@/lib/app/helpers";
 import { useApp } from "../context";
 import { WalletButtons } from "../WalletButtons";
+import { WALLET_TOAST_MS } from "@/lib/app/wallet-outcome";
 
 export function CheckoutScreen() {
   const {
@@ -235,7 +236,7 @@ export function CheckoutScreen() {
             onToken={(attempt, walletType, token, complete) => {
               payWithWallet(attempt, walletType, token).then(complete, () => complete(false));
             }}
-            onError={() => toastMsg(t("walletUnavailable"))}
+            onError={() => toastMsg(t("walletUnavailable"), WALLET_TOAST_MS)}
           />
           <div className="grid grid-cols-2 gap-2">
             {PAY_IDS.map((id) => {

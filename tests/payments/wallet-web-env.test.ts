@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const { getAppSettings } = vi.hoisted(() => ({ getAppSettings: vi.fn() }));
 vi.mock("@/lib/db/settings", () => ({ getAppSettings }));
 
-import { readWalletWebEnv } from "@/lib/payments/wallet-web-env";
+import { getWalletWebConfig, readWalletWebEnv } from "@/lib/payments/wallet-web-env";
 
 const VARS = [
   "APPLE_PAY_MERCHANT_ID",
@@ -91,5 +91,53 @@ describe("readWalletWebEnv - allowlist e domínio", () => {
     vi.stubEnv("APP_BASE_URL", "");
     expect(readWalletWebEnv().appleDomain).toBe("");
     expect(readWalletWebEnv().appleCertReady).toBe(false);
+  });
+});
+
+describe("getWalletWebConfig", () => {
+  const est = (googlePay = true, applePay = true, slug = "bar-do-ze") => ({
+    slug,
+    applePay,
+    googlePay,
+    gateways: { applePay: "PAGARME", googlePay: "PAGARME" },
+  });
+
+  it("nada configurado → tudo null e sem consultar o banco", async () => {
+    expect(await getWalletWebConfig(est())).toEqual({ applePay: null, googlePay: null });
+    expect(getAppSettings).not.toHaveBeenCalled();
+  });
+  it("só Apple configurada → não consulta o banco (modos só valem pro Google)", async () => {
+    vi.stubEnv("APPLE_PAY_MERCHANT_CERT", "cert");
+    vi.stubEnv("APPLE_PAY_MERCHANT_KEY", "key");
+    vi.stubEnv("APPLE_PAY_DOMAIN", "jurandir.app.br");
+    const c = await getWalletWebConfig(est());
+    expect(c.applePay?.domain).toBe("jurandir.app.br");
+    expect(c.googlePay).toBeNull();
+    expect(getAppSettings).not.toHaveBeenCalled();
+  });
+  it("Google configurado mas o bar não aceita → não consulta o banco", async () => {
+    vi.stubEnv("GOOGLE_PAY_PAGARME_GATEWAY_MERCHANT_ID", "pm_prod");
+    expect((await getWalletWebConfig(est(false))).googlePay).toBeNull();
+    expect(getAppSettings).not.toHaveBeenCalled();
+  });
+  it("Google em PRODUCTION (modo do admin) → usa o id de produção", async () => {
+    vi.stubEnv("GOOGLE_PAY_MERCHANT_ID", "BCR2DN123");
+    vi.stubEnv("GOOGLE_PAY_PAGARME_GATEWAY_MERCHANT_ID", "pm_prod");
+    vi.stubEnv("GOOGLE_PAY_PAGARME_GATEWAY_MERCHANT_ID_TEST", "pm_test");
+    getAppSettings.mockResolvedValue({ pagarmeMode: "PRODUCTION", pagbankMode: "TEST" });
+    const g = (await getWalletWebConfig(est())).googlePay!;
+    expect(getAppSettings).toHaveBeenCalledTimes(1);
+    expect(g.environment).toBe("PRODUCTION");
+    expect(g.gatewayMerchantId).toBe("pm_prod");
+  });
+  it("banco indisponível → TEST; slug na allowlist usa o id _TEST", async () => {
+    vi.stubEnv("GOOGLE_PAY_MERCHANT_ID", "BCR2DN123");
+    vi.stubEnv("GOOGLE_PAY_PAGARME_GATEWAY_MERCHANT_ID", "pm_prod");
+    vi.stubEnv("GOOGLE_PAY_PAGARME_GATEWAY_MERCHANT_ID_TEST", "pm_test");
+    vi.stubEnv("GOOGLE_PAY_TEST_SLUGS", "bar-do-ze");
+    getAppSettings.mockRejectedValue(new Error("db off"));
+    const g = (await getWalletWebConfig(est())).googlePay!;
+    expect(g.environment).toBe("TEST");
+    expect(g.gatewayMerchantId).toBe("pm_test");
   });
 });

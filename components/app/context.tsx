@@ -15,7 +15,7 @@ export type PayMode = "full" | "split";
 export interface AppValue {
   // Identity / context
   est: AppEstablishment;
-  /** Config das carteiras (Apple/Google Pay) do bar; null = indisponível. */
+  /** Config das carteiras do bar; `applePay`/`googlePay` null = carteira indisponível. */
   wallets: WalletWebConfig;
   beach: boolean;
   loc: string;
@@ -100,7 +100,8 @@ export interface AppValue {
 
   // Toast
   toast: string | null;
-  toastMsg: (t: string) => void;
+  /** Mostra um aviso; `ms` = duração (padrão 2400 ms). */
+  toastMsg: (t: string, ms?: number) => void;
 }
 
 export const AppContext = createContext<AppValue | null>(null);

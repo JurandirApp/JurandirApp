@@ -34,18 +34,17 @@ export default async function ClientAppPage({
   setRequestLocale(locale);
   const dbEst = await getEstablishmentBySlug(slug);
   if (!dbEst) notFound();
-  const [dbMenu, dbSpots, popularNames] = await Promise.all([
+  const appEst = toAppEstablishment(dbEst);
+  const [dbMenu, dbSpots, popularNames, wallets] = await Promise.all([
     listMenu(dbEst.id),
     listQrSpots(dbEst.id),
     getPopularItemNames(dbEst.id),
+    getWalletWebConfig(appEst),
   ]);
 
   const beach = BEACH_TYPES.includes(dbEst.type);
   const { local, paid } = await searchParams;
   const loc = local ?? (beach ? DEFAULT_LOC_BEACH : DEFAULT_LOC_TABLE);
-
-  const appEst = toAppEstablishment(dbEst);
-  const wallets = await getWalletWebConfig(appEst);
 
   return (
     <ClientApp

@@ -9,6 +9,10 @@ export type WalletAttempt = { input: OrderCreateInput; amount: number };
 
 export type WalletOutcome = "paid" | "pending" | "declined" | "unknown";
 
+/** Duração dos avisos da carteira (recusado/indisponível): mais longa que o
+ *  padrão porque o cliente acabou de sair da folha nativa. */
+export const WALLET_TOAST_MS = 4500;
+
 /** Desfecho da cobrança. "unknown" = não dá pra afirmar que NÃO cobrou (exceção
  *  no servidor/rede) → nunca mostrar "recusado" (evita o cliente pagar 2x). */
 export function walletOutcome(
