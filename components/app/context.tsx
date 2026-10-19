@@ -7,6 +7,7 @@ import type { CartLine, ClientOrder } from "@/lib/app/helpers";
 
 import type { WalletWebConfig } from "@/lib/payments/wallet-web";
 import type { WalletType } from "@/lib/payments/wallet-sdk";
+import type { WalletAttempt } from "@/lib/app/wallet-outcome";
 
 export type Step = "qr" | "menu" | "checkout" | "done" | "myorders";
 export type PayMode = "full" | "split";
@@ -81,9 +82,12 @@ export interface AppValue {
   finish: (fullyPaidOrShares: null | { m: PayId | null; amount: number }[]) => void;
   /** Cartão (crédito/débito) → abre o Payment Brick (checkout transparente) em vez de redirect. */
   openCardPay: () => void;
-  /** Apple/Google Pay: cria um pedido novo (crédito à vista) e cobra com o token
-   *  da carteira. Resolve true se aprovado/pendente; nunca rejeita. */
-  payWithWallet: (walletType: WalletType, token: string) => Promise<boolean>;
+  /** Apple/Google Pay, no clique: snapshot do pedido (crédito à vista) + valor
+   *  pra folha da carteira. null = carrinho vazio. */
+  walletAttempt: () => WalletAttempt | null;
+  /** Apple/Google Pay, com o token: cria um pedido novo a partir do snapshot e
+   *  cobra. Resolve true se a folha deve fechar com sucesso; nunca rejeita. */
+  payWithWallet: (attempt: WalletAttempt, walletType: WalletType, token: string) => Promise<boolean>;
 
   // Post-order
   myOrders: ClientOrder[];

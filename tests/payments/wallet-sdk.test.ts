@@ -73,6 +73,7 @@ describe("Google Pay requests", () => {
         totalPrice: "12.50",
         currencyCode: "BRL",
         countryCode: "BR",
+        checkoutOption: "COMPLETE_IMMEDIATE_PURCHASE",
       },
     });
   });

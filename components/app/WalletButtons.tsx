@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { WalletWebConfig } from "@/lib/payments/wallet-web";
+import type { WalletAttempt } from "@/lib/app/wallet-outcome";
 import {
   applePayRequest,
   canUseApplePay,
@@ -13,9 +14,10 @@ import {
   type WalletType,
 } from "@/lib/payments/wallet-sdk";
 
-/** Recebe o token da carteira; `complete(ok)` encerra a tentativa (na Apple fecha
- *  a folha com sucesso/falha). ok = aprovado ou pendente. */
+/** Recebe o snapshot do clique + o token da carteira; `complete(ok)` encerra a
+ *  tentativa (na Apple fecha a folha com sucesso/falha). */
 export type WalletTokenHandler = (
+  attempt: WalletAttempt,
   walletType: WalletType,
   token: string,
   complete: (ok: boolean) => void,
@@ -33,14 +35,15 @@ const noopSubscribe = () => () => {};
  *  bar tem configurado E o aparelho suporta; nada disponível → não renderiza. */
 export function WalletButtons({
   config,
-  total,
   disabled = false,
+  prepare,
   onToken,
   onError,
 }: {
   config: WalletWebConfig;
-  total: number;
   disabled?: boolean;
+  /** Snapshot (pedido + valor) tirado no clique; o valor vai pra folha. null → não inicia. */
+  prepare: () => WalletAttempt | null;
   onToken: WalletTokenHandler;
   /** Falha antes de existir pedido (validação da Apple, folha do Google). */
   onError: () => void;
@@ -82,9 +85,9 @@ export function WalletButtons({
 
   // "Latest ref": o clique do Google é registrado uma vez (createButton) e lê
   // sempre os valores atuais. Atualizado num efeito (não escreve ref no render).
-  const latest = useRef({ gp, total, disabled, onToken, onError });
+  const latest = useRef({ gp, disabled, prepare, onToken, onError });
   useEffect(() => {
-    latest.current = { gp, total, disabled, onToken, onError };
+    latest.current = { gp, disabled, prepare, onToken, onError };
   });
 
   const gBtnRef = useRef<HTMLDivElement>(null);
@@ -94,10 +97,15 @@ export function WalletButtons({
     const onClick = () => {
       const cur = latest.current;
       if (!cur.gp || cur.disabled || busyRef.current) return;
+      const attempt = cur.prepare();
+      if (!attempt) {
+        cur.onError();
+        return;
+      }
       begin();
       // loadPaymentData precisa sair direto do gesto do usuário (sem await antes).
       gClient
-        .loadPaymentData(googlePaymentDataRequest(cur.gp, cur.total))
+        .loadPaymentData(googlePaymentDataRequest(cur.gp, attempt.amount))
         .then((data) => {
           const token = data?.paymentMethodData?.tokenizationData?.token;
           if (!token) {
@@ -105,7 +113,7 @@ export function WalletButtons({
             latest.current.onError();
             return;
           }
-          latest.current.onToken("google_pay", token, () => release());
+          latest.current.onToken(attempt, "google_pay", token, () => release());
         })
         .catch((err: unknown) => {
           release();
@@ -118,21 +126,27 @@ export function WalletButtons({
       buttonType: "pay",
       buttonColor: "black",
       buttonSizeMode: "fill",
+      buttonLocale: locale === "en" ? "en" : "pt",
       onClick,
     });
     el.replaceChildren(btn);
     return () => {
       el.replaceChildren();
     };
-  }, [gClient, begin, release]);
+  }, [gClient, begin, release, locale]);
 
   const onAppleClick = () => {
     const APS = window.ApplePaySession;
     if (!ap || !APS || disabled || busyRef.current) return;
+    const attempt = prepare();
+    if (!attempt) {
+      onError();
+      return;
+    }
     // Sessão criada e begin() chamados no mesmo gesto; pedido só depois do token.
     let session: ApplePaySessionInstance;
     try {
-      session = new APS(3, applePayRequest(ap, total));
+      session = new APS(3, applePayRequest(ap, attempt.amount));
     } catch {
       onError();
       return;
@@ -165,7 +179,7 @@ export function WalletButtons({
     session.onpaymentauthorized = (event) => {
       charging = true;
       const token = JSON.stringify(event.payment.token);
-      latest.current.onToken("apple_pay", token, (ok) => {
+      latest.current.onToken(attempt, "apple_pay", token, (ok) => {
         try {
           session.completePayment({ status: ok ? APS.STATUS_SUCCESS : APS.STATUS_FAILURE });
         } catch {

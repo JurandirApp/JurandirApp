@@ -35,6 +35,7 @@ export type GooglePaymentDataRequest = {
     totalPrice: string;
     currencyCode: "BRL";
     countryCode: "BR";
+    checkoutOption: "COMPLETE_IMMEDIATE_PURCHASE";
   };
 };
 
@@ -50,6 +51,7 @@ export type GooglePaymentsClient = {
     buttonType?: string;
     buttonColor?: string;
     buttonSizeMode?: string;
+    buttonLocale?: string;
   }) => HTMLElement;
 };
 
@@ -138,6 +140,7 @@ export function googlePaymentDataRequest(
       totalPrice: walletAmount(total),
       currencyCode: "BRL",
       countryCode: "BR",
+      checkoutOption: "COMPLETE_IMMEDIATE_PURCHASE",
     },
   };
 }
@@ -168,8 +171,13 @@ export function loadGooglePay(): Promise<GooglePaymentsClientCtor> {
     s.async = true;
     s.onload = () => {
       const Ctor = window.google?.payments?.api?.PaymentsClient;
-      if (Ctor) resolve(Ctor);
-      else reject(new Error("Google Pay indisponível após load"));
+      if (Ctor) {
+        resolve(Ctor);
+        return;
+      }
+      payJsPromise = null; // permite nova tentativa numa próxima montagem
+      s.remove();
+      reject(new Error("Google Pay indisponível após load"));
     };
     s.onerror = () => {
       payJsPromise = null; // permite nova tentativa numa próxima montagem

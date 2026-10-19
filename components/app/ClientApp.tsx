@@ -28,6 +28,7 @@ import { ClientToast } from "./ClientToast";
 
 import type { WalletWebConfig } from "@/lib/payments/wallet-web";
 import type { WalletType } from "@/lib/payments/wallet-sdk";
+import { amountMatches, toCents, walletOutcome, type WalletAttempt } from "@/lib/app/wallet-outcome";
 
 const CAT0 = "Combos & Combinações";
 
@@ -387,33 +388,59 @@ export function ClientApp({
       setCardPay({ input, amount: grand });
     };
 
-    // Apple/Google Pay: cada tentativa cria um pedido NOVO (crédito à vista) e
-    // cobra com o token da carteira. Resolve true se aprovado/pendente (a folha
-    // da Apple fecha com sucesso); nunca rejeita. Nunca loga o token.
-    const payWithWallet = async (walletType: WalletType, token: string): Promise<boolean> => {
-      if (walletLock.current) return false;
-      walletLock.current = true;
+    // Apple/Google Pay, passo 1 (no clique): snapshot do pedido + valor. O mesmo
+    // snapshot vai pra folha da carteira e pro servidor — o carrinho pode mudar
+    // com a folha aberta e o valor autorizado tem que ser o do pedido.
+    const walletAttempt = (): WalletAttempt | null => {
       const items = cart.flatMap((c) => {
         const m = menu.find((x) => x.id === c.id);
         return m ? [{ name: m.name, qty: c.qty, unitPrice: m.price }] : [];
       });
-      const input: OrderCreateInput = {
-        establishmentId: est.id,
-        locationLabel: loc,
-        posto: beach ? est.posto : undefined,
-        customerName: custName.trim() || undefined,
-        note: note.trim() || undefined,
-        items,
-        payment: { kind: "full", method: "CREDIT", installments: 1 },
+      if (!items.length) return null;
+      const subtotal = items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
+      return {
+        input: {
+          establishmentId: est.id,
+          locationLabel: loc,
+          posto: beach ? est.posto : undefined,
+          customerName: custName.trim() || undefined,
+          note: note.trim() || undefined,
+          items,
+          payment: { kind: "full", method: "CREDIT", installments: 1 },
+        },
+        amount: fees(subtotal, est.platformFeePct, est.serviceFeePct).grand,
       };
+    };
+
+    // Passo 2 (com o token): cada tentativa cria um pedido NOVO (crédito à
+    // vista) e cobra. Resolve true quando a folha da Apple deve fechar com
+    // sucesso (aprovado, pendente ou desfecho incerto); nunca rejeita. Nunca loga o token.
+    const payWithWallet = async (
+      attempt: WalletAttempt,
+      walletType: WalletType,
+      token: string,
+    ): Promise<boolean> => {
+      if (walletLock.current) return false;
+      walletLock.current = true;
       const showOrder = (order: ClientOrder) =>
         setMyOrders((prev) => [order, ...prev.filter((o) => o.dbId !== order.dbId)]);
+      // Desfecho incerto (pode ter cobrado): NUNCA "recusado" — mostra o pedido
+      // em "Meus pedidos" e o polling confirma (evita o cliente pagar 2x).
+      const toMyOrders = (order: ClientOrder) => {
+        showOrder(order);
+        setStep("myorders");
+      };
       let created: ClientOrder | null = null;
       setPaying(true);
       try {
-        const r = await createWalletOrderAction(input);
+        const r = await createWalletOrderAction(attempt.input);
         const dbId = r.order?.dbId;
         if (!r.ok || !r.order || !dbId) {
+          toastMsg(t("walletUnavailable"));
+          return false;
+        }
+        // Valor autorizado na folha ≠ total do pedido → não cobra.
+        if (!amountMatches(r.order.grand, toCents(attempt.amount))) {
           toastMsg(t("walletUnavailable"));
           return false;
         }
@@ -426,16 +453,26 @@ export function ClientApp({
         } catch {
           // localStorage unavailable — order is still created server-side.
         }
-        const c = await chargeWalletAction(dbId, walletType, token);
-        if (c.status === "failed") {
-          // Recusado: fica no checkout; a próxima tentativa cria outro pedido.
+        let c: Awaited<ReturnType<typeof chargeWalletAction>> | "exception";
+        try {
+          c = await chargeWalletAction(dbId, walletType, token);
+        } catch {
+          c = "exception";
+        }
+        const outcome = walletOutcome(c);
+        if (outcome === "declined") {
+          // Recusa real: fica no checkout; a próxima tentativa cria outro pedido.
           toastMsg(t("walletDeclined"));
           return false;
         }
-        const order = c.order ?? created;
+        if (outcome === "unknown") {
+          toMyOrders(created);
+          return true;
+        }
+        const order = c !== "exception" && c.order ? c.order : created;
         showOrder(order);
         setLastOrder(order);
-        if (c.status === "paid") {
+        if (outcome === "paid") {
           setCart([]);
           setSelPay(null);
           setParc(1);
@@ -449,12 +486,10 @@ export function ClientApp({
         return true;
       } catch {
         if (created) {
-          // Pedido já existe: o polling de "Meus pedidos" confirma o desfecho.
-          showOrder(created);
-          setStep("myorders");
-        } else {
-          toastMsg(t("walletUnavailable"));
+          toMyOrders(created);
+          return true;
         }
+        toastMsg(t("walletUnavailable"));
         return false;
       } finally {
         setPaying(false);
@@ -561,6 +596,7 @@ export function ClientApp({
       paying,
       finish,
       openCardPay,
+      walletAttempt,
       payWithWallet,
 
       myOrders,

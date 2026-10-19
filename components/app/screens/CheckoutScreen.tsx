@@ -13,7 +13,7 @@ export function CheckoutScreen() {
     est, loc, menu, cart, addItem, decItem, removeItem, goMenu,
     note, setNote, mode, setMode, selPay, pickPay,
     people, pplPlus, pplMinus, paid, setShare, undoShare, paying, finish,
-    wallets, payWithWallet, toastMsg,
+    wallets, walletAttempt, payWithWallet, toastMsg,
   } = useApp();
   const t = useTranslations("app");
   const tPay = useTranslations("app.pay");
@@ -230,10 +230,10 @@ export function CheckoutScreen() {
           {/* Apple Pay / Google Pay (somente crédito) — só no pagamento inteiro. */}
           <WalletButtons
             config={wallets}
-            total={grand}
             disabled={paying}
-            onToken={(walletType, token, complete) => {
-              payWithWallet(walletType, token).then(complete, () => complete(false));
+            prepare={walletAttempt}
+            onToken={(attempt, walletType, token, complete) => {
+              payWithWallet(attempt, walletType, token).then(complete, () => complete(false));
             }}
             onError={() => toastMsg(t("walletUnavailable"))}
           />
