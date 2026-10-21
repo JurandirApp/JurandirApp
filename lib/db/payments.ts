@@ -281,13 +281,19 @@ export async function payOrderWithCardToken(
       authenticationId,
     });
   } catch (e) {
-    return { status: "failed", statusDetail: e instanceof Error ? e.message : String(e) };
+    const detail = e instanceof Error ? e.message : String(e);
+    // Sem isso a recusa do gateway some (o app só mostra "não aprovado").
+    console.warn("[cartao] gateway recusou", order.code, detail.slice(0, 400));
+    return { status: "failed", statusDetail: detail };
   }
   await prisma.payment.update({
     where: { id: order.payment.id },
     data: { gatewayChargeId: res.chargeId },
   });
   if (res.status === "paid") await confirmChargePaid(res.chargeId);
+  if (res.status === "failed") {
+    console.warn("[cartao] nao aprovado", order.code, (res.statusDetail ?? "").slice(0, 400));
+  }
   return { status: res.status, statusDetail: res.statusDetail };
 }
 
