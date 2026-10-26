@@ -1,4 +1,5 @@
 import type { Establishment } from "@prisma/client";
+import type { TunaMerchantForm } from "@/lib/validation";
 import { PIX_EXPIRES_MIN, round2 } from "@/lib/domain/pricing";
 import type {
   CardPaymentResult,
@@ -505,4 +506,55 @@ export async function refundTunaPayment(
     idempotencyKey: `cancel:${paymentKey}:${amount === undefined ? "total" : round2(amount)}`,
   });
   return { status: str(pickCi(r, "status")) };
+}
+
+// ---- Cadastro do bar (sub-merchant) -------------------------------------------
+
+/** Cadastra o bar na Tuna (Merchant/Register). Assíncrono (até 48h): o resultado
+ *  final chega no webhook de merchant. Erro de validação (code < 0) → TunaError. */
+export async function registerTunaMerchant(
+  form: TunaMerchantForm,
+  opts: { externalId: string; condition: string; mcc: string },
+): Promise<{ merchantId: string }> {
+  await ensureTunaMode();
+  const { externalId } = opts;
+  const body = {
+    externalId,
+    document: form.document,
+    documentType: form.documentType,
+    name: form.name,
+    fantasyName: form.fantasyName,
+    countryId: 1,
+    mccCode: opts.mcc,
+    condition: opts.condition,
+    stateFiscalDocument: form.stateFiscalDocument,
+    acceptedContract: true,
+    pixKeyType: form.pixKeyType,
+    pixKey: form.pixKey,
+    contact: {
+      name: form.contact.name,
+      email: form.contact.email,
+      phone: form.contact.phone,
+      cellPhone: form.contact.phone,
+    },
+    legalRepresentative: form.legalRepresentative,
+    bankAccounts: [
+      {
+        externalId: `${externalId}_b1`,
+        document: form.document,
+        documentType: form.documentType,
+        accountType: form.bank.accountType,
+        bankCode: form.bank.bankCode,
+        agency: form.bank.agency,
+        number: form.bank.account,
+      },
+    ],
+    address: { ...form.address, phone: form.contact.phone },
+    ...(form.documentType === "CPF"
+      ? { birthday: form.birthday, motherName: form.motherName, occupation: form.occupation }
+      : {}),
+  };
+  const r = await tunaPost<unknown>("engine", "/api/Merchant/Register", body);
+  const id = pickCi(r, "merchantId");
+  return { merchantId: typeof id === "number" ? String(id) : str(id) };
 }

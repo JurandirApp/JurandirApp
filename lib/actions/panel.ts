@@ -21,6 +21,7 @@ import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adap
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
 import { createPagarmeRecipient, getPagarmeKycLink, PagarmeError } from "@/lib/payments/pagarme";
+import { registerEstablishmentInTuna } from "@/lib/db/tuna";
 import { createSubaccount } from "@/lib/payments/asaas";
 import { getConnectUrl as getPagbankConnectUrl, signConnectState, ensurePagbankMode } from "@/lib/payments/pagbank";
 import {
@@ -55,6 +56,7 @@ import {
   type BulkPriceAdjustInput,
   type MenuItemUpsertInput,
   type PagarmeRecipientForm,
+  type TunaMerchantForm,
   type ProfileSaveInput,
   type WaiterUpsertInput,
 } from "@/lib/validation";
@@ -203,6 +205,16 @@ export async function createPagarmeRecipientAction(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message.slice(0, 200) : "error" };
   }
+}
+
+/** Cadastra o bar na Tuna (sub-merchant p/ split). Lógica compartilhada com o app. */
+export async function registerTunaMerchantAction(
+  form: TunaMerchantForm,
+): Promise<{ ok: boolean; error?: string }> {
+  const s = await requireEst();
+  const r = await registerEstablishmentInTuna(s.establishmentId!, form);
+  if (r.ok) revalidatePath("/painel");
+  return r;
 }
 
 /** Gera o link/QR do webapp hospedado do Pagar.me pra o dono completar conta

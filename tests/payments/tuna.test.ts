@@ -11,6 +11,7 @@ import {
   tunaProvider,
   refundTunaPayment,
   tunaStatusDates,
+  registerTunaMerchant,
 } from "@/lib/payments/tuna";
 import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
 import type { Establishment } from "@prisma/client";
@@ -672,5 +673,48 @@ describe("refundTunaPayment", () => {
   it("code negativo (ex.: -137) → TunaError", async () => {
     seq([{ code: -137 }]);
     await expect(refundTunaPayment("PK1")).rejects.toBeInstanceOf(TunaError);
+  });
+});
+
+describe("registerTunaMerchant", () => {
+  const form = {
+    documentType: "CNPJ" as const, document: "12345678000190", name: "Bar do Ze LTDA", fantasyName: "Bar do Ze",
+    pixKeyType: "2" as const, pixKey: "12345678000190",
+    contact: { name: "Ze", email: "ze@bar.com", phone: "11999990000" },
+    legalRepresentative: { name: "Ze", document: "12345678909", birthday: "1980-01-02" },
+    bank: { bankCode: "341", agency: "1234", account: "0733-7", accountType: "C" as const },
+    address: { street: "Rua A", number: "10", neighborhood: "Centro", city: "SP", state: "SP", postalCode: "01000000" },
+    stateFiscalDocument: "ISENTO", acceptedContract: true as const,
+  };
+  it("mapeia o corpo e devolve merchantId como string", async () => {
+    const fn = respond({ merchantId: 86, code: 1 });
+    const r = await registerTunaMerchant(form, { externalId: "jur_est1", condition: "cond1", mcc: "5812" });
+    expect(r).toEqual({ merchantId: "86" });
+    const [url, init] = fn.mock.calls[0];
+    expect(url).toBe("https://engine.tunagateway.com/api/Merchant/Register");
+    const b = JSON.parse(init.body);
+    expect(b).toMatchObject({
+      externalId: "jur_est1", countryId: 1, mccCode: "5812", condition: "cond1", acceptedContract: true,
+      documentType: "CNPJ", pixKeyType: "2",
+    });
+    expect(b.bankAccounts[0]).toMatchObject({ externalId: "jur_est1_b1", number: "0733-7", bankCode: "341", accountType: "C" });
+    expect(b.contact.cellPhone).toBe("11999990000");
+    expect(b.address.phone).toBe("11999990000");
+    expect(b.birthday).toBeUndefined();
+  });
+  it("PF inclui birthday/motherName/occupation", async () => {
+    const fn = respond({ merchantId: 1, code: 1 });
+    await registerTunaMerchant(
+      { ...form, documentType: "CPF", birthday: "1990-01-01", motherName: "Maria", occupation: "Comerciante" },
+      { externalId: "e", condition: "c", mcc: "5812" },
+    );
+    const b = JSON.parse(fn.mock.calls[0][1].body);
+    expect(b).toMatchObject({ birthday: "1990-01-01", motherName: "Maria", occupation: "Comerciante" });
+  });
+  it("code -124 → TunaError", async () => {
+    respond({ code: -124, message: { message: "invalid" } });
+    await expect(
+      registerTunaMerchant(form, { externalId: "e", condition: "c", mcc: "5812" }),
+    ).rejects.toBeInstanceOf(TunaError);
   });
 });

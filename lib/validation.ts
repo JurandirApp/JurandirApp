@@ -235,6 +235,51 @@ export const pagarmeRecipientSchema = z.object({
   });
 export type PagarmeRecipientForm = z.infer<typeof pagarmeRecipientSchema>;
 
+/** Cadastro do bar na Tuna (Merchant/Register). PF exige birthday/mãe/ocupação. */
+const reqStr = z.string().trim().min(1);
+export const tunaMerchantSchema = z
+  .object({
+    documentType: z.enum(["CNPJ", "CPF"]),
+    document: z.string().trim().min(11),
+    name: reqStr,
+    fantasyName: reqStr,
+    pixKeyType: z.enum(["1", "2", "3", "4", "5", "6"]),
+    pixKey: reqStr,
+    contact: z.object({ name: reqStr, email: z.string().email(), phone: reqStr }),
+    legalRepresentative: z.object({
+      name: reqStr,
+      document: z.string().trim().min(11),
+      birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }),
+    bank: z.object({
+      bankCode: reqStr,
+      agency: reqStr,
+      account: reqStr,
+      accountType: z.enum(["C", "S"]),
+    }),
+    address: z.object({
+      street: reqStr,
+      number: reqStr,
+      complement: z.string().optional(),
+      neighborhood: reqStr,
+      city: reqStr,
+      state: z.string().trim().length(2),
+      postalCode: reqStr,
+    }),
+    stateFiscalDocument: z.string().trim().min(1).default("ISENTO"),
+    birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    motherName: z.string().trim().min(1).optional(),
+    occupation: z.string().trim().min(1).optional(),
+    acceptedContract: z.literal(true),
+  })
+  .superRefine((v, ctx) => {
+    if (v.documentType !== "CPF") return;
+    for (const k of ["birthday", "motherName", "occupation"] as const) {
+      if (!v[k]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [k], message: "required for CPF" });
+    }
+  });
+export type TunaMerchantForm = z.infer<typeof tunaMerchantSchema>;
+
 export const waiterUpsertSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1).max(120),
