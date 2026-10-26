@@ -56,7 +56,7 @@ import {
   type BulkPriceAdjustInput,
   type MenuItemUpsertInput,
   type PagarmeRecipientForm,
-  type TunaMerchantForm,
+  type TunaMerchantFormInput,
   type ProfileSaveInput,
   type WaiterUpsertInput,
 } from "@/lib/validation";
@@ -209,7 +209,7 @@ export async function createPagarmeRecipientAction(
 
 /** Cadastra o bar na Tuna (sub-merchant p/ split). Lógica compartilhada com o app. */
 export async function registerTunaMerchantAction(
-  form: TunaMerchantForm,
+  form: TunaMerchantFormInput,
 ): Promise<{ ok: boolean; error?: string }> {
   const s = await requireEst();
   const r = await registerEstablishmentInTuna(s.establishmentId!, form);

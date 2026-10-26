@@ -34,5 +34,6 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ ok: false, error: "invalid" }, { status: 400, headers: CORS });
   }
   const r = await registerEstablishmentInTuna(s.establishmentId!, body);
+  if (r.error === "notAvailable") return Response.json({ error: "notAvailable" }, { status: 403, headers: CORS });
   return Response.json(r, { status: r.ok ? 200 : 400, headers: CORS });
 }

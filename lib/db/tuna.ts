@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getTunaMode, getTunaCardsEnabled } from "@/lib/db/settings";
 import { tunaMerchantSchema } from "@/lib/validation";
 import { registerTunaMerchant, TunaError, ensureTunaMode } from "@/lib/payments/tuna";
+import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
 import { tunaReadiness, parseTunaTestSlugs, type TunaReadiness } from "@/lib/payments/tuna-readiness";
 
 // Serviço compartilhado do cadastro do bar na Tuna: usado pela server action do
@@ -35,31 +36,54 @@ export async function registerEstablishmentInTuna(
   const mode = await ensureTunaMode();
   const est = await prisma.establishment.findUnique({
     where: { id: establishmentId },
-    select: { tunaMerchantEnv: true, tunaPixStatus: true, tunaCardStatus: true },
+    select: { slug: true, tunaMerchantEnv: true, tunaPixStatus: true, tunaCardStatus: true },
   });
   if (!est) return { ok: false, error: "notFound" };
+  // Mesma regra de visibilidade da prontidão, com o MESMO modo da chamada.
+  const { visible } = tunaReadiness(
+    { ...est, tunaMerchantEnv: null },
+    { mode, cardsEnabled: false, testSlugs: parseTunaTestSlugs(process.env.TUNA_TEST_SLUGS) },
+  );
+  if (!visible) return { ok: false, error: "notAvailable" };
   const inProgress = (s: string | null) => s === "analysis" || s === "active";
   if (est.tunaMerchantEnv === mode && (inProgress(est.tunaPixStatus) || inProgress(est.tunaCardStatus))) {
     return { ok: false, error: "alreadyRegistered" };
   }
 
+  // Persiste ANTES de chamar a Tuna: se a resposta se perder (timeout/5xx/queda
+  // do banco), o webhook do merchant ainda acha o bar por externalId + ambiente.
   const externalId = `jur_${establishmentId}`;
+  await prisma.establishment.update({
+    where: { id: establishmentId },
+    data: {
+      tunaMerchantExternalId: externalId,
+      tunaMerchantId: null,
+      tunaMerchantEnv: mode,
+      tunaPixStatus: "analysis",
+      tunaCardStatus: "analysis",
+      tunaContractAcceptedAt: new Date(),
+    },
+  });
   try {
     const r = await registerTunaMerchant(parsed.data, { externalId, condition, mcc });
+    if (!r.merchantId) return { ok: false, error: "tryLater" };
     await prisma.establishment.update({
       where: { id: establishmentId },
-      data: {
-        tunaMerchantExternalId: externalId,
-        tunaMerchantId: r.merchantId,
-        tunaMerchantEnv: mode,
-        tunaPixStatus: "analysis",
-        tunaCardStatus: "analysis",
-        tunaContractAcceptedAt: new Date(),
-      },
+      data: { tunaMerchantId: r.merchantId },
     });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: tunaClientMessage(e) };
+    if (isDefiniteGatewayFailure(e)) {
+      // Recusa definitiva: libera nova tentativa.
+      await prisma.establishment
+        .update({
+          where: { id: establishmentId },
+          data: { tunaPixStatus: "error", tunaCardStatus: "error" },
+        })
+        .catch(() => {});
+      return { ok: false, error: tunaClientMessage(e) };
+    }
+    return { ok: false, error: "tryLater" };
   }
 }
 
@@ -78,7 +102,8 @@ export async function getEstablishmentTunaStatus(
   const fields = est ?? { slug: "", tunaMerchantEnv: null, tunaPixStatus: null, tunaCardStatus: null };
   return {
     ...tunaReadiness(fields, { mode, cardsEnabled, testSlugs }),
-    pixStatus: est?.tunaPixStatus ?? null,
-    cardStatus: est?.tunaCardStatus ?? null,
+    // Status de outro ambiente não vale pro modo atual.
+    pixStatus: est?.tunaMerchantEnv === mode ? (est.tunaPixStatus ?? null) : null,
+    cardStatus: est?.tunaMerchantEnv === mode ? (est.tunaCardStatus ?? null) : null,
   };
 }

@@ -89,6 +89,37 @@ describe("tunaMerchantSchema", () => {
       tunaMerchantSchema.safeParse({ ...pf, birthday: "1990-01-01", motherName: "M", occupation: "O" }).success,
     ).toBe(true);
   });
+  it("normaliza documentos/CEP só com dígitos e UF maiúscula", () => {
+    const r = tunaMerchantSchema.parse({
+      ...base, document: "12.345.678/0001-90",
+      legalRepresentative: { ...base.legalRepresentative, document: "123.456.789-09" },
+      address: { ...base.address, state: "sp", postalCode: "01000-000" },
+    });
+    expect(r.document).toBe("12345678000190");
+    expect(r.legalRepresentative.document).toBe("12345678909");
+    expect(r.address).toMatchObject({ state: "SP", postalCode: "01000000" });
+  });
+  it("rejeita tamanho de documento errado por tipo", () => {
+    expect(tunaMerchantSchema.safeParse({ ...base, document: "12345678909" }).success).toBe(false);
+    expect(
+      tunaMerchantSchema.safeParse({ ...base, legalRepresentative: { ...base.legalRepresentative, document: "123" } }).success,
+    ).toBe(false);
+  });
+  it("rejeita conta sem dígito, data inexistente e CEP curto", () => {
+    expect(tunaMerchantSchema.safeParse({ ...base, bank: { ...base.bank, account: "07337" } }).success).toBe(false);
+    expect(
+      tunaMerchantSchema.safeParse({ ...base, legalRepresentative: { ...base.legalRepresentative, birthday: "1980-02-31" } }).success,
+    ).toBe(false);
+    expect(tunaMerchantSchema.safeParse({ ...base, address: { ...base.address, postalCode: "0100" } }).success).toBe(false);
+  });
+  it("strings vazias viram undefined (default ISENTO se aplica)", () => {
+    const r = tunaMerchantSchema.parse({
+      ...base, stateFiscalDocument: "", birthday: "", motherName: "", address: { ...base.address, complement: "" },
+    });
+    expect(r.stateFiscalDocument).toBe("ISENTO");
+    expect(r.birthday).toBeUndefined();
+    expect(r.address.complement).toBeUndefined();
+  });
   it("rejeita UF de 3 letras", () => {
     expect(tunaMerchantSchema.safeParse({ ...base, address: { ...base.address, state: "SPX" } }).success).toBe(false);
   });

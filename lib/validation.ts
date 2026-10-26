@@ -237,10 +237,28 @@ export type PagarmeRecipientForm = z.infer<typeof pagarmeRecipientSchema>;
 
 /** Cadastro do bar na Tuna (Merchant/Register). PF exige birthday/mãe/ocupação. */
 const reqStr = z.string().trim().min(1);
+const onlyDigits = (v: string) => v.replace(/\D/g, "");
+const digitsStr = (len: number) =>
+  z.string().transform(onlyDigits).pipe(z.string().length(len));
+const isRealDate = (v: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+};
+const dateStr = z.string().trim().refine(isRealDate);
+/** "" (campo em branco do formulário) vira undefined antes de validar. */
+const optional = <T extends z.ZodTypeAny>(inner: T) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => (v?.trim() ? v.trim() : undefined))
+    .pipe(inner.optional());
 export const tunaMerchantSchema = z
   .object({
     documentType: z.enum(["CNPJ", "CPF"]),
-    document: z.string().trim().min(11),
+    document: z.string().transform(onlyDigits),
     name: reqStr,
     fantasyName: reqStr,
     pixKeyType: z.enum(["1", "2", "3", "4", "5", "6"]),
@@ -248,37 +266,46 @@ export const tunaMerchantSchema = z
     contact: z.object({ name: reqStr, email: z.string().email(), phone: reqStr }),
     legalRepresentative: z.object({
       name: reqStr,
-      document: z.string().trim().min(11),
-      birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      document: digitsStr(11),
+      birthday: dateStr,
     }),
     bank: z.object({
       bankCode: reqStr,
       agency: reqStr,
-      account: reqStr,
+      account: z.string().trim().regex(/^\d+-[\dxX]$/),
       accountType: z.enum(["C", "S"]),
     }),
     address: z.object({
       street: reqStr,
       number: reqStr,
-      complement: z.string().optional(),
+      complement: optional(z.string()),
       neighborhood: reqStr,
       city: reqStr,
-      state: z.string().trim().length(2),
-      postalCode: reqStr,
+      state: z
+        .string()
+        .trim()
+        .regex(/^[A-Za-z]{2}$/)
+        .transform((v) => v.toUpperCase()),
+      postalCode: digitsStr(8),
     }),
-    stateFiscalDocument: z.string().trim().min(1).default("ISENTO"),
-    birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    motherName: z.string().trim().min(1).optional(),
-    occupation: z.string().trim().min(1).optional(),
+    stateFiscalDocument: optional(z.string()).pipe(z.string().default("ISENTO")),
+    birthday: optional(dateStr),
+    motherName: optional(z.string()),
+    occupation: optional(z.string()),
     acceptedContract: z.literal(true),
   })
   .superRefine((v, ctx) => {
+    const len = v.documentType === "CPF" ? 11 : 14;
+    if (v.document.length !== len) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["document"], message: `document must have ${len} digits` });
+    }
     if (v.documentType !== "CPF") return;
     for (const k of ["birthday", "motherName", "occupation"] as const) {
       if (!v[k]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [k], message: "required for CPF" });
     }
   });
 export type TunaMerchantForm = z.infer<typeof tunaMerchantSchema>;
+export type TunaMerchantFormInput = z.input<typeof tunaMerchantSchema>;
 
 export const waiterUpsertSchema = z.object({
   id: z.string().optional(),
