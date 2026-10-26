@@ -137,20 +137,26 @@ function callbackUrl(): string | undefined {
 /** String (trim) ou "" — campos da Tuna podem vir null/ausentes. */
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
+type DocumentType = "CPF" | "CNPJ";
+
 export type TunaCustomer = {
   id: string;
   name: string;
   email: string;
   document?: string;
-  documentType?: "CPF";
+  documentType?: DocumentType;
 };
 
 const docOf = (c: TunaCustomer) =>
-  c.document ? { document: c.document, documentType: "CPF" as const } : {};
+  c.document && c.documentType ? { document: c.document, documentType: c.documentType } : {};
+
+/** Tipo do documento pelo tamanho (só dígitos): 11 = CPF, 14 = CNPJ; outro → inválido. */
+const docType = (digits: string): DocumentType | null =>
+  digits.length === 11 ? "CPF" : digits.length === 14 ? "CNPJ" : null;
 
 /** Customer do Init. Nome com sobrenome e e-mail do pedido (padrão PagBank).
- *  CPF: o do pagador (≥ 11 dígitos); senão, em TESTE, `TUNA_TEST_CPF`; em
- *  PRODUÇÃO fica de fora — nunca inventa CPF. */
+ *  Documento: o do pagador (CPF 11 / CNPJ 14 dígitos); senão, em TESTE,
+ *  `TUNA_TEST_CPF`; em PRODUÇÃO fica de fora — nunca inventa documento. */
 export function buildTunaCustomer(
   reference: string,
   opts: { name?: string; document?: string; phone?: string },
@@ -158,13 +164,14 @@ export function buildTunaCustomer(
 ): TunaCustomer {
   const payer = (opts.document ?? "").replace(/\D/g, "");
   const test = mode === "TEST" ? (process.env.TUNA_TEST_CPF ?? "").replace(/\D/g, "") : "";
-  const document = payer.length >= 11 ? payer : test.length >= 11 ? test : "";
+  const document = docType(payer) ? payer : docType(test) ? test : "";
+  const documentType = docType(document);
   const name = (opts.name ?? "").trim();
   return {
     id: reference,
     name: name.includes(" ") ? name : `${name || "Cliente"} Jurandir`,
     email: `pedido-${reference.toLowerCase()}@jurandir.app.br`,
-    ...(document ? { document, documentType: "CPF" as const } : {}),
+    ...(documentType ? { document, documentType } : {}),
   };
 }
 
@@ -190,15 +197,17 @@ export function tunaSplitItem(
 
 /** Sessão de tokenização (Token/NewSession, com o app token — só no servidor).
  *  O app usa o `sessionId` pra tokenizar o cartão direto na Tuna. Em TESTE
- *  liga o 3DS de teste. O `sessionId` nunca é logado. */
+ *  liga o 3DS de teste. O `sessionId` nunca é logado.
+ *  Falha da sessão (code negativo / sem sessionId) é DEFINITIVA (422): criar
+ *  sessão nunca cobra nada. Rede/timeout/5xx propagam como vieram. */
 export async function createTunaSession(customer: { id: string; email: string }): Promise<string> {
   const mode = await ensureTunaMode();
   const r = await tunaPost<unknown>("token", "/api/Token/NewSession", {
     customer: { id: customer.id, email: customer.email },
     ...(mode === "TEST" ? { Is3dsTest: true } : {}),
-  });
+  }); // code < 0 → tunaPost já lança TunaError(422, code, …)
   const sessionId = str(pickCi(r, "sessionId"));
-  if (!sessionId) throw new TunaError(502, null, "NewSession sem sessionId");
+  if (!sessionId) throw new TunaError(422, null, "NewSession sem sessionId");
   return sessionId;
 }
 
@@ -227,9 +236,18 @@ async function tunaInit(o: {
       ...(cb ? { callbackUrl: cb } : {}),
     },
   };
-  const r = await tunaPost<unknown>("engine", "/api/Payment/Init", body, {
-    idempotencyKey: `init:${o.reference}`,
-  });
+  let r: unknown;
+  try {
+    r = await tunaPost<unknown>("engine", "/api/Payment/Init", body, {
+      idempotencyKey: `init:${o.reference}`,
+    });
+  } catch (e) {
+    // -108 = partnerUniqueID já usado: é uma RETENTATIVA de um Init anterior
+    // (ex.: timeout) que pode ter cobrado. Não é recusa → vira INCERTO (5xx),
+    // mantendo o code, pra quem chama reconciliar em vez de dar "recusado".
+    if (e instanceof TunaError && e.code === -108) throw new TunaError(503, -108, e.body);
+    throw e;
+  }
   const paymentKey = str(pickCi(r, "paymentKey"));
   // Aceito (code ≥ 0) mas sem paymentKey: não dá pra saber se cobrou → incerto (5xx).
   if (!paymentKey) throw new TunaError(502, null, "Init sem paymentKey");
@@ -294,20 +312,25 @@ function cardResult(r: TunaInitResult): CardPaymentResult {
   return { chargeId: r.paymentKey, status, ...(detail ? { statusDetail: detail.slice(0, 160) } : {}) };
 }
 
-const SP_DAY = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/Sao_Paulo",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-const spDay = (d: Date): string => {
-  const p = Object.fromEntries(SP_DAY.formatToParts(d).map((x) => [x.type, x.value]));
+const dayFormat = (timeZone: string) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+const SP_DAY = dayFormat("America/Sao_Paulo");
+const UTC_DAY = dayFormat("UTC");
+const ymd = (fmt: Intl.DateTimeFormat, d: Date): string => {
+  const p = Object.fromEntries(fmt.formatToParts(d).map((x) => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day}`;
 };
 
-/** Hoje e ontem em São Paulo (`YYYY-MM-DD`) — a consulta por pedido exige a data. */
-export function saoPauloDays(now: Date = new Date()): [string, string] {
-  return [spDay(now), spDay(new Date(now.getTime() - 86_400_000))];
+/** Datas (`YYYY-MM-DD`) pra consultar o pedido no Status — a consulta por
+ *  pedido exige a data, e não sabemos em que fuso a Tuna grava: hoje e ontem em
+ *  São Paulo e hoje em UTC, sem repetir. */
+export function tunaStatusDates(now: Date = new Date()): string[] {
+  const days = [
+    ymd(SP_DAY, now),
+    ymd(SP_DAY, new Date(now.getTime() - 86_400_000)),
+    ymd(UTC_DAY, now),
+  ];
+  return [...new Set(days)];
 }
 
 export const tunaProvider: PaymentProvider = {
@@ -427,15 +450,15 @@ export const tunaProvider: PaymentProvider = {
   },
 
   // Reconciliação quando o Init não devolveu (timeout): consulta pelo código do
-  // pedido em hoje e ontem (São Paulo). Erro/"não encontrado" numa data → tenta
-  // a outra; nada pago → null.
+  // pedido em hoje/ontem (São Paulo) e hoje (UTC). Erro/"não encontrado" numa
+  // data → tenta a próxima; nada pago → null.
   async findApprovedPayment(_est: Establishment, reference: string): Promise<FoundPayment | null> {
     try {
       await ensureTunaMode();
     } catch {
       return null;
     }
-    for (const paymentDate of saoPauloDays()) {
+    for (const paymentDate of tunaStatusDates()) {
       let r: unknown;
       try {
         r = await tunaPost<unknown>("engine", "/api/Payment/Status", { PartnerUniqueID: reference, paymentDate });

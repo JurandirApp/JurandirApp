@@ -10,8 +10,9 @@ import {
   createTunaSession,
   tunaProvider,
   refundTunaPayment,
-  saoPauloDays,
+  tunaStatusDates,
 } from "@/lib/payments/tuna";
+import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
 import type { Establishment } from "@prisma/client";
 import type { CardTokenPaymentInput, PixChargeInput, WalletPaymentInput } from "@/lib/payments/types";
 
@@ -188,6 +189,13 @@ describe("buildTunaCustomer", () => {
     process.env.TUNA_TEST_CPF = "111.444.777-35";
     expect(buildTunaCustomer("PED-1", {}, "TEST")).toMatchObject({ document: "11144477735", documentType: "CPF" });
   });
+  it("documentType pelo tamanho: 14 dígitos → CNPJ; tamanho inválido → omitido", () => {
+    expect(buildTunaCustomer("PED-1", { document: "11.222.333/0001-81" }, "PRODUCTION")).toMatchObject({
+      document: "11222333000181",
+      documentType: "CNPJ",
+    });
+    expect(buildTunaCustomer("PED-1", { document: "123456789012" }, "PRODUCTION")).not.toHaveProperty("document");
+  });
 });
 
 describe("tunaSplitItem", () => {
@@ -229,11 +237,19 @@ describe("createTunaSession", () => {
     await createTunaSession({ id: "PED-1", email: "e@x" });
     expect(bodyOf(fn)).not.toHaveProperty("Is3dsTest");
   });
-  it("sessionId vazio → TunaError 502", async () => {
+  it("sessionId vazio → TunaError 422 (definitivo: sessão não cobra nada)", async () => {
     seq([{ sessionId: null, code: 1 }]);
     const e = (await createTunaSession({ id: "a", email: "b" }).catch((x: unknown) => x)) as TunaError;
     expect(e).toBeInstanceOf(TunaError);
-    expect(e.status).toBe(502);
+    expect(e.status).toBe(422);
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
+  });
+  it("code negativo no NewSession → TunaError 422 com o code", async () => {
+    seq([{ sessionId: null, code: -1, message: "Session has expired" }]);
+    const e = (await createTunaSession({ id: "a", email: "b" }).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(422);
+    expect(e.code).toBe(-1);
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
   });
 });
 
@@ -354,6 +370,23 @@ describe("tunaProvider.createPixCharge", () => {
     expect(fn).toHaveBeenCalledTimes(0);
   });
 
+  it("Init com -108 (partnerUniqueID já usado) → INCERTO (503, mantém o code)", async () => {
+    seq([{ code: -108, message: { source: 1, code: "SRVPartnerUniqueIDUsed" } }]);
+    const e = (await tunaProvider.createPixCharge(pix()).catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(503);
+    expect(e.code).toBe(-108);
+    expect(isDefiniteGatewayFailure(e)).toBe(false);
+  });
+
+  it("outro code negativo no Init continua recusa definitiva (422)", async () => {
+    seq([{ code: -122, message: { source: 1, code: "SRVMerchantErr" } }]);
+    const e = (await tunaProvider.createPixCharge(pix()).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(422);
+    expect(e.code).toBe(-122);
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
+  });
+
   it("Init sem paymentKey → TunaError 502 (incerto)", async () => {
     seq([{ code: 1, status: "P" }]);
     const e = (await tunaProvider.createPixCharge(pix()).catch((x: unknown) => x)) as TunaError;
@@ -429,6 +462,23 @@ describe("tunaProvider.createCardTokenPayment", () => {
     expect(fn).toHaveBeenCalledTimes(0);
   });
 
+  it("retentativa com -108 no Init de cartão → incerto (não vira recusa)", async () => {
+    seq([{ code: -108 }]);
+    const e = (await tunaProvider.createCardTokenPayment!(card()).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(503);
+    expect(isDefiniteGatewayFailure(e)).toBe(false);
+  });
+
+  it("documento com 14 dígitos → billingInfo CNPJ", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(card({ customerDocument: "11222333000181" }));
+    expect(bodyOf(fn).paymentData.paymentMethods[0].cardInfo.billingInfo).toEqual({
+      document: "11222333000181",
+      documentType: "CNPJ",
+    });
+    expect(bodyOf(fn).customer.documentType).toBe("CNPJ");
+  });
+
   it("threeDSInfo na resposta → pending + challenge", async () => {
     seq([
       initOk({
@@ -500,6 +550,21 @@ describe("tunaProvider.createWalletPayment", () => {
     expect(JSON.parse(ci.token)).toEqual(paymentData);
   });
 
+  it("NewSession falha (code -1) → recusa definitiva 422, sem Init", async () => {
+    const fn = seq([{ sessionId: null, code: -1, message: "AppToken is required" }]);
+    const e = (await tunaProvider.createWalletPayment!(wallet()).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(422);
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("NewSession sem sessionId → recusa definitiva 422, sem Init", async () => {
+    const fn = seq([{ code: 1 }]);
+    const e = (await tunaProvider.createWalletPayment!(wallet()).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(422);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it("bar sem tunaMerchantExternalId → rejeita sem fetch (nem sessão)", async () => {
     const fn = seq([]);
     await expect(tunaProvider.createWalletPayment!(wallet({ est: noMerchant }))).rejects.toBeInstanceOf(TunaError);
@@ -518,11 +583,12 @@ describe("tunaProvider.getChargeStatus", () => {
   });
 });
 
-describe("saoPauloDays", () => {
-  it("hoje e ontem no fuso de São Paulo (YYYY-MM-DD)", () => {
-    // 02:00 UTC = 23:00 do dia anterior em São Paulo.
-    expect(saoPauloDays(new Date("2026-10-26T02:00:00Z"))).toEqual(["2026-10-25", "2026-10-24"]);
-    expect(saoPauloDays(new Date("2026-03-01T12:00:00Z"))).toEqual(["2026-03-01", "2026-02-28"]);
+describe("tunaStatusDates", () => {
+  it("hoje e ontem em São Paulo + hoje em UTC, sem repetir (YYYY-MM-DD)", () => {
+    // 02:00 UTC = 23:00 do dia anterior em São Paulo → o dia UTC é outro.
+    expect(tunaStatusDates(new Date("2026-10-26T02:00:00Z"))).toEqual(["2026-10-25", "2026-10-24", "2026-10-26"]);
+    // Meio-dia: o dia UTC = dia de SP → deduplica.
+    expect(tunaStatusDates(new Date("2026-03-01T12:00:00Z"))).toEqual(["2026-03-01", "2026-02-28"]);
   });
 });
 
@@ -550,8 +616,15 @@ describe("tunaProvider.findApprovedPayment", () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
+  it("pago só na data UTC de hoje → acha na 3ª consulta", async () => {
+    const fn = seq([{ code: -102 }, { code: -102 }, { code: 1, status: "2", paymentKey: "PKU" }]);
+    expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toEqual({ paymentId: "PKU", status: "paid" });
+    expect(fn).toHaveBeenCalledTimes(3);
+    expect(bodyOf(fn, 2)).toEqual({ PartnerUniqueID: "PED-9", paymentDate: "2026-10-26" });
+  });
+
   it("nada pago → null; erro → null", async () => {
-    seq([{ code: 1, status: "P" }, { code: -102 }]);
+    seq([{ code: 1, status: "P" }, { code: -102 }, { code: 1, status: "P" }]);
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toBeNull();
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toBeNull();

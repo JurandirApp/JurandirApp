@@ -11,6 +11,7 @@ A Tuna entra como **mais um gateway** no Jurandir, cobrindo os **5 métodos dent
 - **Cadastro do bar pela API**, a partir do nosso painel (como o recebedor do Pagar.me).
 - A Tuna cobre **todos os 5 métodos**.
 - **Fase 1 = backend completo**; **Fase 2 = app e site** (tokenização do cartão, 3DS e carteiras pela Tuna).
+- **Cadastro do bar "entra em tudo"** (2026-10-26): no painel do site E no app do estabelecimento. Fase 1 entrega o serviço compartilhado + as rotas autenticadas `GET/POST /api/public/establishment/tuna` para o app; a tela no app entra na Fase 2.
 
 ## Objetivos (Fase 1)
 1. Provider `TUNA` no padrão multi-gateway (`lib/payments/*`): Pix, cartão crédito/débito (com 3DS), Apple Pay/Google Pay, consulta de status, estorno (função de provider).
@@ -74,7 +75,7 @@ A Tuna entra como **mais um gateway** no Jurandir, cobrindo os **5 métodos dent
 - `getChargeStatus`: `Payment/Status {paymentKey}` → `paid` (`2`/`8`), `failed` (`3`,`4`,`5`,`6`,`7`,`9`), `pending` (resto).
 - `refundTunaPayment(paymentKey, amount?, barShare?)`: `Payment/Cancel` (total ou parcial; no parcial manda `Splits[{MerchantID, Amount}]`). Só função de provider + teste (sem tela).
 - **Split no `Init`:** um item com o valor total do pedido e `split{merchantId: est.tunaMerchantExternalId, amount: total − comissão}`; o restante (comissão) fica na conta da plataforma. A conta exata da liquidação está **não confirmada** → confirmar com a Tuna no 1º teste.
-- `customer`: nome com sobrenome, e-mail `pedido-<código>@jurandir.app.br` (padrão do PagBank), CPF do pagador quando houver (senão `TUNA_TEST_CPF` só em TESTE; em PRODUÇÃO sem CPF → erro claro).
+- `customer`: nome com sobrenome, e-mail `pedido-<código>@jurandir.app.br` (padrão do PagBank), CPF do pagador quando houver (senão `TUNA_TEST_CPF` só em TESTE; em PRODUÇÃO sem CPF → o documento é omitido, sem erro — ver "CPF do pagador").
 
 ### Cadastro do bar (painel do bar)
 - Card "Tuna" em Conexões com o status (não cadastrado / em análise / ativo / recusado) e o botão "Cadastrar na Tuna" → modal com os campos do `Register` (CNPJ ou CPF, razão social, nome fantasia, chave Pix + tipo, conta bancária (banco, agência, conta com dígito, corrente/poupança), endereço, contato, representante legal, inscrição estadual default `ISENTO`, aceite do contrato).
