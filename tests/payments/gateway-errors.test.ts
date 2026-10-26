@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
 import { PagbankError } from "@/lib/payments/pagbank";
 import { PagarmeError } from "@/lib/payments/pagarme";
+import { TunaError } from "@/lib/payments/tuna";
 
 describe("isDefiniteGatewayFailure", () => {
   it("PagBank 4xx → recusa definitiva", () => {
@@ -31,5 +32,9 @@ describe("isDefiniteGatewayFailure", () => {
   it("status fora de 4xx (0/3xx) → incerto", () => {
     expect(isDefiniteGatewayFailure(new PagbankError(0, "x"))).toBe(false);
     expect(isDefiniteGatewayFailure(new PagarmeError(302, "x"))).toBe(false);
+  });
+  it("Tuna: 4xx (inclui 422 de code negativo) → definitiva; 5xx → incerto", () => {
+    expect(isDefiniteGatewayFailure(new TunaError(422, -108, ""))).toBe(true);
+    expect(isDefiniteGatewayFailure(new TunaError(503, null, ""))).toBe(false);
   });
 });
