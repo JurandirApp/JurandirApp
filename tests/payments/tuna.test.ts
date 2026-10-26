@@ -5,7 +5,15 @@ import {
   mapTunaStatus,
   pickCi,
   __setTunaModeForTests,
+  buildTunaCustomer,
+  tunaSplitItem,
+  createTunaSession,
+  tunaProvider,
+  refundTunaPayment,
+  saoPauloDays,
 } from "@/lib/payments/tuna";
+import type { Establishment } from "@prisma/client";
+import type { CardTokenPaymentInput, PixChargeInput, WalletPaymentInput } from "@/lib/payments/types";
 
 function respond(body: unknown, status = 200) {
   const fn = vi.fn().mockResolvedValue({
@@ -100,5 +108,496 @@ describe("pickCi", () => {
     expect(pickCi({ QrCopyPaste: "x" }, "qrCopyPaste")).toBe("x");
     expect(pickCi({ a: 1 }, "b", "A")).toBe(1);
     expect(pickCi(null, "a")).toBeUndefined();
+  });
+});
+
+// ---- Cobranças (Task 3) ------------------------------------------------------
+
+/** Respostas em sequência (Response real: text/arrayBuffer/headers). */
+function seq(bodies: unknown[]) {
+  const fn = vi.fn();
+  bodies.forEach((b) =>
+    fn.mockResolvedValueOnce(
+      b instanceof Response ? b : new Response(typeof b === "string" ? b : JSON.stringify(b), { status: 200 }),
+    ),
+  );
+  vi.stubGlobal("fetch", fn);
+  return fn;
+}
+const bodyOf = (fn: ReturnType<typeof vi.fn>, i = 0) => JSON.parse(fn.mock.calls[i][1].body as string);
+const headersOf = (fn: ReturnType<typeof vi.fn>, i = 0) => fn.mock.calls[i][1].headers as Record<string, string>;
+
+const est = { id: "est1", tunaMerchantExternalId: "jur_est1" } as unknown as Establishment;
+const noMerchant = { id: "est2", tunaMerchantExternalId: null } as unknown as Establishment;
+
+const card = (over: Partial<CardTokenPaymentInput> = {}): CardTokenPaymentInput => ({
+  est,
+  reference: "PED-2",
+  total: 20,
+  platformFee: 1.6,
+  description: "Pedido PED-2",
+  cardToken: "ct_abc",
+  installments: 1,
+  method: "credit",
+  customerName: "Joao Silva",
+  customerDocument: "529.982.247-25",
+  tuna: { sessionId: "sess_1", brand: "Visa" },
+  ...over,
+});
+const threeDs = { referenceId: "ref_1", transactionId: "tx_1" };
+const initOk = (over: Record<string, unknown> = {}) => ({
+  code: 1,
+  status: "2",
+  paymentKey: "PK1",
+  methods: [{ methodId: 0, methodType: "1", status: "2" }],
+  ...over,
+});
+
+let savedBase: string | undefined;
+beforeEach(() => {
+  savedBase = process.env.APP_BASE_URL;
+  process.env.APP_BASE_URL = "https://jurandir.app.br";
+  delete process.env.TUNA_TEST_CPF;
+});
+afterEach(() => {
+  if (savedBase === undefined) delete process.env.APP_BASE_URL;
+  else process.env.APP_BASE_URL = savedBase;
+  vi.useRealTimers();
+});
+
+describe("buildTunaCustomer", () => {
+  it("nome com sobrenome, e-mail do pedido, CPF do pagador em dígitos", () => {
+    expect(buildTunaCustomer("PED-1", { name: "Maria Souza", document: "529.982.247-25" }, "PRODUCTION")).toEqual({
+      id: "PED-1",
+      name: "Maria Souza",
+      email: "pedido-ped-1@jurandir.app.br",
+      document: "52998224725",
+      documentType: "CPF",
+    });
+    expect(buildTunaCustomer("PED-1", { name: "Maria" }, "PRODUCTION").name).toBe("Maria Jurandir");
+    expect(buildTunaCustomer("PED-1", {}, "PRODUCTION").name).toBe("Cliente Jurandir");
+  });
+  it("PRODUCTION sem CPF → sem document/documentType (nunca inventa)", () => {
+    process.env.TUNA_TEST_CPF = "111.444.777-35";
+    const c = buildTunaCustomer("PED-1", { document: "123" }, "PRODUCTION");
+    expect(c).not.toHaveProperty("document");
+    expect(c).not.toHaveProperty("documentType");
+  });
+  it("TEST sem CPF → TUNA_TEST_CPF em dígitos; sem a env → omitido", () => {
+    expect(buildTunaCustomer("PED-1", {}, "TEST")).not.toHaveProperty("document");
+    process.env.TUNA_TEST_CPF = "111.444.777-35";
+    expect(buildTunaCustomer("PED-1", {}, "TEST")).toMatchObject({ document: "11144477735", documentType: "CPF" });
+  });
+});
+
+describe("tunaSplitItem", () => {
+  it("um item com o total e o split do bar (total − comissão)", () => {
+    expect(tunaSplitItem(est, 20, 1.6, "Pedido PED-1")).toEqual({
+      detailUniqueId: "1",
+      productDescription: "Pedido PED-1",
+      itemQuantity: 1,
+      amount: 20,
+      split: { merchantId: "jur_est1", amount: 18.4 },
+    });
+  });
+  it("bar sem cadastro na Tuna → TunaError 422", () => {
+    let e: unknown;
+    try {
+      tunaSplitItem(noMerchant, 20, 1.6, "x");
+    } catch (x) {
+      e = x;
+    }
+    expect(e).toBeInstanceOf(TunaError);
+    expect((e as TunaError).status).toBe(422);
+  });
+});
+
+describe("createTunaSession", () => {
+  it("TEST: NewSession no host do token com Is3dsTest", async () => {
+    const fn = seq([{ sessionId: "sess_9", code: 1 }]);
+    expect(await createTunaSession({ id: "PED-1", email: "pedido-ped-1@jurandir.app.br" })).toBe("sess_9");
+    expect(fn.mock.calls[0][0]).toBe("https://token.tunagateway.com/api/Token/NewSession");
+    expect(headersOf(fn)["x-tuna-apptoken"]).toBe("tok_t");
+    expect(bodyOf(fn)).toEqual({
+      customer: { id: "PED-1", email: "pedido-ped-1@jurandir.app.br" },
+      Is3dsTest: true,
+    });
+  });
+  it("PRODUCTION: sem Is3dsTest", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    const fn = seq([{ sessionId: "sess_p", code: 1 }]);
+    await createTunaSession({ id: "PED-1", email: "e@x" });
+    expect(bodyOf(fn)).not.toHaveProperty("Is3dsTest");
+  });
+  it("sessionId vazio → TunaError 502", async () => {
+    seq([{ sessionId: null, code: 1 }]);
+    const e = (await createTunaSession({ id: "a", email: "b" }).catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(502);
+  });
+});
+
+describe("tunaProvider.createPixCharge", () => {
+  const pix = (over: Partial<PixChargeInput> = {}): PixChargeInput => ({
+    est,
+    reference: "PED-1",
+    total: 20,
+    platformFee: 1.6,
+    customerName: "Maria Souza",
+    customerDocument: "52998224725",
+    description: "Pedido PED-1",
+    ...over,
+  });
+
+  it("Init Pix com split, expiração e idempotência; devolve copia-e-cola", async () => {
+    const fn = seq([
+      initOk({
+        status: "P",
+        paymentKey: "13489AA00000BCA",
+        methods: [{ methodId: 0, methodType: "D", status: "C", pixInfo: { QrCopyPaste: "000201..." } }],
+      }),
+    ]);
+    const r = await tunaProvider.createPixCharge(pix());
+    expect(r).toEqual({ chargeId: "13489AA00000BCA", pixPayload: "000201...", pixQrImage: "", status: "pending" });
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn.mock.calls[0][0]).toBe("https://engine.tunagateway.com/api/Payment/Init");
+    expect(headersOf(fn)["Idempotency-Key"]).toBe("init:PED-1");
+    const b = bodyOf(fn);
+    expect(b.partnerUniqueID).toBe("PED-1");
+    expect(b.tokenSession).toBeUndefined();
+    expect(b.customer).toEqual({
+      id: "PED-1",
+      name: "Maria Souza",
+      email: "pedido-ped-1@jurandir.app.br",
+      document: "52998224725",
+      documentType: "CPF",
+    });
+    expect(b.paymentItems.items).toEqual([
+      {
+        detailUniqueId: "1",
+        productDescription: "Pedido PED-1",
+        itemQuantity: 1,
+        amount: 20,
+        split: { merchantId: "jur_est1", amount: 18.4 },
+      },
+    ]);
+    expect(b.paymentData).toMatchObject({
+      amount: 20,
+      countryCode: "BR",
+      callbackUrl: "https://jurandir.app.br/api/webhooks/tuna",
+    });
+    expect(b.paymentData.paymentMethods).toEqual([
+      {
+        paymentMethodType: "D",
+        amount: 20,
+        pix: { name: "Maria Souza", document: "52998224725", documentType: "CPF", expirationSeconds: 900 },
+      },
+    ]);
+  });
+
+  it("qrContent quando não há qrCopyPaste; QR em data URI vira base64 puro", async () => {
+    seq([initOk({ status: "P", methods: [{ pixInfo: { qRContent: "0002XYZ", qrImage: "data:image/png;base64,iVBORw0KGgo=" } }] })]);
+    const r = await tunaProvider.createPixCharge(pix());
+    expect(r.pixPayload).toBe("0002XYZ");
+    expect(r.pixQrImage).toBe("iVBORw0KGgo=");
+  });
+
+  it("QR como URL https → baixa e converte em base64 (sem headers de auth)", async () => {
+    const fn = seq([
+      initOk({ status: "P", methods: [{ pixInfo: { qrCopyPaste: "0002", qrImage: "https://cdn.tuna/qr.png" } }] }),
+      new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "image/png" } }),
+    ]);
+    const r = await tunaProvider.createPixCharge(pix());
+    expect(r.pixQrImage).toBe(Buffer.from([1, 2, 3]).toString("base64"));
+    expect(fn.mock.calls[1][0]).toBe("https://cdn.tuna/qr.png");
+    expect(fn.mock.calls[1][1]?.headers?.["x-tuna-apptoken"]).toBeUndefined();
+  });
+
+  it("falha ao baixar o QR → pixQrImage vazio (não derruba a cobrança)", async () => {
+    seq([
+      initOk({ status: "P", methods: [{ pixInfo: { qrCopyPaste: "0002", qrImage: "https://cdn.tuna/qr.png" } }] }),
+      new Response("nope", { status: 404 }),
+    ]);
+    const r = await tunaProvider.createPixCharge(pix());
+    expect(r).toMatchObject({ pixPayload: "0002", pixQrImage: "" });
+  });
+
+  it("APP_BASE_URL http → sem callbackUrl", async () => {
+    process.env.APP_BASE_URL = "http://localhost:3000";
+    const fn = seq([initOk({ status: "P" })]);
+    await tunaProvider.createPixCharge(pix());
+    expect(bodyOf(fn).paymentData).not.toHaveProperty("callbackUrl");
+  });
+
+  it("PRODUCTION sem CPF → customer e pix sem document/documentType", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    process.env.TUNA_TEST_CPF = "111.444.777-35";
+    const fn = seq([initOk({ status: "P" })]);
+    await tunaProvider.createPixCharge(pix({ customerDocument: undefined }));
+    const b = bodyOf(fn);
+    expect(b.customer).not.toHaveProperty("document");
+    expect(b.customer).not.toHaveProperty("documentType");
+    expect(b.paymentData.paymentMethods[0].pix).not.toHaveProperty("document");
+    expect(b.paymentData.paymentMethods[0].pix).not.toHaveProperty("documentType");
+  });
+
+  it("TEST sem CPF do pagador → TUNA_TEST_CPF", async () => {
+    process.env.TUNA_TEST_CPF = "111.444.777-35";
+    const fn = seq([initOk({ status: "P" })]);
+    await tunaProvider.createPixCharge(pix({ customerDocument: undefined }));
+    expect(bodyOf(fn).customer).toMatchObject({ document: "11144477735", documentType: "CPF" });
+  });
+
+  it("bar sem tunaMerchantExternalId → rejeita sem fetch", async () => {
+    const fn = seq([]);
+    await expect(tunaProvider.createPixCharge(pix({ est: noMerchant }))).rejects.toBeInstanceOf(TunaError);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("Init sem paymentKey → TunaError 502 (incerto)", async () => {
+    seq([{ code: 1, status: "P" }]);
+    const e = (await tunaProvider.createPixCharge(pix()).catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(502);
+  });
+});
+
+describe("tunaProvider.createCardTokenPayment", () => {
+  it("crédito sem 3DS → tipo 1 com token Tuna de uso único e sessão", async () => {
+    const fn = seq([initOk()]);
+    const r = await tunaProvider.createCardTokenPayment!(card({ installments: 3 }));
+    expect(r).toMatchObject({ chargeId: "PK1", status: "paid" });
+    expect(r.challenge).toBeUndefined();
+    expect(headersOf(fn)["Idempotency-Key"]).toBe("init:PED-2");
+    const b = bodyOf(fn);
+    expect(b.tokenSession).toBe("sess_1");
+    expect(b.paymentItems.items[0].split).toEqual({ merchantId: "jur_est1", amount: 18.4 });
+    expect(b.paymentData.paymentMethods[0]).toEqual({
+      paymentMethodType: "1",
+      amount: 20,
+      installments: 3,
+      cardInfo: {
+        token: "ct_abc",
+        tokenProvider: "Tuna",
+        brandName: "Visa",
+        tokenSingleUse: 1,
+        saveCard: false,
+        billingInfo: { document: "52998224725", documentType: "CPF" },
+      },
+    });
+  });
+
+  it("crédito com 3DS → tipo 7 + authenticationInformation", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(card({ tuna: { sessionId: "sess_1", threeDs } }));
+    const m = bodyOf(fn).paymentData.paymentMethods[0];
+    expect(m.paymentMethodType).toBe("7");
+    expect(m.authenticationInformation).toEqual({ code: "sess_1", referenceId: "ref_1", transactionId: "tx_1" });
+    expect(m.cardInfo).not.toHaveProperty("brandName");
+  });
+
+  it("débito com 3DS → tipo 8, sempre 1 parcela", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(
+      card({ method: "debit", installments: 4, tuna: { sessionId: "sess_1", threeDs } }),
+    );
+    const m = bodyOf(fn).paymentData.paymentMethods[0];
+    expect(m.paymentMethodType).toBe("8");
+    expect(m.installments).toBe(1);
+    expect(m.authenticationInformation).toEqual({ code: "sess_1", referenceId: "ref_1", transactionId: "tx_1" });
+  });
+
+  it("débito sem 3DS → rejeita e fetch chamado 0 vezes", async () => {
+    const fn = seq([]);
+    const e = (await tunaProvider
+      .createCardTokenPayment!(card({ method: "debit", tuna: { sessionId: "sess_1" } }))
+      .catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(422);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("sem sessão Tuna → rejeita sem fetch", async () => {
+    const fn = seq([]);
+    await expect(tunaProvider.createCardTokenPayment!(card({ tuna: undefined }))).rejects.toBeInstanceOf(TunaError);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("bar sem tunaMerchantExternalId → rejeita sem fetch", async () => {
+    const fn = seq([]);
+    await expect(tunaProvider.createCardTokenPayment!(card({ est: noMerchant }))).rejects.toBeInstanceOf(TunaError);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("threeDSInfo na resposta → pending + challenge", async () => {
+    seq([
+      initOk({
+        status: "P",
+        methods: [
+          { methodId: 0, status: "P", threeDSInfo: { url: "https://acs/x", token: "jwt1", paRequest: "eyJ9", provider: "cb" } },
+        ],
+      }),
+    ]);
+    const r = await tunaProvider.createCardTokenPayment!(card({ tuna: { sessionId: "sess_1", threeDs } }));
+    expect(r).toEqual({
+      chargeId: "PK1",
+      status: "pending",
+      challenge: { url: "https://acs/x", token: "jwt1", paRequest: "eyJ9" },
+    });
+  });
+
+  it("recusa (status 4) → failed com detalhe da Tuna", async () => {
+    seq([
+      initOk({
+        status: "4",
+        methods: [{ status: "4", message: { source: 3, code: "GwNotAuthorized", message: "Not authorized" } }],
+      }),
+    ]);
+    const r = await tunaProvider.createCardTokenPayment!(card());
+    expect(r.status).toBe("failed");
+    expect(r.statusDetail).toContain("GwNotAuthorized");
+  });
+});
+
+describe("tunaProvider.createWalletPayment", () => {
+  const wallet = (over: Partial<WalletPaymentInput> = {}): WalletPaymentInput => ({
+    est,
+    reference: "PED-3",
+    total: 20,
+    platformFee: 1.6,
+    description: "Pedido PED-3",
+    walletType: "google_pay",
+    token: '{"signature":"s","protocolVersion":"ECv2"}',
+    ...over,
+  });
+
+  it("Google Pay: NewSession e depois Init tipo 1 com o token cru", async () => {
+    const fn = seq([{ sessionId: "sess_w", code: 1 }, initOk({ paymentKey: "PKW" })]);
+    const r = await tunaProvider.createWalletPayment!(wallet());
+    expect(r).toMatchObject({ chargeId: "PKW", status: "paid" });
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(fn.mock.calls[0][0]).toBe("https://token.tunagateway.com/api/Token/NewSession");
+    expect(bodyOf(fn, 0).customer).toEqual({ id: "PED-3", email: "pedido-ped-3@jurandir.app.br" });
+    expect(fn.mock.calls[1][0]).toBe("https://engine.tunagateway.com/api/Payment/Init");
+    expect(headersOf(fn, 1)["Idempotency-Key"]).toBe("init:PED-3");
+    const b = bodyOf(fn, 1);
+    expect(b.tokenSession).toBe("sess_w");
+    expect(b.paymentItems.items[0].split).toEqual({ merchantId: "jur_est1", amount: 18.4 });
+    const m = b.paymentData.paymentMethods[0];
+    expect(m.paymentMethodType).toBe("1");
+    expect(m.installments).toBe(1);
+    expect(m.cardInfo).toMatchObject({ tokenProvider: "GooglePay", token: '{"signature":"s","protocolVersion":"ECv2"}' });
+  });
+
+  it("Apple Pay: extrai o paymentData do token embrulhado", async () => {
+    const paymentData = { version: "EC_v1", data: "abc", signature: "sig", header: { transactionId: "t" } };
+    const fn = seq([{ sessionId: "sess_w", code: 1 }, initOk()]);
+    await tunaProvider.createWalletPayment!(
+      wallet({ walletType: "apple_pay", token: JSON.stringify({ paymentData, transactionIdentifier: "x" }) }),
+    );
+    const ci = bodyOf(fn, 1).paymentData.paymentMethods[0].cardInfo;
+    expect(ci.tokenProvider).toBe("ApplePay");
+    expect(JSON.parse(ci.token)).toEqual(paymentData);
+  });
+
+  it("bar sem tunaMerchantExternalId → rejeita sem fetch (nem sessão)", async () => {
+    const fn = seq([]);
+    await expect(tunaProvider.createWalletPayment!(wallet({ est: noMerchant }))).rejects.toBeInstanceOf(TunaError);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+});
+
+describe("tunaProvider.getChargeStatus", () => {
+  it("Payment/Status por paymentKey → status interno", async () => {
+    const fn = seq([{ code: 1, status: "8" }, { code: 1, status: "P" }, { code: 1, status: "4" }]);
+    expect(await tunaProvider.getChargeStatus(est, "PK1")).toBe("paid");
+    expect(await tunaProvider.getChargeStatus(est, "PK1")).toBe("pending");
+    expect(await tunaProvider.getChargeStatus(est, "PK1")).toBe("failed");
+    expect(fn.mock.calls[0][0]).toBe("https://engine.tunagateway.com/api/Payment/Status");
+    expect(bodyOf(fn)).toEqual({ paymentKey: "PK1" });
+  });
+});
+
+describe("saoPauloDays", () => {
+  it("hoje e ontem no fuso de São Paulo (YYYY-MM-DD)", () => {
+    // 02:00 UTC = 23:00 do dia anterior em São Paulo.
+    expect(saoPauloDays(new Date("2026-10-26T02:00:00Z"))).toEqual(["2026-10-25", "2026-10-24"]);
+    expect(saoPauloDays(new Date("2026-03-01T12:00:00Z"))).toEqual(["2026-03-01", "2026-02-28"]);
+  });
+});
+
+describe("tunaProvider.findApprovedPayment", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-26T02:00:00Z"));
+  });
+
+  it("procura hoje e ontem (SP) pelo código do pedido; primeiro pago vence", async () => {
+    const fn = seq([{ code: 1, status: "P" }, { code: 1, status: "2", paymentKey: "PK9" }]);
+    expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toEqual({ paymentId: "PK9", status: "paid" });
+    expect(bodyOf(fn, 0)).toEqual({ PartnerUniqueID: "PED-9", paymentDate: "2026-10-25" });
+    expect(bodyOf(fn, 1)).toEqual({ PartnerUniqueID: "PED-9", paymentDate: "2026-10-24" });
+  });
+
+  it("não encontrado hoje (-102) → ainda consulta ontem", async () => {
+    seq([{ code: -102 }, { code: 1, status: "8", paymentKey: "PK7" }]);
+    expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toEqual({ paymentId: "PK7", status: "paid" });
+  });
+
+  it("pago hoje → não consulta ontem", async () => {
+    const fn = seq([{ code: 1, status: "8", paymentKey: "PK8" }]);
+    expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toEqual({ paymentId: "PK8", status: "paid" });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("nada pago → null; erro → null", async () => {
+    seq([{ code: 1, status: "P" }, { code: -102 }]);
+    expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toBeNull();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+    expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toBeNull();
+  });
+
+  it("pago mas sem paymentKey na resposta → null (não grava id vazio)", async () => {
+    seq([{ code: 1, status: "2" }, { code: 1, status: "P" }]);
+    expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toBeNull();
+  });
+});
+
+describe("refundTunaPayment", () => {
+  it("total: só o paymentKey, idempotência cancel:<key>:total", async () => {
+    const fn = seq([{ code: 1, status: "3" }]);
+    expect(await refundTunaPayment("PK1")).toEqual({ status: "3" });
+    expect(fn.mock.calls[0][0]).toBe("https://engine.tunagateway.com/api/Payment/Cancel");
+    expect(headersOf(fn)["Idempotency-Key"]).toBe("cancel:PK1:total");
+    expect(bodyOf(fn)).toEqual({ paymentKey: "PK1" });
+  });
+
+  it("parcial com split: cardsDetail + Splits do bar", async () => {
+    const fn = seq([{ code: 1, status: "9" }]);
+    expect(await refundTunaPayment("PK1", { amount: 5, barMerchantId: "jur_est1", barAmount: 4.6 })).toEqual({
+      status: "9",
+    });
+    expect(headersOf(fn)["Idempotency-Key"]).toBe("cancel:PK1:5");
+    expect(bodyOf(fn)).toEqual({
+      paymentKey: "PK1",
+      cardsDetail: [{ amount: 5, methodId: 0, Splits: [{ MerchantID: "jur_est1", Amount: 4.6 }] }],
+    });
+  });
+
+  it("parcial sem bar: cardsDetail sem Splits", async () => {
+    const fn = seq([{ code: 1, status: "D" }]);
+    await refundTunaPayment("PK1", { amount: 2.5 });
+    expect(bodyOf(fn)).toEqual({ paymentKey: "PK1", cardsDetail: [{ amount: 2.5, methodId: 0 }] });
+  });
+
+  it("bar no split sem barAmount → rejeita sem fetch", async () => {
+    const fn = seq([]);
+    await expect(refundTunaPayment("PK1", { amount: 5, barMerchantId: "jur_est1" })).rejects.toBeInstanceOf(TunaError);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("code negativo (ex.: -137) → TunaError", async () => {
+    seq([{ code: -137 }]);
+    await expect(refundTunaPayment("PK1")).rejects.toBeInstanceOf(TunaError);
   });
 });

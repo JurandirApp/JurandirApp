@@ -76,6 +76,7 @@ describe("getProviderByName", () => {
     expect(getProviderByName("ASAAS").name).toBe("ASAAS");
     expect(getProviderByName("PAGBANK").name).toBe("PAGBANK");
     expect(getProviderByName("INFINITEPAY").name).toBe("INFINITEPAY");
+    expect(getProviderByName("TUNA").name).toBe("TUNA");
   });
 });
 
