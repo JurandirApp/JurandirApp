@@ -67,21 +67,21 @@ describe("tunaPost", () => {
   });
   it("code negativo em HTTP 200 → TunaError 422", async () => {
     respond({ code: -108, message: { a: 1 } });
-    const e = await tunaPost("engine", "/x", {}).catch((x: unknown) => x as TunaError);
+    const e = (await tunaPost<object>("engine", "/x", {}).catch((x: unknown) => x)) as TunaError;
     expect(e).toBeInstanceOf(TunaError);
     expect(e.status).toBe(422);
     expect(e.code).toBe(-108);
   });
   it("HTTP 500 → TunaError status 500", async () => {
     respond("boom", 500);
-    const e = await tunaPost("engine", "/x", {}).catch((x: unknown) => x as TunaError);
+    const e = (await tunaPost<object>("engine", "/x", {}).catch((x: unknown) => x)) as TunaError;
     expect(e).toBeInstanceOf(TunaError);
     expect(e.status).toBe(500);
     expect(e.code).toBeNull();
   });
   it("erro de rede/timeout propaga sem virar TunaError", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
-    const e = await tunaPost("engine", "/x", {}).catch((x: unknown) => x as TunaError);
+    const e = (await tunaPost<object>("engine", "/x", {}).catch((x: unknown) => x)) as TunaError;
     expect(e).not.toBeInstanceOf(TunaError);
   });
 });
