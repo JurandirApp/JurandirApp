@@ -22,6 +22,8 @@ export const GATEWAY_CAP: Record<string, Record<RouteKey, boolean>> = {
   // InfinitePay: checkout HOSPEDADO (Pix + crédito até 12x na página deles), sem
   // débito e sem carteira por API. Conta da plataforma (tag única), sem split.
   INFINITEPAY: { pix: true, credit: true, debit: false, applePay: false, googlePay: false },
+  // Tuna: todos os métodos implementados; a prontidão é por método (tuna.pixReady/cardReady).
+  TUNA: { pix: true, credit: true, debit: true, applePay: true, googlePay: true },
 };
 
 /** Fallback quando a escolha é inválida: MP faz Pix/cartão; carteira só existe no Pagar.me. */
@@ -40,6 +42,8 @@ export type GatewayReadiness = {
   appmaxRecipientHash?: string | null;
   /** Chave geral (AppSetting): débito PagBank liberado pra plataforma. */
   pagbankDebitEnabled?: boolean;
+  /** Tuna: prontidão por método (ver tuna-readiness.ts). */
+  tuna?: { pixReady: boolean; cardReady: boolean };
 };
 
 /** Gateway pronto pra cobrar por este estabelecimento. MP, PagBank e InfinitePay
@@ -52,6 +56,8 @@ export function isGatewayReady(est: GatewayReadiness, gateway: string): boolean 
       return true;
     case "PAGARME":
       return Boolean(est.pagarmeRecipientId);
+    case "TUNA":
+      return !!(est.tuna?.pixReady || est.tuna?.cardReady);
     case "ASAAS":
       return Boolean(est.asaasWalletId);
     case "APPMAX":
@@ -74,5 +80,9 @@ export function gatewayImplements(
 
 /** O gateway escolhido pro método pode de fato cobrar (implementa + está pronto)? */
 export function canCharge(est: GatewayReadiness, key: RouteKey, gateway: string): boolean {
+  if (gateway === "TUNA") {
+    if (!gatewayImplements(gateway, key, est)) return false;
+    return key === "pix" ? !!est.tuna?.pixReady : !!est.tuna?.cardReady;
+  }
   return gatewayImplements(gateway, key, est) && isGatewayReady(est, gateway);
 }

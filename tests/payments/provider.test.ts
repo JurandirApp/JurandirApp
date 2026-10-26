@@ -86,3 +86,15 @@ describe("getProvider", () => {
     expect(getProvider(est({ gatewayPix: "ASAAS" }), "PIX").name).toBe("ASAAS");
   });
 });
+
+describe("canCharge TUNA", () => {
+  const base = { pagarmeRecipientId: null };
+  it("pix pronto cobra pix, nao credito", () => {
+    const e = { ...base, tuna: { pixReady: true, cardReady: false } };
+    expect(canCharge(e, "pix", "TUNA")).toBe(true);
+    expect(canCharge(e, "credit", "TUNA")).toBe(false);
+  });
+  it("sem tuna nao cobra", () => {
+    expect(canCharge(base, "pix", "TUNA")).toBe(false);
+  });
+});

@@ -59,3 +59,33 @@ export async function setPagbankDebitEnabled(on: boolean): Promise<void> {
     create: { id: SINGLETON, pagbankDebitEnabled: on },
   });
 }
+
+/** Modo da Tuna em vigor pra toda a plataforma (default TEST). */
+export async function getTunaMode(): Promise<PaymentEnv> {
+  const s = await getAppSettings();
+  return s.tunaMode;
+}
+
+/** Troca o ambiente da Tuna (só o admin chama, via server action). */
+export async function setTunaMode(mode: PaymentEnv): Promise<void> {
+  await prisma.appSetting.upsert({
+    where: { id: SINGLETON },
+    update: { tunaMode: mode },
+    create: { id: SINGLETON, tunaMode: mode },
+  });
+}
+
+/** Cartões da Tuna liberados pra plataforma? (default false) */
+export async function getTunaCardsEnabled(): Promise<boolean> {
+  const s = await getAppSettings();
+  return s.tunaCardsEnabled;
+}
+
+/** Liga/desliga os cartões da Tuna (só o admin chama, via server action). */
+export async function setTunaCardsEnabled(on: boolean): Promise<void> {
+  await prisma.appSetting.upsert({
+    where: { id: SINGLETON },
+    update: { tunaCardsEnabled: on },
+    create: { id: SINGLETON, tunaCardsEnabled: on },
+  });
+}
