@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "crypto";
+import { isDefiniteGatewayFailure } from "./gateway-errors";
 import { pickCi, TunaError } from "./tuna";
 
 // Webhooks da Tuna — parte PURA (sem banco/rede), testável.
@@ -172,4 +173,19 @@ export function tunaErrorSummary(e: unknown): string {
     return `${e.name}: ${e.message.slice(0, 120)}`;
   }
   return "erro";
+}
+
+/** Id vindo do corpo (paymentKey, partnerUniqueId, externalId) é controlado por
+ *  quem posta: só aceita formato curto e seguro antes de usar/logar. */
+const SAFE_ID = /^[A-Za-z0-9_#.-]{1,64}$/;
+export function isSafeTunaId(id: string): boolean {
+  return SAFE_ID.test(id);
+}
+
+/** Erro ao reconciliar vale re-tentativa (HTTP 500 pra Tuna)? Tudo que não é
+ *  recusa definitiva do gateway — e 408/429 da Tuna, que são transitórios
+ *  apesar de 4xx. */
+export function tunaWebhookShouldRetry(e: unknown): boolean {
+  if (e instanceof TunaError && (e.status === 408 || e.status === 429)) return true;
+  return !isDefiniteGatewayFailure(e);
 }

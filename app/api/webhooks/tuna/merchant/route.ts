@@ -1,5 +1,7 @@
 import { applyTunaMerchantWebhook } from "@/lib/db/tuna-webhook";
+import { ensureTunaMode } from "@/lib/payments/tuna";
 import {
+  isSafeTunaId,
   isTunaPayoutCode,
   parseTunaMerchantNotification,
   tunaErrorSummary,
@@ -11,6 +13,9 @@ const ok = () => new Response("ok", { status: 200 });
 /** Webhook de merchant da Tuna (cadastro do bar + repasses). Segredo Bearer
  *  opcional próprio (TUNA_MERCHANT_WEBHOOK_SECRET / _TEST) — o que bater diz o
  *  ambiente, e notificação de outro ambiente que não o do cadastro é ignorada.
+ *  O corpo NÃO é re-consultado (não há API pra isso) e "active" nunca cai: por
+ *  isso, sem segredo configurado, só aceita em TESTE (homologação) — em
+ *  PRODUÇÃO falha fechado (401).
  *  Log só com externalId/message.code/serviceId (nunca dados bancários nem a
  *  mensagem da Tuna). Falha de banco → 500 (a Tuna re-tenta; não perde a
  *  aprovação); o resto → 200; segredo errado → 401. */
@@ -21,6 +26,10 @@ export async function POST(req: Request): Promise<Response> {
   });
   if (env === "unauthorized") {
     console.warn("[tuna/merchant] não autorizado");
+    return new Response("unauthorized", { status: 401 });
+  }
+  if (env === "any" && (await ensureTunaMode()) === "PRODUCTION") {
+    console.warn("[tuna/merchant] sem segredo configurado em produção");
     return new Response("unauthorized", { status: 401 });
   }
 
@@ -35,30 +44,37 @@ export async function POST(req: Request): Promise<Response> {
     console.warn("[tuna/merchant] corpo inválido");
     return ok();
   }
+  const { externalId } = n;
+  if (externalId !== "" && !isSafeTunaId(externalId)) {
+    console.warn("[tuna/merchant] id inválido"); // não ecoa o valor (controlado por quem posta)
+    return ok();
+  }
   const serviceId =
-    typeof n.serviceId === "number" || typeof n.serviceId === "string" ? n.serviceId : null;
+    typeof n.serviceId === "number" || typeof n.serviceId === "string"
+      ? String(n.serviceId).slice(0, 16)
+      : null;
   console.log(
     "[tuna/merchant]",
-    JSON.stringify({ env, externalId: n.externalId, code: n.messageCode, serviceId }),
+    JSON.stringify({ env, externalId, code: n.messageCode.slice(0, 64), serviceId }),
   );
 
   // Repasse ao bar: só registra (não muda o cadastro).
   if (isTunaPayoutCode(n.messageCode)) return ok();
-  if (!n.externalId) return ok();
+  if (!externalId) return ok();
 
   try {
     const outcome = await applyTunaMerchantWebhook({
       env,
-      externalId: n.externalId,
+      externalId,
       serviceId: n.serviceId,
       serviceName: n.serviceName,
       messageCode: n.messageCode,
       kycLevel: n.kycLevel,
     });
-    console.log("[tuna/merchant] resultado", n.externalId, outcome);
+    console.log("[tuna/merchant] resultado", JSON.stringify({ externalId, outcome }));
     return ok();
   } catch (e) {
-    console.error("[tuna/merchant] falha ao aplicar", n.externalId, tunaErrorSummary(e));
+    console.error("[tuna/merchant] falha ao aplicar", JSON.stringify({ externalId, error: tunaErrorSummary(e) }));
     return new Response("retry", { status: 500 });
   }
 }

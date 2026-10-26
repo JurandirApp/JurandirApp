@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isSafeTunaId,
   isTunaPayoutCode,
   nextTunaStatus,
   parseTunaMerchantNotification,
@@ -8,8 +9,10 @@ import {
   tunaErrorSummary,
   tunaServiceGroup,
   tunaWebhookAuth,
+  tunaWebhookShouldRetry,
 } from "@/lib/payments/tuna-webhook";
 import { TunaError } from "@/lib/payments/tuna";
+import { PagbankError } from "@/lib/payments/pagbank";
 
 describe("tunaWebhookAuth", () => {
   const secrets = { prod: "segredo-prod", test: "segredo-test" };
@@ -39,6 +42,9 @@ describe("tunaWebhookAuth", () => {
   it("esquema Bearer sem diferenciar maiúsculas e valor cru (sem Bearer) também valem", () => {
     expect(tunaWebhookAuth("bearer segredo-test", secrets)).toBe("TEST");
     expect(tunaWebhookAuth("segredo-prod", secrets)).toBe("PRODUCTION");
+  });
+  it("segredos de produção e teste IGUAIS → sempre PRODUCTION (o ambiente fica indistinguível; use segredos diferentes)", () => {
+    expect(tunaWebhookAuth("Bearer mesmo", { prod: "mesmo", test: "mesmo" })).toBe("PRODUCTION");
   });
   it("só um ambiente configurado: o outro segredo não autoriza", () => {
     expect(tunaWebhookAuth("Bearer segredo-test", { test: "segredo-test" })).toBe("TEST");
@@ -209,5 +215,32 @@ describe("tunaErrorSummary", () => {
   it("outros → nome + mensagem curta", () => {
     expect(tunaErrorSummary(new TypeError("fetch failed"))).toBe("TypeError: fetch failed");
     expect(tunaErrorSummary("x")).toBe("erro");
+  });
+});
+
+describe("isSafeTunaId", () => {
+  it("aceita paymentKey, código do pedido/parte e externalId", () => {
+    for (const id of ["134D946015A08C9", "PED-1A2B3C4D", "PED-1A2B3C4D-P2", "jur_ckx9abc", "#000.001", "x".repeat(64)]) {
+      expect(isSafeTunaId(id)).toBe(true);
+    }
+  });
+  it("recusa vazio, enorme (> 64) ou com caracteres estranhos", () => {
+    for (const id of ["", "x".repeat(65), "PK1\n[tuna/webhook] forjado", "PED 1", 'jur_e1"},{"x', "a/b", "ação"]) {
+      expect(isSafeTunaId(id)).toBe(false);
+    }
+  });
+});
+
+describe("tunaWebhookShouldRetry", () => {
+  it("transitório → true: rede/banco, Tuna 5xx, e 408/429 mesmo sendo 4xx", () => {
+    expect(tunaWebhookShouldRetry(new Error("db down"))).toBe(true);
+    expect(tunaWebhookShouldRetry(new TunaError(503, null, "x"))).toBe(true);
+    expect(tunaWebhookShouldRetry(new TunaError(408, null, "x"))).toBe(true);
+    expect(tunaWebhookShouldRetry(new TunaError(429, null, "x"))).toBe(true);
+  });
+  it("recusa definitiva do gateway (4xx / code < 0) → false", () => {
+    expect(tunaWebhookShouldRetry(new TunaError(422, -111, "x"))).toBe(false);
+    expect(tunaWebhookShouldRetry(new TunaError(400, null, "x"))).toBe(false);
+    expect(tunaWebhookShouldRetry(new PagbankError(404, "x"))).toBe(false);
   });
 });

@@ -31,6 +31,7 @@ vi.mock("@/lib/payments/tuna", async (orig) => {
 });
 
 import { applyTunaMerchantWebhook, handleTunaPaymentWebhook } from "@/lib/db/tuna-webhook";
+import { TunaError } from "@/lib/payments/tuna";
 
 const candidate = (o: Record<string, unknown> = {}) => ({
   code: "ABC123",
@@ -123,6 +124,14 @@ describe("handleTunaPaymentWebhook", () => {
     expect(m.reconcileByChargeId).not.toHaveBeenCalled();
   });
 
+  it("cobrança incerta: Status da Tuna falha (rede/5xx) → propaga, sem anexar nem reconciliar", async () => {
+    m.orderFindUnique.mockResolvedValue(candidate());
+    m.tunaPost.mockRejectedValue(new TunaError(503, null, "indisponível"));
+    await expect(handleTunaPaymentWebhook("PK1", "ABC123")).rejects.toBeInstanceOf(TunaError);
+    expect(m.paymentUpdateMany).not.toHaveBeenCalled();
+    expect(m.reconcileByChargeId).not.toHaveBeenCalled();
+  });
+
   it("erro ao reconciliar propaga (a rota decide 500 × 200)", async () => {
     m.paymentFindUnique.mockResolvedValue({ provider: "TUNA" });
     m.reconcileByChargeId.mockRejectedValue(new Error("db down"));
@@ -176,6 +185,18 @@ describe("applyTunaMerchantWebhook", () => {
     expect(m.estUpdateMany).toHaveBeenCalledWith({
       where: { id: "e1", OR: [{ tunaCardStatus: null }, { tunaCardStatus: { not: "active" } }] },
       data: { tunaCardStatus: "rejected" },
+    });
+    expect(m.estUpdate).not.toHaveBeenCalled();
+  });
+
+  it("Pix bloqueado → grava blocked só se ainda não estiver active (guard do Pix)", async () => {
+    m.estFindFirst.mockResolvedValue(est());
+    expect(
+      await applyTunaMerchantWebhook(n({ serviceId: 69, messageCode: "SRVMerchantRegisterBlocked" })),
+    ).toBe("updated");
+    expect(m.estUpdateMany).toHaveBeenCalledWith({
+      where: { id: "e1", OR: [{ tunaPixStatus: null }, { tunaPixStatus: { not: "active" } }] },
+      data: { tunaPixStatus: "blocked" },
     });
     expect(m.estUpdate).not.toHaveBeenCalled();
   });

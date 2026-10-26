@@ -12,7 +12,7 @@ vi.mock("@/lib/db/tuna-webhook", () => ({
 
 import { POST as paymentPOST } from "@/app/api/webhooks/tuna/route";
 import { POST as merchantPOST } from "@/app/api/webhooks/tuna/merchant/route";
-import { TunaError } from "@/lib/payments/tuna";
+import { TunaError, __setTunaModeForTests } from "@/lib/payments/tuna";
 
 const ENV_KEYS = [
   "TUNA_WEBHOOK_SECRET",
@@ -39,6 +39,7 @@ const pixPaid = {
 beforeEach(() => {
   vi.clearAllMocks();
   for (const k of ENV_KEYS) delete process.env[k];
+  __setTunaModeForTests("TEST");
   m.handlePayment.mockResolvedValue("reconciled");
   m.applyMerchant.mockResolvedValue("updated");
   vi.spyOn(console, "log").mockImplementation(() => {});
@@ -47,6 +48,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   for (const k of ENV_KEYS) delete process.env[k];
+  __setTunaModeForTests(null);
   vi.restoreAllMocks();
 });
 
@@ -91,6 +93,50 @@ describe("POST /api/webhooks/tuna (pagamento)", () => {
     expect(out).toContain("134D946015A08C9");
     expect(out).not.toContain("12345678909");
     expect(out).not.toContain("19.5");
+  });
+});
+
+describe("POST /api/webhooks/tuna (pagamento) — rodada de correções", () => {
+  const logged = (fn: "log" | "warn" | "error") =>
+    vi.mocked(console[fn]).mock.calls.map((c) => c.join(" ")).join("\n");
+
+  it.each([408, 429])("TunaError %i no Status (timeout/rate limit) → 500 (transitório)", async (st) => {
+    m.handlePayment.mockRejectedValue(new TunaError(st, null, "x"));
+    expect((await paymentPOST(req(pixPaid))).status).toBe(500);
+  });
+
+  it("paymentKey enorme/estranho → 200 'id inválido', sem reconciliar nem ecoar o valor", async () => {
+    const huge = "A".repeat(65);
+    const odd = "PK1\n[tuna/webhook] forjado";
+    expect((await paymentPOST(req({ ...pixPaid, paymentKey: huge }))).status).toBe(200);
+    expect((await paymentPOST(req({ ...pixPaid, paymentKey: odd }))).status).toBe(200);
+    expect(m.handlePayment).not.toHaveBeenCalled();
+    const out = logged("warn") + logged("log");
+    expect(out).toContain("[tuna/webhook] id inválido");
+    expect(out).not.toContain(huge);
+    expect(out).not.toContain("forjado");
+  });
+
+  it("partnerUniqueId inválido → 200 'id inválido'; ausente continua valendo", async () => {
+    expect((await paymentPOST(req({ ...pixPaid, partnerUniqueId: "PED 1; drop" }))).status).toBe(200);
+    expect(m.handlePayment).not.toHaveBeenCalled();
+    const semPartner = { id: pixPaid.id, paymentKey: pixPaid.paymentKey, statusId: pixPaid.statusId };
+    expect((await paymentPOST(req(semPartner))).status).toBe(200);
+    expect(m.handlePayment).toHaveBeenCalledWith("134D946015A08C9", "");
+  });
+
+  it("ambiente do segredo ≠ modo atual → avisa e segue reconciliando", async () => {
+    process.env.TUNA_WEBHOOK_SECRET_TEST = "s-test";
+    __setTunaModeForTests("PRODUCTION");
+    expect((await paymentPOST(req(pixPaid, "Bearer s-test"))).status).toBe(200);
+    expect(m.handlePayment).toHaveBeenCalledWith("134D946015A08C9", "ABC123");
+    expect(logged("warn")).toContain("[tuna/webhook] ambiente da notificação ≠ modo atual");
+  });
+
+  it("ambiente do segredo = modo atual (ou sem segredo) → sem aviso", async () => {
+    process.env.TUNA_WEBHOOK_SECRET_TEST = "s-test";
+    await paymentPOST(req(pixPaid, "Bearer s-test"));
+    expect(logged("warn")).not.toContain("ambiente da notificação");
   });
 });
 
@@ -148,6 +194,40 @@ describe("POST /api/webhooks/tuna/merchant", () => {
   it("falha de banco ao aplicar → 500 (a Tuna re-tenta; não perde a aprovação)", async () => {
     m.applyMerchant.mockRejectedValue(new Error("db down"));
     expect((await merchantPOST(req(registerOk))).status).toBe(500);
+  });
+
+  it("sem segredo de merchant configurado em PRODUÇÃO → 401 (fail closed), sem aplicar", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    expect((await merchantPOST(req(registerOk))).status).toBe(401);
+    expect(m.applyMerchant).not.toHaveBeenCalled();
+    const out = vi.mocked(console.warn).mock.calls.map((c) => c.join(" ")).join("\n");
+    expect(out).toContain("[tuna/merchant] sem segredo configurado em produção");
+    expect(out).not.toContain("jur_e1");
+  });
+
+  it("sem segredo de merchant em TESTE (homologação) → aceita com env any", async () => {
+    __setTunaModeForTests("TEST");
+    expect((await merchantPOST(req(registerOk))).status).toBe(200);
+    expect(m.applyMerchant).toHaveBeenCalledWith(expect.objectContaining({ env: "any" }));
+  });
+
+  it("segredo configurado em PRODUÇÃO + header certo → aplica", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    process.env.TUNA_MERCHANT_WEBHOOK_SECRET = "m-prod";
+    expect((await merchantPOST(req(registerOk, "Bearer m-prod"))).status).toBe(200);
+    expect(m.applyMerchant).toHaveBeenCalledWith(expect.objectContaining({ env: "PRODUCTION" }));
+  });
+
+  it("externalId enorme/estranho → 200 'id inválido', sem aplicar nem ecoar", async () => {
+    const huge = "jur_" + "x".repeat(80);
+    expect((await merchantPOST(req({ ...registerOk, externalId: huge }))).status).toBe(200);
+    expect((await merchantPOST(req({ ...registerOk, externalId: "jur_e1\"},{\"x" }))).status).toBe(200);
+    expect(m.applyMerchant).not.toHaveBeenCalled();
+    const out = [console.warn, console.log]
+      .flatMap((f) => vi.mocked(f).mock.calls.map((c) => c.join(" ")))
+      .join("\n");
+    expect(out).toContain("[tuna/merchant] id inválido");
+    expect(out).not.toContain(huge);
   });
 
   it("log sem dados bancários/mensagem da Tuna", async () => {
