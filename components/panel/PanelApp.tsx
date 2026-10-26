@@ -32,6 +32,7 @@ import {
   orderTimelineAction,
   printOrderAction,
   refreshOrdersAction,
+  registerTunaMerchantAction,
   listPendingCallsAction,
   handleCallAction,
   refreshPrintJobsAction,
@@ -47,12 +48,13 @@ import {
 } from "@/lib/actions/panel";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
-import type { PagarmeRecipientForm } from "@/lib/validation";
+import type { PagarmeRecipientForm, TunaMerchantFormInput } from "@/lib/validation";
 import type { RouteKey, Routing } from "@/lib/payments/capabilities";
 import {
   PanelContext,
   type AuditFilters,
   type OrderTimelineEvent,
+  type PanelTuna,
   type PanelValue,
   type PrinterForm,
   type PwForm,
@@ -128,6 +130,7 @@ export function PanelApp({
   pagarmeReady: pagarmeReady0,
   pagarmeStatus: pagarmeStatus0,
   asaasReady: asaasReady0,
+  tuna: tuna0,
 }: {
   now: number;
   slug: string;
@@ -154,6 +157,7 @@ export function PanelApp({
   pagarmeReady: boolean;
   pagarmeStatus: string | null;
   asaasReady: boolean;
+  tuna: PanelTuna;
 }) {
   const t = useTranslations("panel");
   const beach = true; // Quiosque do Mar (mock)
@@ -206,6 +210,7 @@ export function PanelApp({
   const [pagarmeReady, setPagarmeReady] = useState(pagarmeReady0);
   const [pagarmeStatus, setPagarmeStatus] = useState<string | null>(pagarmeStatus0);
   const [asaasReady, setAsaasReady] = useState(asaasReady0);
+  const [tuna, setTuna] = useState<PanelTuna>(tuna0);
   const [prMsg, setPrMsg] = useState<string | null>(null);
   const [toggles, setToggles] = useState<Toggles>({ auto: true, wa: true, em: true });
 
@@ -678,6 +683,32 @@ export function PanelApp({
         if (r.ok) setAsaasReady(true);
         return r;
       },
+      tuna,
+      registerTuna: async (form: TunaMerchantFormInput) => {
+        let r: { ok: boolean; error?: string };
+        try {
+          r = await registerTunaMerchantAction(form);
+        } catch {
+          return { ok: false, error: "error" };
+        }
+        // Espelha o que o serviço gravou: sucesso ou resposta perdida ("tryLater")
+        // → em análise; recusa definitiva da Tuna → erro (libera nova tentativa).
+        // Erros de validação/disponibilidade não gravam nada.
+        const untouched = ["", "invalid", "notConfigured", "notAvailable", "alreadyRegistered", "notFound"];
+        if (r.ok || !untouched.includes(r.error ?? "")) {
+          const status = r.ok || r.error === "tryLater" ? "analysis" : "error";
+          setTuna((prev) => ({
+            ...prev,
+            registered: true,
+            otherEnv: false,
+            pixReady: false,
+            cardReady: false,
+            pixStatus: status,
+            cardStatus: status,
+          }));
+        }
+        return r;
+      },
       printJobs,
       refreshPrintJobs: () => {
         refreshPrintJobsAction()
@@ -693,7 +724,7 @@ export function PanelApp({
     printer, prMsg, toggles, printJobs, printEnabled, hasPrintToken, printToken,
     mpConnected, mpPixReady, mpResult, coverImg, logoImg, uploadingImg,
     routing, pagbankConnected, pagbankDebitEnabled, pagbankResult, pagarmeReady, pagarmeStatus, asaasReady,
-    waiterModule,
+    tuna, waiterModule,
   ]);
 
   const saveItem = (clean: MenuItem) => {

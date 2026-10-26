@@ -13,6 +13,7 @@ import {
 import { listWaiters } from "@/lib/db/waiters";
 import { syncPagarmeRecipientStatus } from "@/lib/db/payments";
 import { getPagbankDebitEnabled } from "@/lib/db/settings";
+import { getEstablishmentTunaStatus } from "@/lib/db/tuna";
 import { getPagarmeRecipientStatus } from "@/lib/payments/pagarme";
 import { toMonthlyStatLite } from "@/lib/admin/adapters";
 import {
@@ -80,13 +81,14 @@ export default async function PainelPage({
   const now = Date.now();
   // Abre no dia operacional atual (respeita o "início do dia" do estabelecimento).
   const todayRange = periodRange({ kind: "hoje" }, est.dayStartHour, now);
-  const [dbOrders, dbMenu, dbWaiters, dbQrs, dbStats, dbPrintJobs] = await Promise.all([
+  const [dbOrders, dbMenu, dbWaiters, dbQrs, dbStats, dbPrintJobs, tunaStatus] = await Promise.all([
     listPanelOrders(estId, todayRange),
     listPanelMenu(estId),
     listWaiters(estId),
     listPanelQrSpots(estId),
     listPanelStats(estId),
     listPanelPrintJobs(estId),
+    getEstablishmentTunaStatus(estId),
   ]);
   return (
     <PanelApp
@@ -124,6 +126,11 @@ export default async function PainelPage({
       pagarmeReady={Boolean(est.pagarmeRecipientId)}
       pagarmeStatus={pagarmeStatus}
       asaasReady={Boolean(est.asaasWalletId)}
+      tuna={{
+        ...tunaStatus,
+        // Cadastro só do outro ambiente (homolog × produção) → "Cadastrar de novo".
+        otherEnv: !tunaStatus.registered && est.tunaMerchantEnv != null,
+      }}
       waiterModule={est.waiterModuleEnabled}
     />
   );

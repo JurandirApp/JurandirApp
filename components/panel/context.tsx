@@ -5,7 +5,7 @@ import type { MenuItem, Order, PanelPrintJob, ProfileForm, Qr, Waiter } from "@/
 import type { MonthlyStatLite } from "@/lib/admin/scale";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
-import type { PagarmeRecipientForm } from "@/lib/validation";
+import type { PagarmeRecipientForm, TunaMerchantFormInput } from "@/lib/validation";
 import type { RouteKey, Routing } from "@/lib/payments/capabilities";
 import type { orderTimelineAction } from "@/lib/actions/panel";
 
@@ -28,6 +28,22 @@ export type AuditFilters = { from: string; to: string; mesa: string; method: str
 export type PwForm = { cur: string; nova: string; conf: string };
 export type PrinterForm = { conn: string; ip: string; port: string; model: string };
 export type Toggles = { auto: boolean; wa: boolean; em: boolean };
+
+/** Situação do bar na Tuna (ver `getEstablishmentTunaStatus`). Status valem só
+ *  pro ambiente atual (homolog × produção); `null` = sem cadastro neste ambiente. */
+export type PanelTuna = {
+  /** A Tuna aparece pra este bar (produção, ou bar de teste em homolog). */
+  visible: boolean;
+  /** Há cadastro feito no ambiente ATUAL. */
+  registered: boolean;
+  pixReady: boolean;
+  cardReady: boolean;
+  /** `analysis` | `active` | `rejected` | `blocked` | `error` | null. */
+  pixStatus: string | null;
+  cardStatus: string | null;
+  /** Há cadastro só no OUTRO ambiente → o painel oferece "Cadastrar de novo". */
+  otherEnv: boolean;
+};
 
 export interface PanelValue {
   beach: boolean;
@@ -173,6 +189,10 @@ export interface PanelValue {
   asaasReady: boolean;
   /** Cria a subconta Asaas com o CPF/CNPJ informado (split self-serve). */
   connectAsaas: (cpfCnpj: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Cadastro do bar na Tuna + prontidão por método (Pix / cartão e carteiras). */
+  tuna: PanelTuna;
+  /** Envia o cadastro do bar à Tuna (Merchant/Register) e atualiza `tuna`. */
+  registerTuna: (form: TunaMerchantFormInput) => Promise<{ ok: boolean; error?: string }>;
   printJobs: PanelPrintJob[];
   refreshPrintJobs: () => void;
 }
