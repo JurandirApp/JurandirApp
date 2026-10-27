@@ -51,11 +51,20 @@ export function __setTunaModeForTests(mode: Mode | null): void {
   cachedModeAt = mode ? Date.now() : 0;
 }
 
-/** TESTE: `NOME_TEST` caindo pro `NOME`; PRODUÇÃO: `NOME`. */
+/** Config por modo (hosts): TESTE lê `NOME_TEST` caindo pro `NOME`; PRODUÇÃO,
+ *  `NOME`. NÃO usar pra credenciais — ver `credentialByMode`. */
 const envByMode = (name: string): string =>
   modeSuffix() === "TEST"
     ? (process.env[`${name}_TEST`] ?? process.env[name] ?? "")
     : (process.env[name] ?? "");
+
+/** Credencial por modo, SEM fallback: TESTE lê só `NOME_TEST` (conta `-homolog`),
+ *  PRODUÇÃO só `NOME`. A homologação da Tuna roda nos MESMOS hosts da produção
+ *  — quem decide o ambiente é a conta. Se TESTE caísse na credencial de
+ *  produção, "Teste" no admin faria cobranças e cadastros REAIS (e o cadastro
+ *  ficaria gravado como TEST, com o webhook chegando como PRODUÇÃO). */
+const credentialByMode = (name: string): string =>
+  ((modeSuffix() === "TEST" ? process.env[`${name}_TEST`] : process.env[name]) ?? "").trim();
 
 const hostFor = (api: "engine" | "token"): string => {
   const name = api === "engine" ? "TUNA_ENGINE_URL" : "TUNA_TOKEN_URL";
@@ -115,8 +124,12 @@ export async function tunaPost<T>(
 ): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if ((opts.auth ?? "app") !== "none") {
-    headers["x-tuna-account"] = envByMode("TUNA_ACCOUNT");
-    headers["x-tuna-apptoken"] = envByMode("TUNA_APPTOKEN");
+    const account = credentialByMode("TUNA_ACCOUNT");
+    const appToken = credentialByMode("TUNA_APPTOKEN");
+    // Sem a credencial do modo nada é enviado (nada cobrado): falha DEFINITIVA (4xx).
+    if (!account || !appToken) throw tunaLocalError(401, `credenciais da Tuna ausentes (${modeSuffix()})`);
+    headers["x-tuna-account"] = account;
+    headers["x-tuna-apptoken"] = appToken;
   }
   if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
 

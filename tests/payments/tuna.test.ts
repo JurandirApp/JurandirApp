@@ -69,6 +69,55 @@ describe("tunaPost", () => {
     expect(init.headers["x-tuna-apptoken"]).toBe("tok_p");
     expect(init.headers["Idempotency-Key"]).toBeUndefined();
   });
+  it("TEST só com as credenciais de produção → 401 definitivo, sem chamar a Tuna", async () => {
+    delete process.env.TUNA_ACCOUNT_TEST;
+    delete process.env.TUNA_APPTOKEN_TEST;
+    const fn = respond({});
+    const e = (await tunaPost<object>("engine", "/api/Payment/Init", {}).catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(401);
+    expect(tunaSafeMessage(e)).toBe("credenciais da Tuna ausentes (TEST)");
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
+    expect(fn).not.toHaveBeenCalled();
+  });
+  it("TEST com só uma das credenciais _TEST → 401, sem chamar a Tuna", async () => {
+    delete process.env.TUNA_APPTOKEN_TEST;
+    const fn = respond({});
+    const e = (await tunaPost<object>("token", "/api/Token/NewSession", {}).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(401);
+    expect(fn).not.toHaveBeenCalled();
+  });
+  it("PRODUCTION sem envs → 401 definitivo, sem chamar a Tuna (nunca manda header vazio)", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    delete process.env.TUNA_ACCOUNT;
+    delete process.env.TUNA_APPTOKEN;
+    const fn = respond({});
+    const e = (await tunaPost<object>("engine", "/x", {}).catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(401);
+    expect(tunaSafeMessage(e)).toBe("credenciais da Tuna ausentes (PRODUCTION)");
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
+    expect(fn).not.toHaveBeenCalled();
+  });
+  it("PRODUCTION não usa as credenciais _TEST", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    delete process.env.TUNA_ACCOUNT;
+    const fn = respond({});
+    const e = (await tunaPost<object>("engine", "/x", {}).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(401);
+    expect(fn).not.toHaveBeenCalled();
+  });
+  it("TEST: host cai no sem sufixo (só as credenciais não têm fallback)", async () => {
+    process.env.TUNA_ENGINE_URL = "https://engine.exemplo.test/";
+    process.env.TUNA_TOKEN_URL = "https://token.exemplo.test";
+    const fn = respond({});
+    await tunaPost("engine", "/api/Payment/Status", {});
+    await tunaPost("token", "/api/Token/NewSession", {});
+    expect(fn.mock.calls[0][0]).toBe("https://engine.exemplo.test/api/Payment/Status");
+    expect(fn.mock.calls[1][0]).toBe("https://token.exemplo.test/api/Token/NewSession");
+    expect(fn.mock.calls[0][1].headers["x-tuna-account"]).toBe("acc_t");
+    expect(tunaTokenUrl()).toBe("https://token.exemplo.test");
+  });
   it("api token → host do token; auth none → sem headers de auth", async () => {
     const fn = respond({});
     await tunaPost("token", "/api/Token/NewSession", {}, { auth: "none" });

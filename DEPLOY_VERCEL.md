@@ -58,12 +58,18 @@ Sem estas variáveis os botões simplesmente não aparecem (o resto do checkout 
 O domínio de produção é **`https://jurandir.app.br`** (apontado pro Vercel via DNS). Use ele nas duas — é pra lá que o cliente volta depois de pagar (back_urls) e é o callback do OAuth do marketplace.
 
 ### Tuna (Pix, cartões e carteiras com split)
-O ambiente da Tuna (Teste/Produção) é escolhido no **admin → Pagamentos → Tuna** (padrão Teste; a troca vale na hora, sem deploy). Por isso cadastre as variáveis com e sem `_TEST` no ambiente **Production** da Vercel: o admin é que decide qual usar. Regra das credenciais e hosts: em Teste lê `NOME_TEST` e cai no `NOME` se o `_TEST` não existir; em Produção lê só `NOME`. **Os segredos de webhook não seguem essa regra** (ver abaixo).
+O ambiente da Tuna (Teste/Produção) é escolhido no **admin → Pagamentos → Tuna** (padrão Teste; sem deploy, e a troca vale em até ~30 s, porque cada instância do servidor guarda o modo em cache por 30 s). Por isso cadastre as variáveis com e sem `_TEST` no ambiente **Production** da Vercel: o admin é que decide qual usar.
+
+> **Ordem de deploy:** as colunas da Tuna têm que existir no banco **antes** de subir este código: o valor `TUNA` no enum `PaymentProvider`, os campos `Establishment.tuna*` e `AppSetting.tunaMode` / `AppSetting.tunaCardsEnabled`. Já foram aplicadas no Neon em 2026-10-26; num banco novo, aplique antes do deploy.
+
+- **Credenciais (`TUNA_ACCOUNT` / `TUNA_APPTOKEN`) NÃO caem no sem sufixo.** Em Teste o servidor lê **só** `TUNA_ACCOUNT_TEST` / `TUNA_APPTOKEN_TEST` (a conta `-homolog`); em Produção, só `TUNA_ACCOUNT` / `TUNA_APPTOKEN`. Motivo: a homologação da Tuna usa **os mesmos hosts** da produção, e quem define o ambiente é a conta. Se Teste usasse a credencial de produção, "Teste" faria cobranças e cadastros **reais**. Sem as `_TEST`, toda chamada à Tuna em Teste falha antes de sair do servidor e **nada é cobrado** (o mesmo vale pra Produção sem as credenciais sem sufixo).
+- **Hosts (`TUNA_ENGINE_URL` / `TUNA_TOKEN_URL`)**: em Teste lê `NOME_TEST` e cai no `NOME` se o `_TEST` não existir; em Produção lê só `NOME`. Sem nenhum, usa o padrão abaixo.
+- **Os segredos de webhook seguem uma terceira regra** (ver abaixo).
 
 | Variável | Significado |
 |---|---|
-| `TUNA_ACCOUNT` (+ `_TEST`) | **Secreto.** Conta da Tuna (header `x-tuna-account`). Produção = conta principal; `_TEST` = conta `-homolog` (Console → Settings → Integration) |
-| `TUNA_APPTOKEN` (+ `_TEST`) | **Secreto.** App token da Tuna (header `x-tuna-apptoken`). Fica só no servidor — nunca vai pro app nem pro site |
+| `TUNA_ACCOUNT` (+ `_TEST`) | **Secreto.** Conta da Tuna (header `x-tuna-account`). Sem sufixo = conta principal (Produção); `_TEST` = conta `-homolog`, **obrigatória pra Teste funcionar** (sem fallback). Console → Settings → Integration |
+| `TUNA_APPTOKEN` (+ `_TEST`) | **Secreto.** App token da Tuna (header `x-tuna-apptoken`), de cada conta, com a mesma regra (o `_TEST` é obrigatório pra Teste). Fica só no servidor — nunca vai pro app nem pro site |
 | `TUNA_ENGINE_URL` (+ `_TEST`) | Host da API de pagamento e de cadastro (merchant). Padrão `https://engine.tunagateway.com` — só preencha se a Tuna indicar outro host |
 | `TUNA_TOKEN_URL` (+ `_TEST`) | Host da API de token (o app/site manda o cartão direto pra ele, com a sessão gerada no servidor). Padrão `https://token.tunagateway.com` |
 | `TUNA_WEBHOOK_SECRET` | **Secreto.** Segredo Bearer do webhook de **pagamento** — conta de produção |
@@ -72,13 +78,14 @@ O ambiente da Tuna (Teste/Produção) é escolhido no **admin → Pagamentos →
 | `TUNA_MERCHANT_WEBHOOK_SECRET_TEST` | **Secreto.** Segredo Bearer do webhook de **cadastro do bar (merchant)** — conta `-homolog` |
 | `TUNA_MERCHANT_CONDITION` | Chave do plano de taxas (`condition`) que a Tuna informar. Vale pros dois ambientes (sem `_TEST`). **Sem ela o cadastro do bar na Tuna não roda** (o painel mostra "Cadastro na Tuna indisponível no momento.") |
 | `TUNA_MERCHANT_MCC` | MCC usado no cadastro do bar. Padrão `5812` (restaurantes). Vale pros dois ambientes (sem `_TEST`) |
-| `TUNA_TEST_CPF` | CPF mandado como documento do cliente **só em Teste**, quando o pedido não tem CPF do pagador. Em Produção, sem CPF do pagador o documento é simplesmente omitido (nunca inventamos CPF) |
+| `TUNA_TEST_CPF` | CPF (só os dígitos contam) mandado como documento do cliente **só em Teste**: quando o pedido não tem CPF/CNPJ válido do pagador (11 ou 14 dígitos) e **sempre** nos pagamentos por carteira (Apple Pay / Google Pay), que não mandam documento. Em Produção, nesses casos o documento é simplesmente omitido (nunca inventamos CPF) |
 | `TUNA_TEST_SLUGS` | Slugs dos bares, separados por vírgula (espaços e maiúsculas/minúsculas são ignorados), que enxergam a Tuna enquanto ela está em **Teste** (card de cadastro no painel e a Tuna como opção nos métodos). Os outros bares não veem a Tuna em Teste; vazio = nenhum bar vê. Em Produção a Tuna aparece pra todos e esta variável é ignorada |
 
 **Segredos de webhook (como funcionam):**
 - Produção e homologação postam nas **mesmas URLs**. O servidor compara o `Authorization: Bearer <segredo>` com os **dois** segredos (`NOME` e `NOME_TEST`, lado a lado — aqui não existe o "cai no sem sufixo"): o que bater define de qual ambiente veio a notificação. Nenhum bateu → `401`.
 - **O segredo de produção e o de teste TÊM que ser diferentes.** Se forem iguais, toda notificação conta como PRODUÇÃO.
-- Gere cada segredo como um valor aleatório longo (ex.: `openssl rand -hex 32`) e cole o MESMO valor na Vercel e no Console da Tuna da conta correspondente (produção ou `-homolog`) como `Bearer <segredo>`. Se configurar o segredo de um ambiente, configure o do outro também; senão as notificações do outro ambiente levam `401`.
+- Gere cada segredo como um valor aleatório longo (ex.: `openssl rand -hex 32`) e cole o MESMO valor na Vercel e no Console da Tuna da conta correspondente (produção ou `-homolog`). Se configurar o segredo de um ambiente, configure o do outro também; senão as notificações do outro ambiente levam `401`.
+- **No Console, escolha a autorização por Bearer / header `Authorization`**, não "header customizado": o servidor só lê o `Authorization`. O header que chega tem que ser `Authorization: Bearer <segredo>` (só `<segredo>`, sem o prefixo, também é aceito). Se o Console já coloca o prefixo `Bearer`, cole **só o segredo**; senão o header vira `Bearer Bearer <segredo>` e toda notificação leva `401`.
 - **Sem nenhum segredo configurado**, toda notificação é aceita. A exceção é o webhook de cadastro (merchant): com a Tuna em **Produção** e sem segredo de merchant, ele responde `401` a tudo, e os bares ficam presos em "em análise". Por isso **`TUNA_MERCHANT_WEBHOOK_SECRET` é obrigatório antes de virar a Tuna pra Produção.**
 - O corpo do webhook de pagamento nunca marca pedido como pago: o servidor sempre re-consulta o status do pagamento na Tuna. O webhook de cadastro não tem API pra re-consultar, então quem o protege é o segredo (mais um motivo pra ele ser obrigatório em produção).
 

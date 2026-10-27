@@ -45,7 +45,8 @@ beforeEach(() => {
 });
 
 describe("GET /api/public/admin/payment-mode", () => {
-  it("devolve o modo da Tuna junto dos outros", async () => {
+  // O app publicado lê pagbankMode/pagarmeMode: o tunaMode só se soma a eles.
+  it("devolve o modo da Tuna junto dos outros (pagbank/pagarme continuam)", async () => {
     const res = await GET(new Request(ROUTE));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
@@ -75,6 +76,19 @@ describe("POST /api/public/admin/payment-mode", () => {
     expect(m.bustPagbank).not.toHaveBeenCalled();
     expect(m.bustPagarme).not.toHaveBeenCalled();
     expect(m.revalidatePath).toHaveBeenCalledWith("/admin");
+  });
+
+  it.each([
+    ["pagbank", "setPagbankMode", "bustPagbank"],
+    ["pagarme", "setPagarmeMode", "bustPagarme"],
+  ] as const)("gateway %s continua invalidando só o próprio cache", async (gateway, setter, bust) => {
+    const res = await POST(post({ gateway, mode: "PRODUCTION" }));
+    expect(await res.json()).toEqual({ ok: true, mode: "PRODUCTION" });
+    expect(m[setter]).toHaveBeenCalledWith("PRODUCTION");
+    expect(m[bust]).toHaveBeenCalledTimes(1);
+    const others = (["bustPagbank", "bustPagarme", "bustTuna"] as const).filter((b) => b !== bust);
+    for (const b of others) expect(m[b]).not.toHaveBeenCalled();
+    expect(m.setTunaMode).not.toHaveBeenCalled();
   });
 
   it("modo desconhecido vira TEST", async () => {
