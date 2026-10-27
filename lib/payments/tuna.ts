@@ -63,9 +63,10 @@ export function __setTunaModeForTests(mode: Mode | null): void {
 }
 
 /** Config por modo (hosts): TESTE lê `NOME_TEST` caindo pro `NOME`; PRODUÇÃO,
- *  `NOME`. NÃO usar pra credenciais — ver `credentialByMode`. */
-const envByMode = (name: string): string =>
-  modeSuffix() === "TEST"
+ *  `NOME`. NÃO usar pra credenciais — ver `credentialByMode`. Sem `mode`, o
+ *  modo em memória. */
+const envByMode = (name: string, mode: Mode = modeSuffix()): string =>
+  mode === "TEST"
     ? (process.env[`${name}_TEST`] ?? process.env[name] ?? "")
     : (process.env[name] ?? "");
 
@@ -74,13 +75,13 @@ const envByMode = (name: string): string =>
  *  — quem decide o ambiente é a conta. Se TESTE caísse na credencial de
  *  produção, "Teste" no admin faria cobranças e cadastros REAIS (e o cadastro
  *  ficaria gravado como TEST, com o webhook chegando como PRODUÇÃO). */
-const credentialByMode = (name: string): string =>
-  ((modeSuffix() === "TEST" ? process.env[`${name}_TEST`] : process.env[name]) ?? "").trim();
+const credentialByMode = (name: string, mode: Mode = modeSuffix()): string =>
+  ((mode === "TEST" ? process.env[`${name}_TEST`] : process.env[name]) ?? "").trim();
 
-const hostFor = (api: "engine" | "token"): string => {
+const hostFor = (api: "engine" | "token", mode: Mode = modeSuffix()): string => {
   const name = api === "engine" ? "TUNA_ENGINE_URL" : "TUNA_TOKEN_URL";
   const def = api === "engine" ? "https://engine.tunagateway.com" : "https://token.tunagateway.com";
-  return (envByMode(name) || def).replace(/\/$/, "");
+  return (envByMode(name, mode) || def).replace(/\/$/, "");
 };
 
 /** Host da API de token no modo atual (o app/site manda o cartão direto pra
@@ -127,25 +128,29 @@ export function tunaSafeMessage(e: TunaError): string {
   return tunaBodyMessage(e.body) || `tuna:${e.status}`;
 }
 
+/** POST na Tuna. `opts.mode` fixa o ambiente (credenciais + host) da chamada —
+ *  as cobranças passam o modo da checagem de prontidão, pra um modo relido no
+ *  meio (outra requisição) não trocar a conta. Sem ele, o modo em memória. */
 export async function tunaPost<T>(
   api: "engine" | "token",
   path: string,
   body: unknown,
-  opts: { idempotencyKey?: string; auth?: "app" | "none" } = {},
+  opts: { idempotencyKey?: string; auth?: "app" | "none"; mode?: Mode } = {},
 ): Promise<T> {
+  const mode = opts.mode ?? modeSuffix();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if ((opts.auth ?? "app") !== "none") {
-    const account = credentialByMode("TUNA_ACCOUNT");
-    const appToken = credentialByMode("TUNA_APPTOKEN");
+    const account = credentialByMode("TUNA_ACCOUNT", mode);
+    const appToken = credentialByMode("TUNA_APPTOKEN", mode);
     // Sem a credencial do modo nada é enviado (nada cobrado): falha DEFINITIVA (4xx).
-    if (!account || !appToken) throw tunaLocalError(401, `credenciais da Tuna ausentes (${modeSuffix()})`);
+    if (!account || !appToken) throw tunaLocalError(401, `credenciais da Tuna ausentes (${mode})`);
     headers["x-tuna-account"] = account;
     headers["x-tuna-apptoken"] = appToken;
   }
   if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
 
   // Timeout/rede propagam como erro comum (cobrança INCERTA, não é 4xx).
-  const res = await fetch(`${hostFor(api)}${path}`, {
+  const res = await fetch(`${hostFor(api, mode)}${path}`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -301,13 +306,16 @@ export function tunaSplitItem(
  *  O app usa o `sessionId` pra tokenizar o cartão direto na Tuna. Em TESTE
  *  liga o 3DS de teste. O `sessionId` nunca é logado.
  *  Falha da sessão (code negativo / sem sessionId) é DEFINITIVA (422): criar
- *  sessão nunca cobra nada. Rede/timeout/5xx propagam como vieram. */
-export async function createTunaSession(customer: { id: string; email: string }): Promise<string> {
-  const mode = await ensureTunaMode();
-  const r = await tunaPost<unknown>("token", "/api/Token/NewSession", {
-    customer: { id: customer.id, email: customer.email },
-    ...(mode === "TEST" ? { Is3dsTest: true } : {}),
-  }); // code < 0 → tunaPost já lança TunaError(422, code, …)
+ *  sessão nunca cobra nada. Rede/timeout/5xx propagam como vieram.
+ *  `mode` (cobrança): o da checagem de prontidão; sem ele, `ensureTunaMode()`. */
+export async function createTunaSession(customer: { id: string; email: string }, mode?: Mode): Promise<string> {
+  const m = mode ?? (await ensureTunaMode());
+  const r = await tunaPost<unknown>(
+    "token",
+    "/api/Token/NewSession",
+    { customer: { id: customer.id, email: customer.email }, ...(m === "TEST" ? { Is3dsTest: true } : {}) },
+    { mode: m },
+  ); // code < 0 → tunaPost já lança TunaError(422, code, …)
   const sessionId = str(pickCi(r, "sessionId"));
   if (!sessionId) throw tunaLocalError(422, "NewSession sem sessionId");
   return sessionId;
@@ -316,7 +324,8 @@ export async function createTunaSession(customer: { id: string; email: string })
 type TunaInitResult = { paymentKey: string; status: string; method: unknown };
 
 /** Payment/Init com um método. `partnerUniqueID` = código do pedido e
- *  `Idempotency-Key` = `init:<código>` (retentativa não cobra duas vezes). */
+ *  `Idempotency-Key` = `init:<código>` (retentativa não cobra duas vezes).
+ *  `mode` = o da checagem de prontidão (credenciais da mesma conta checada). */
 async function tunaInit(o: {
   reference: string;
   total: number;
@@ -324,6 +333,7 @@ async function tunaInit(o: {
   item: ReturnType<typeof tunaSplitItem>;
   method: Record<string, unknown>;
   tokenSession?: string;
+  mode: Mode;
 }): Promise<TunaInitResult> {
   const cb = callbackUrl();
   const body = {
@@ -342,6 +352,7 @@ async function tunaInit(o: {
   try {
     r = await tunaPost<unknown>("engine", "/api/Payment/Init", body, {
       idempotencyKey: `init:${o.reference}`,
+      mode: o.mode,
     });
   } catch (e) {
     // -108 = partnerUniqueID já usado: é uma RETENTATIVA de um Init anterior
@@ -451,6 +462,7 @@ export const tunaProvider: PaymentProvider = {
       total,
       customer,
       item,
+      mode,
       method: {
         paymentMethodType: "D",
         amount: total,
@@ -489,6 +501,7 @@ export const tunaProvider: PaymentProvider = {
       total,
       customer,
       item,
+      mode,
       tokenSession: sessionId,
       method: {
         paymentMethodType: method === "debit" ? "8" : threeDs ? "7" : "1",
@@ -523,13 +536,14 @@ export const tunaProvider: PaymentProvider = {
     const item = tunaSplitItem(est, total, platformFee, description);
     const mode = await assertTunaReady(est, "card"); // antes do NewSession
     const customer = buildTunaCustomer(reference, {}, mode);
-    const sessionId = await createTunaSession({ id: customer.id, email: customer.email });
+    const sessionId = await createTunaSession({ id: customer.id, email: customer.email }, mode);
     const apple = walletType === "apple_pay";
     const r = await tunaInit({
       reference,
       total,
       customer,
       item,
+      mode,
       tokenSession: sessionId,
       method: {
         paymentMethodType: "1",

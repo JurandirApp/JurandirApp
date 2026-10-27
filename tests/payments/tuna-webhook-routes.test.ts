@@ -132,20 +132,31 @@ describe("POST /api/webhooks/tuna (pagamento) — rodada de correções", () => 
     expect(m.handlePayment).toHaveBeenCalledWith("134D946015A08C9", "");
   });
 
-  it.each([
-    ["TEST", "PRODUCTION", "Bearer s-test"],
-    ["PRODUCTION", "TEST", "Bearer s-prod"],
-  ] as const)(
-    "notificação de %s com o modo em %s → 503 SEM consultar a Tuna (ela re-entrega)",
-    async (_env, mode, auth) => {
-      process.env.TUNA_WEBHOOK_SECRET = "s-prod";
-      process.env.TUNA_WEBHOOK_SECRET_TEST = "s-test";
-      __setTunaModeForTests(mode);
-      expect((await paymentPOST(req(pixPaid, auth))).status).toBe(503);
-      expect(m.handlePayment).not.toHaveBeenCalled();
-      expect(logged("warn")).toContain("[tuna/webhook] ambiente da notificação ≠ modo atual");
-    },
-  );
+  it("notificação de PRODUÇÃO com o modo em TEST (dinheiro real) → 503 SEM consultar a Tuna (ela re-entrega)", async () => {
+    process.env.TUNA_WEBHOOK_SECRET = "s-prod";
+    process.env.TUNA_WEBHOOK_SECRET_TEST = "s-test";
+    __setTunaModeForTests("TEST");
+    expect((await paymentPOST(req(pixPaid, "Bearer s-prod"))).status).toBe(503);
+    expect(m.handlePayment).not.toHaveBeenCalled();
+    expect(logged("warn")).toContain("[tuna/webhook] ambiente da notificação ≠ modo atual");
+  });
+
+  it("notificação de TESTE com o modo em PRODUÇÃO (homolog depois do go-live) → 200 SEM consultar a Tuna, uma linha de log", async () => {
+    process.env.TUNA_WEBHOOK_SECRET = "s-prod";
+    process.env.TUNA_WEBHOOK_SECRET_TEST = "s-test";
+    __setTunaModeForTests("PRODUCTION");
+    expect((await paymentPOST(req({ ...pixPaid, customer: { document: "12345678909" } }, "Bearer s-test"))).status).toBe(200);
+    expect(m.handlePayment).not.toHaveBeenCalled();
+    const lines = [...vi.mocked(console.warn).mock.calls, ...vi.mocked(console.log).mock.calls]
+      .map((c) => c.join(" "))
+      .filter((l) => l.includes("homologação ignorada"));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('"env":"TEST"');
+    expect(lines[0]).toContain('"mode":"PRODUCTION"');
+    expect(lines[0]).toContain("134D946015A08C9");
+    expect(lines[0]).not.toContain("12345678909");
+    expect(logged("warn")).not.toContain("ambiente da notificação ≠ modo atual");
+  });
 
   it("reconciliação lança o 424 do modo indisponível → 500 (a Tuna re-tenta)", async () => {
     m.handlePayment.mockRejectedValue(

@@ -16,8 +16,9 @@ const ok = () => new Response("ok", { status: 200 });
  *  Ids do corpo validados (formato curto) antes de usar/logar; log só com
  *  paymentKey/statusId. Erro transitório ao reconciliar (inclui 408/429 da
  *  Tuna e o modo da Tuna indisponível) → 500 (a Tuna re-tenta); notificação de
- *  outro ambiente que não o modo atual → 503 (re-entrega depois); recusa
- *  definitiva e o resto → 200; segredo errado → 401. */
+ *  PRODUÇÃO com o modo em TESTE → 503 (re-entrega depois); de TESTE com o modo
+ *  em PRODUÇÃO → 200 ignorada; recusa definitiva e o resto → 200; segredo
+ *  errado → 401. */
 export async function POST(req: Request): Promise<Response> {
   const env = tunaWebhookAuth(req.headers.get("authorization"), {
     prod: process.env.TUNA_WEBHOOK_SECRET,
@@ -47,8 +48,12 @@ export async function POST(req: Request): Promise<Response> {
   console.log("[tuna/webhook]", JSON.stringify({ env, paymentKey, statusId: n.statusId.slice(0, 8) }));
 
   // Notificação de um ambiente com o modo no outro: a re-consulta usaria a
-  // credencial do modo atual (a cobrança é da outra conta). 503 SEM consultar a
-  // Tuna — ela re-entrega, e a notificação é processada quando o modo voltar.
+  // credencial do modo atual (a cobrança é da outra conta) — nunca consulta.
+  //  - PRODUÇÃO com o modo em TESTE: dinheiro real → 503, a Tuna re-entrega e
+  //    a notificação é processada quando o modo voltar pra produção.
+  //  - TESTE com o modo em PRODUÇÃO (sobra da homologação depois do go-live):
+  //    dinheiro de mentira, e esses bares já voltaram pro padrão → 200 e
+  //    ignora (re-tentar só encheria o log).
   // Modo indisponível (banco fora) → 500, a Tuna re-tenta.
   if (env !== "any") {
     let mode: Awaited<ReturnType<typeof ensureTunaMode>>;
@@ -57,6 +62,10 @@ export async function POST(req: Request): Promise<Response> {
     } catch (e) {
       console.error("[tuna/webhook] modo da Tuna indisponível", JSON.stringify({ paymentKey, error: tunaErrorSummary(e) }));
       return new Response("retry", { status: 500 });
+    }
+    if (env === "TEST" && mode === "PRODUCTION") {
+      console.log("[tuna/webhook] homologação ignorada", JSON.stringify({ env, mode, paymentKey }));
+      return ok();
     }
     if (env !== mode) {
       console.warn("[tuna/webhook] ambiente da notificação ≠ modo atual", JSON.stringify({ env, mode, paymentKey }));

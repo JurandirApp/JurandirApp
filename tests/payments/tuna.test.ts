@@ -1037,3 +1037,64 @@ describe("ensureTunaMode fora do modo de teste (lê o banco)", () => {
     expect(fn).not.toHaveBeenCalled();
   });
 });
+
+describe("cobrança usa o modo da checagem de prontidão (não relê no meio)", () => {
+  it("cartão: modo do cache muda durante a leitura da chave dos cartões → Init com as credenciais do modo checado", async () => {
+    // Guarda lê TEST; enquanto lê a chave dos cartões, outra requisição relê o modo (PRODUCTION).
+    settings.getCards.mockImplementation(async () => {
+      __setTunaModeForTests("PRODUCTION");
+      return true;
+    });
+    process.env.TUNA_ENGINE_URL_TEST = "https://engine.homolog.example";
+    const fn = seq([initOk()]);
+    await expect(tunaProvider.createCardTokenPayment!(card())).resolves.toMatchObject({ status: "paid" });
+    expect(fn.mock.calls[0][0]).toBe("https://engine.homolog.example/api/Payment/Init");
+    expect(headersOf(fn)["x-tuna-account"]).toBe("acc_t");
+    expect(headersOf(fn)["x-tuna-apptoken"]).toBe("tok_t");
+  });
+
+  it("carteira: modo muda durante o NewSession → NewSession e Init com o modo checado (TEST, Is3dsTest)", async () => {
+    const fn = vi.fn();
+    fn.mockImplementationOnce(async () => {
+      __setTunaModeForTests("PRODUCTION"); // troca no meio da ida e volta do NewSession
+      return new Response(JSON.stringify({ sessionId: "sess_w", code: 1 }), { status: 200 });
+    });
+    fn.mockResolvedValueOnce(new Response(JSON.stringify(initOk()), { status: 200 }));
+    vi.stubGlobal("fetch", fn);
+    await expect(
+      tunaProvider.createWalletPayment!({
+        est, reference: "PED-R", total: 20, platformFee: 1.6, description: "x", walletType: "google_pay", token: "{}",
+      }),
+    ).resolves.toMatchObject({ status: "paid" });
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(headersOf(fn, 0)["x-tuna-account"]).toBe("acc_t");
+    expect(bodyOf(fn, 0).Is3dsTest).toBe(true);
+    expect(headersOf(fn, 1)["x-tuna-account"]).toBe("acc_t");
+    expect(headersOf(fn, 1)["x-tuna-apptoken"]).toBe("tok_t");
+  });
+
+  it("Pix: Init com as credenciais do modo checado", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    const fn = seq([initOk({ status: "P" })]);
+    await tunaProvider.createPixCharge({
+      est: readyEst({ tunaMerchantEnv: "PRODUCTION" }), reference: "PED-P", total: 20, platformFee: 1.6, description: "x",
+    });
+    expect(headersOf(fn)["x-tuna-account"]).toBe("acc_p");
+  });
+
+  it("tunaPost com `mode` explícito ignora o modo do cache (credenciais, host)", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    process.env.TUNA_TOKEN_URL_TEST = "https://token.homolog.example";
+    const fn = respond({});
+    await tunaPost("token", "/api/Token/NewSession", {}, { mode: "TEST" });
+    expect(fn.mock.calls[0][0]).toBe("https://token.homolog.example/api/Token/NewSession");
+    expect(fn.mock.calls[0][1].headers["x-tuna-account"]).toBe("acc_t");
+  });
+
+  it("createTunaSession com `mode` explícito usa esse modo (Is3dsTest e credenciais)", async () => {
+    const fn = seq([{ sessionId: "sess_x", code: 1 }]);
+    await createTunaSession({ id: "a", email: "b" }, "PRODUCTION");
+    expect(bodyOf(fn)).not.toHaveProperty("Is3dsTest");
+    expect(headersOf(fn)["x-tuna-account"]).toBe("acc_p");
+  });
+});
