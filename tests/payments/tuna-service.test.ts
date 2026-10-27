@@ -85,7 +85,7 @@ describe("registerEstablishmentInTuna", () => {
     expect(sent.address).toMatchObject({ postalCode: "01000000", state: "SP" });
   });
   it("5xx / rede → tryLater e statuses seguem analysis", async () => {
-    for (const err of [new TunaError(503, null, "x"), new Error("fetch failed")]) {
+    for (const err of [new TunaError(503, null, "x"), new TunaError(502, null, ""), new Error("fetch failed")]) {
       m.update.mockClear();
       m.register.mockRejectedValueOnce(err);
       expect(await registerEstablishmentInTuna("e1", form)).toEqual({ ok: false, error: "tryLater" });

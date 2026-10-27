@@ -91,6 +91,16 @@ describe("tunaPost", () => {
     expect(e.status).toBe(500);
     expect(e.code).toBeNull();
   });
+  it("2xx ilegível (não-JSON) → TunaError 502 incerto, sem trecho do corpo", async () => {
+    respond("<html>12345678909 sess_X</html>", 200);
+    const e = (await tunaPost<object>("engine", "/x", {}).catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(502);
+    expect(e.code).toBeNull();
+    expect(isDefiniteGatewayFailure(e)).toBe(false);
+    expect(e.message).toBe("Tuna 502");
+    expect(e.body).toBe("");
+  });
   it("erro de rede/timeout propaga sem virar TunaError", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
     const e = (await tunaPost<object>("engine", "/x", {}).catch((x: unknown) => x)) as TunaError;
@@ -220,6 +230,7 @@ describe("tunaSplitItem", () => {
     }
     expect(e).toBeInstanceOf(TunaError);
     expect((e as TunaError).status).toBe(422);
+    expect(tunaSafeMessage(e as TunaError)).toBe("bar sem cadastro na Tuna");
   });
 });
 
@@ -395,6 +406,7 @@ describe("tunaProvider.createPixCharge", () => {
     const e = (await tunaProvider.createPixCharge(pix()).catch((x: unknown) => x)) as TunaError;
     expect(e).toBeInstanceOf(TunaError);
     expect(e.status).toBe(502);
+    expect(tunaSafeMessage(e)).toBe("Init sem paymentKey");
   });
 });
 
@@ -450,6 +462,8 @@ describe("tunaProvider.createCardTokenPayment", () => {
       .catch((x: unknown) => x)) as TunaError;
     expect(e).toBeInstanceOf(TunaError);
     expect(e.status).toBe(422);
+    expect(tunaSafeMessage(e)).toBe("débito Tuna exige autenticação 3DS");
+    expect(e.message).toBe("Tuna 422: débito Tuna exige autenticação 3DS");
     expect(fn).toHaveBeenCalledTimes(0);
   });
 
@@ -718,6 +732,41 @@ describe("registerTunaMerchant", () => {
     await expect(
       registerTunaMerchant(form, { externalId: "e", condition: "c", mcc: "5812" }),
     ).rejects.toBeInstanceOf(TunaError);
+  });
+});
+
+describe("TunaError.message", () => {
+  it("nunca leva o corpo cru: só status, code e a mensagem curta da Tuna", () => {
+    const body = '{"customer":{"document":"12345678909"},"message":{"message":"Recusado"}}';
+    const e = new TunaError(422, -1, body);
+    expect(e.message).toBe("Tuna 422 (code -1): Recusado");
+    expect(e.message).not.toContain("12345678909");
+    expect(e.body).toBe(body); // corpo cru continua acessível no código
+  });
+  it("corpo sem mensagem (ou não-JSON) → só status/code", () => {
+    expect(new TunaError(500, null, "<html>12345678909</html>").message).toBe("Tuna 500");
+    expect(new TunaError(422, -113, '{"code":-113,"document":"12345678909"}').message).toBe("Tuna 422 (code -113)");
+  });
+  it("-108 no Init vira 503 mantendo a mensagem curta, sem o corpo", async () => {
+    const body = { code: -108, customer: { document: "12345678909" }, message: { message: "Partner Unique ID already used" } };
+    respond(body);
+    const e = (await tunaProvider
+      .createCardTokenPayment!({
+        est: { tunaMerchantExternalId: "jur_est1" } as Establishment,
+        reference: "PED-1",
+        total: 20,
+        platformFee: 1.6,
+        description: "x",
+        cardToken: "ct_1",
+        installments: 1,
+        method: "credit",
+        tuna: { sessionId: "sess_1" },
+      } as CardTokenPaymentInput)
+      .catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(503);
+    expect(e.message).toBe("Tuna 503 (code -108): Partner Unique ID already used");
+    expect(e.message).not.toContain("12345678909");
+    expect(isDefiniteGatewayFailure(e)).toBe(false);
   });
 });
 

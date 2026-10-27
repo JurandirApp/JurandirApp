@@ -67,30 +67,44 @@ const hostFor = (api: "engine" | "token"): string => {
  *  `<host>/api/Token/Generate`). Chamar depois de `ensureTunaMode()`. */
 export const tunaTokenUrl = (): string => hostFor("token");
 
+/** Só a mensagem da Tuna no corpo (`message.message`, ou `message` quando vem
+ *  string), até 160 caracteres; senão "". Nunca devolve o resto do corpo. */
+function tunaBodyMessage(body: string): string {
+  let msg: unknown;
+  try {
+    const m = (JSON.parse(body) as { message?: unknown } | null)?.message;
+    msg = m && typeof m === "object" ? (m as { message?: unknown }).message : m;
+  } catch {
+    msg = undefined;
+  }
+  return typeof msg === "string" ? msg.trim().slice(0, 160) : "";
+}
+
+/** Erro da Tuna. `body` guarda a resposta crua (pra inspeção no código), mas a
+ *  `message` — que vai parar em logs — só leva status, code e a mensagem curta
+ *  da Tuna: nunca o corpo (pode ter CPF, sessão, token). */
 export class TunaError extends Error {
   constructor(
     public status: number,
     public code: number | null,
     public body: string,
   ) {
-    super(`Tuna ${status}${code !== null ? ` (code ${code})` : ""}: ${body}`);
+    const safe = tunaBodyMessage(body);
+    super(`Tuna ${status}${code !== null ? ` (code ${code})` : ""}${safe ? `: ${safe}` : ""}`);
     this.name = "TunaError";
   }
 }
+
+/** Erro levantado por nós (sem resposta da Tuna): corpo JSON `{message}`, pra
+ *  `tunaSafeMessage` mostrar o texto. */
+const tunaLocalError = (status: number, message: string): TunaError =>
+  new TunaError(status, null, JSON.stringify({ message }));
 
 /** Texto do erro que pode ir pro cliente/log: só a mensagem da Tuna
  *  (`message.message`, ou `message` quando vem string), até 160 caracteres;
  *  senão `tuna:<status>`. Nunca o corpo cru (pode ter CPF, sessão, token). */
 export function tunaSafeMessage(e: TunaError): string {
-  let msg: unknown;
-  try {
-    const m = (JSON.parse(e.body) as { message?: unknown } | null)?.message;
-    msg = m && typeof m === "object" ? (m as { message?: unknown }).message : m;
-  } catch {
-    msg = undefined;
-  }
-  const text = typeof msg === "string" ? msg.trim() : "";
-  return text ? text.slice(0, 160) : `tuna:${e.status}`;
+  return tunaBodyMessage(e.body) || `tuna:${e.status}`;
 }
 
 export async function tunaPost<T>(
@@ -115,7 +129,14 @@ export async function tunaPost<T>(
   });
   const text = await res.text();
   if (res.status >= 400) throw new TunaError(res.status, null, text);
-  const json = text ? JSON.parse(text) : {};
+  let json: unknown;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    // 2xx ilegível: a Tuna pode ter processado → INCERTO (502). Corpo vazio no
+    // erro: o SyntaxError do JSON.parse citaria um trecho da resposta.
+    throw new TunaError(502, null, "");
+  }
   const code = (json as { code?: unknown } | null)?.code;
   if (typeof code === "number" && code < 0) throw new TunaError(422, code, text);
   return json as T;
@@ -205,7 +226,7 @@ export function tunaSplitItem(
   description: string,
 ) {
   const merchantId = est.tunaMerchantExternalId;
-  if (!merchantId) throw new TunaError(422, null, "bar sem cadastro na Tuna");
+  if (!merchantId) throw tunaLocalError(422, "bar sem cadastro na Tuna");
   return {
     detailUniqueId: "1",
     productDescription: description,
@@ -227,7 +248,7 @@ export async function createTunaSession(customer: { id: string; email: string })
     ...(mode === "TEST" ? { Is3dsTest: true } : {}),
   }); // code < 0 → tunaPost já lança TunaError(422, code, …)
   const sessionId = str(pickCi(r, "sessionId"));
-  if (!sessionId) throw new TunaError(422, null, "NewSession sem sessionId");
+  if (!sessionId) throw tunaLocalError(422, "NewSession sem sessionId");
   return sessionId;
 }
 
@@ -270,7 +291,7 @@ async function tunaInit(o: {
   }
   const paymentKey = str(pickCi(r, "paymentKey"));
   // Aceito (code ≥ 0) mas sem paymentKey: não dá pra saber se cobrou → incerto (5xx).
-  if (!paymentKey) throw new TunaError(502, null, "Init sem paymentKey");
+  if (!paymentKey) throw tunaLocalError(502, "Init sem paymentKey");
   const methods = pickCi(r, "methods");
   return {
     paymentKey,
@@ -392,8 +413,8 @@ export const tunaProvider: PaymentProvider = {
     const sessionId = str(tuna?.sessionId);
     const threeDs =
       tuna?.threeDs && str(tuna.threeDs.referenceId) && str(tuna.threeDs.transactionId) ? tuna.threeDs : undefined;
-    if (method === "debit" && !threeDs) throw new TunaError(422, null, "débito Tuna exige autenticação 3DS");
-    if (!sessionId) throw new TunaError(422, null, "cartão Tuna exige a sessão de tokenização");
+    if (method === "debit" && !threeDs) throw tunaLocalError(422, "débito Tuna exige autenticação 3DS");
+    if (!sessionId) throw tunaLocalError(422, "cartão Tuna exige a sessão de tokenização");
     const item = tunaSplitItem(est, total, platformFee, description);
     const mode = await ensureTunaMode();
     const customer = buildTunaCustomer(
@@ -501,9 +522,9 @@ export async function refundTunaPayment(
   opts: { amount?: number; barMerchantId?: string; barAmount?: number } = {},
 ): Promise<{ status: string }> {
   const { amount, barMerchantId, barAmount } = opts;
-  if (amount !== undefined && !(amount > 0)) throw new TunaError(422, null, "valor de estorno inválido");
+  if (amount !== undefined && !(amount > 0)) throw tunaLocalError(422, "valor de estorno inválido");
   if (amount !== undefined && barMerchantId && !(typeof barAmount === "number" && Number.isFinite(barAmount))) {
-    throw new TunaError(422, null, "estorno parcial com split exige a parte do bar");
+    throw tunaLocalError(422, "estorno parcial com split exige a parte do bar");
   }
   await ensureTunaMode();
   const body =

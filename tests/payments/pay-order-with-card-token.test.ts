@@ -90,9 +90,20 @@ describe("payOrderWithCardToken — Tuna", () => {
   });
 
   it("recusa definitiva sem mensagem legível → tuna:<status>", async () => {
-    m.createCardTokenPayment.mockRejectedValue(new TunaError(422, null, "débito Tuna exige autenticação 3DS"));
+    m.createCardTokenPayment.mockRejectedValue(new TunaError(422, null, `<html>${CPF}</html>`));
     const r = await pay({ sessionId: SESSION });
     expect(r).toEqual({ status: "failed", statusDetail: "tuna:422" });
+    expectNoSecretsLogged();
+  });
+
+  it("recusa local (débito sem 3DS) → failed com o texto da recusa", async () => {
+    m.createCardTokenPayment.mockRejectedValue(
+      new TunaError(422, null, JSON.stringify({ message: "débito Tuna exige autenticação 3DS" })),
+    );
+    expect(await pay({ sessionId: SESSION })).toEqual({
+      status: "failed",
+      statusDetail: "débito Tuna exige autenticação 3DS",
+    });
   });
 
   it("incerto (5xx / -108 retentativa) → pending, sem gravar cobrança", async () => {

@@ -235,6 +235,7 @@ describe("tunaWebhookShouldRetry", () => {
   it("transitório → true: rede/banco, Tuna 5xx, e 408/429 mesmo sendo 4xx", () => {
     expect(tunaWebhookShouldRetry(new Error("db down"))).toBe(true);
     expect(tunaWebhookShouldRetry(new TunaError(503, null, "x"))).toBe(true);
+    expect(tunaWebhookShouldRetry(new TunaError(502, null, ""))).toBe(true); // 2xx ilegível
     expect(tunaWebhookShouldRetry(new TunaError(408, null, "x"))).toBe(true);
     expect(tunaWebhookShouldRetry(new TunaError(429, null, "x"))).toBe(true);
   });
