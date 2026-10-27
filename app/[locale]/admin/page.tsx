@@ -71,6 +71,8 @@ export default async function AdminPage({
       pagbankMode={settings.pagbankMode}
       pagarmeMode={settings.pagarmeMode}
       pagbankDebitEnabled={settings.pagbankDebitEnabled}
+      tunaMode={settings.tunaMode}
+      tunaCardsEnabled={settings.tunaCardsEnabled}
     />
   );
 }

@@ -1,7 +1,8 @@
 import { authAdmin } from "@/lib/auth/bearer";
-import { getAppSettings, setPagbankMode, setPagarmeMode } from "@/lib/db/settings";
+import { getAppSettings, setPagbankMode, setPagarmeMode, setTunaMode } from "@/lib/db/settings";
 import { bustPagbankModeCache } from "@/lib/payments/pagbank";
 import { bustPagarmeModeCache } from "@/lib/payments/pagarme";
+import { bustTunaModeCache } from "@/lib/payments/tuna";
 import { revalidatePath } from "next/cache";
 import type { PaymentEnv } from "@prisma/client";
 
@@ -22,22 +23,26 @@ const safeEnv = (mode: unknown): PaymentEnv => (mode === "PRODUCTION" ? "PRODUCT
 
 /**
  * GET /api/public/admin/payment-mode (ADMIN, Bearer): ambiente em vigor de cada
- * gateway. Resposta: { pagbankMode, pagarmeMode } (cada um "TEST" | "PRODUCTION").
+ * gateway. Resposta: { pagbankMode, pagarmeMode, tunaMode } (cada um "TEST" | "PRODUCTION").
  */
 export async function GET(req: Request): Promise<Response> {
   const s = await authAdmin(req);
   if (!s) return Response.json({ error: "unauthorized" }, { status: 401, headers: CORS });
   const settings = await getAppSettings();
   return Response.json(
-    { pagbankMode: settings.pagbankMode, pagarmeMode: settings.pagarmeMode },
+    {
+      pagbankMode: settings.pagbankMode,
+      pagarmeMode: settings.pagarmeMode,
+      tunaMode: settings.tunaMode,
+    },
     { headers: CORS },
   );
 }
 
 /**
  * POST /api/public/admin/payment-mode (ADMIN, Bearer): troca o ambiente de UM
- * gateway. Body { gateway: "pagbank"|"pagarme", mode: "TEST"|"PRODUCTION" }.
- * Espelha set(Pagbank|Pagarme)ModeAction (persiste + invalida o cache do provider).
+ * gateway. Body { gateway: "pagbank"|"pagarme"|"tuna", mode: "TEST"|"PRODUCTION" }.
+ * Espelha set(Pagbank|Pagarme|Tuna)ModeAction (persiste + invalida o cache do provider).
  * Resposta: { ok: true, mode }.
  */
 export async function POST(req: Request): Promise<Response> {
@@ -52,6 +57,9 @@ export async function POST(req: Request): Promise<Response> {
   } else if (body.gateway === "pagarme") {
     await setPagarmeMode(mode);
     bustPagarmeModeCache();
+  } else if (body.gateway === "tuna") {
+    await setTunaMode(mode);
+    bustTunaModeCache();
   } else {
     return Response.json({ error: "bad-gateway" }, { status: 400, headers: CORS });
   }

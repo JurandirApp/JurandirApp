@@ -49,6 +49,11 @@ export interface AdminValue {
   setPagbankDebitEnabled: (on: boolean) => void;
   pagarmeMode: PaymentEnv;
   setPagarmeMode: (mode: PaymentEnv) => void;
+  tunaMode: PaymentEnv;
+  setTunaMode: (mode: PaymentEnv) => void;
+  /** Chave global dos cartões e carteiras pela Tuna (desligada = Tuna só no Pix). */
+  tunaCardsEnabled: boolean;
+  setTunaCardsEnabled: (on: boolean) => void;
 }
 
 export const AdminContext = createContext<AdminValue | null>(null);

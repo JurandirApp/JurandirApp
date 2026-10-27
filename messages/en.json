@@ -961,7 +961,14 @@
       "debitTitle": "PagBank debit (3DS)",
       "debitDesc": "Keep it OFF until the new app (with the bank confirmation step) is on the Play Store and App Store. While off, no bar can choose PagBank for debit.",
       "debitOn": "On",
-      "debitOff": "Off"
+      "debitOff": "Off",
+      "tunaProductionWarn": "Production: real charges — money is actually debited from the customer. Tuna shows up in every bar's panel, and only bar registrations made in Production count.",
+      "tunaTestWarn": "Test: uses Tuna's sandbox, no real charges. While on Test, Tuna only shows up in the panel of the bars listed in TUNA_TEST_SLUGS, and only bar registrations made in Test count.",
+      "tunaTokenNote": "Production reads TUNA_ACCOUNT and TUNA_APPTOKEN; Test reads TUNA_ACCOUNT_TEST and TUNA_APPTOKEN_TEST (fall back to production if unset).",
+      "tunaCardsTitle": "Cards and wallets via Tuna",
+      "tunaCardsDesc": "Keep it OFF until the app and the site with Tuna are published. While off, Tuna is only offered for Pix.",
+      "tunaCardsOn": "On",
+      "tunaCardsOff": "Off"
     },
     "repasseDebito": {
       "title": "Debit payout (Pix)",

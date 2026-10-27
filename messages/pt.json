@@ -961,7 +961,14 @@
       "debitTitle": "Débito PagBank (3DS)",
       "debitDesc": "Deixe DESLIGADO até o app novo (com a confirmação do banco) estar na Play Store e na App Store. Com ele desligado, nenhum bar consegue escolher PagBank no débito.",
       "debitOn": "Ligado",
-      "debitOff": "Desligado"
+      "debitOff": "Desligado",
+      "tunaProductionWarn": "Produção: cobranças reais — o dinheiro é descontado do cliente de verdade. A Tuna aparece no painel de todos os bares, e só valem os cadastros de bar feitos em Produção.",
+      "tunaTestWarn": "Teste: usa a homologação da Tuna, sem cobrança real. Enquanto estiver em Teste, a Tuna só aparece no painel dos bares listados em TUNA_TEST_SLUGS, e só valem os cadastros de bar feitos em Teste.",
+      "tunaTokenNote": "Produção lê TUNA_ACCOUNT e TUNA_APPTOKEN; Teste lê TUNA_ACCOUNT_TEST e TUNA_APPTOKEN_TEST (caem nos de produção se não existirem).",
+      "tunaCardsTitle": "Cartões e carteiras pela Tuna",
+      "tunaCardsDesc": "Deixe DESLIGADO até o app e o site com a Tuna estarem publicados. Com ele desligado, a Tuna só aparece para Pix.",
+      "tunaCardsOn": "Ligado",
+      "tunaCardsOff": "Desligado"
     },
     "repasseDebito": {
       "title": "Repasse de débito (Pix)",

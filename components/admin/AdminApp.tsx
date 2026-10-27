@@ -13,6 +13,8 @@ import {
   setPagbankModeAction,
   setPagbankDebitEnabledAction,
   setPagarmeModeAction,
+  setTunaModeAction,
+  setTunaCardsEnabledAction,
 } from "@/lib/actions/admin";
 import { Link } from "@/i18n/navigation";
 import { Icon } from "@/components/ui/Icon";
@@ -43,6 +45,8 @@ export function AdminApp({
   pagbankMode: initialPagbankMode,
   pagarmeMode: initialPagarmeMode,
   pagbankDebitEnabled: initialDebitEnabled,
+  tunaMode: initialTunaMode,
+  tunaCardsEnabled: initialTunaCardsEnabled,
 }: {
   now: number;
   ests: AdminEst[];
@@ -54,6 +58,8 @@ export function AdminApp({
   pagbankMode: PaymentEnv;
   pagarmeMode: PaymentEnv;
   pagbankDebitEnabled: boolean;
+  tunaMode: PaymentEnv;
+  tunaCardsEnabled: boolean;
 }) {
   const t = useTranslations("admin");
   const [, startTransition] = useTransition();
@@ -65,6 +71,8 @@ export function AdminApp({
   const [pagbankMode, setPagbankModeState] = useState<PaymentEnv>(initialPagbankMode);
   const [pagarmeMode, setPagarmeModeState] = useState<PaymentEnv>(initialPagarmeMode);
   const [pagbankDebitEnabled, setPagbankDebitEnabledState] = useState(initialDebitEnabled);
+  const [tunaMode, setTunaModeState] = useState<PaymentEnv>(initialTunaMode);
+  const [tunaCardsEnabled, setTunaCardsEnabledState] = useState(initialTunaCardsEnabled);
 
   const [editing, setEditing] = useState<{ est: AdminEst | null } | null>(null);
   const [del, setDel] = useState<AdminEst | null>(null);
@@ -135,8 +143,34 @@ export function AdminApp({
           setPagarmeModeState(r.ok ? r.mode : prev);
         });
       },
+      tunaMode,
+      setTunaMode: (mode) => {
+        const prev = tunaMode;
+        setTunaModeState(mode); // otimista; reverte se a action falhar
+        startTransition(async () => {
+          try {
+            const r = await setTunaModeAction(mode);
+            setTunaModeState(r.ok ? r.mode : prev);
+          } catch {
+            setTunaModeState(prev);
+          }
+        });
+      },
+      tunaCardsEnabled,
+      setTunaCardsEnabled: (on) => {
+        const prev = tunaCardsEnabled;
+        setTunaCardsEnabledState(on); // otimista; reverte se a action falhar
+        startTransition(async () => {
+          try {
+            const r = await setTunaCardsEnabledAction(on);
+            setTunaCardsEnabledState(r.ok ? r.enabled : prev);
+          } catch {
+            setTunaCardsEnabledState(prev);
+          }
+        });
+      },
     }),
-    [now, tab, period, month, estabScope, ests, orders, events, allScaled, scopedScaled, pagbankMode, pagarmeMode, pagbankDebitEnabled],
+    [now, tab, period, month, estabScope, ests, orders, events, allScaled, scopedScaled, pagbankMode, pagarmeMode, pagbankDebitEnabled, tunaMode, tunaCardsEnabled],
   );
 
   const saveReg = (payload: RegPayload, id: string | null) => {

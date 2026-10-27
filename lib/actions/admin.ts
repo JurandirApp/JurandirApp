@@ -19,9 +19,12 @@ import {
   getPagarmeMode,
   setPagarmeMode,
   setPagbankDebitEnabled,
+  setTunaMode,
+  setTunaCardsEnabled,
 } from "@/lib/db/settings";
 import { bustPagbankModeCache } from "@/lib/payments/pagbank";
 import { bustPagarmeModeCache } from "@/lib/payments/pagarme";
+import { bustTunaModeCache } from "@/lib/payments/tuna";
 import type { PaymentEnv } from "@prisma/client";
 import { periodRange } from "@/lib/domain/period";
 import { listDebitPayout } from "@/lib/db/admin";
@@ -284,6 +287,30 @@ export async function setPagarmeModeAction(
   bustPagarmeModeCache();
   revalidatePath("/admin");
   return { ok: true, mode: safe };
+}
+
+export async function setTunaModeAction(
+  mode: PaymentEnv,
+): Promise<{ ok: boolean; mode: PaymentEnv }> {
+  await assertAdmin();
+  const safe = safeEnv(mode);
+  await setTunaMode(safe);
+  bustTunaModeCache(); // o provider relê o modo na próxima cobrança
+  revalidatePath("/admin");
+  return { ok: true, mode: safe };
+}
+
+/** Chave GLOBAL dos cartões e carteiras pela Tuna (crédito, débito, Apple Pay,
+ *  Google Pay). Desligada até o app e o site com a tokenização da Tuna estarem
+ *  publicados; desligada, a Tuna só serve Pix. */
+export async function setTunaCardsEnabledAction(
+  on: boolean,
+): Promise<{ ok: boolean; enabled: boolean }> {
+  await assertAdmin();
+  const enabled = on === true;
+  await setTunaCardsEnabled(enabled);
+  revalidatePath("/admin");
+  return { ok: true, enabled };
 }
 
 export type DebitPayoutPeriod = "hoje" | "7d" | "30d" | "tudo";
