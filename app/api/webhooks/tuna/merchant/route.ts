@@ -17,8 +17,8 @@ const ok = () => new Response("ok", { status: 200 });
  *  isso, sem segredo configurado, só aceita em TESTE (homologação) — em
  *  PRODUÇÃO falha fechado (401).
  *  Log só com externalId/message.code/serviceId (nunca dados bancários nem a
- *  mensagem da Tuna). Falha de banco → 500 (a Tuna re-tenta; não perde a
- *  aprovação); o resto → 200; segredo errado → 401. */
+ *  mensagem da Tuna). Falha de banco (inclui ler o modo da Tuna) → 500 (a Tuna
+ *  re-tenta; não perde a aprovação); o resto → 200; segredo errado → 401. */
 export async function POST(req: Request): Promise<Response> {
   const env = tunaWebhookAuth(req.headers.get("authorization"), {
     prod: process.env.TUNA_MERCHANT_WEBHOOK_SECRET,
@@ -28,9 +28,19 @@ export async function POST(req: Request): Promise<Response> {
     console.warn("[tuna/merchant] não autorizado");
     return new Response("unauthorized", { status: 401 });
   }
-  if (env === "any" && (await ensureTunaMode()) === "PRODUCTION") {
-    console.warn("[tuna/merchant] sem segredo configurado em produção");
-    return new Response("unauthorized", { status: 401 });
+  if (env === "any") {
+    let mode: Awaited<ReturnType<typeof ensureTunaMode>>;
+    try {
+      mode = await ensureTunaMode();
+    } catch (e) {
+      // Sem saber o modo não dá pra decidir o fail closed: 500, a Tuna re-tenta.
+      console.error("[tuna/merchant] modo da Tuna indisponível", JSON.stringify({ error: tunaErrorSummary(e) }));
+      return new Response("retry", { status: 500 });
+    }
+    if (mode === "PRODUCTION") {
+      console.warn("[tuna/merchant] sem segredo configurado em produção");
+      return new Response("unauthorized", { status: 401 });
+    }
   }
 
   let n: ReturnType<typeof parseTunaMerchantNotification>;

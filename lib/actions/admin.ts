@@ -21,10 +21,13 @@ import {
   setPagbankDebitEnabled,
   setTunaMode,
   setTunaCardsEnabled,
+  getTunaMode,
+  getTunaCardsEnabled,
 } from "@/lib/db/settings";
 import { bustPagbankModeCache } from "@/lib/payments/pagbank";
 import { bustPagarmeModeCache } from "@/lib/payments/pagarme";
 import { bustTunaModeCache } from "@/lib/payments/tuna";
+import { rerouteUnreadyTunaBars } from "@/lib/db/tuna";
 import type { PaymentEnv } from "@prisma/client";
 import { periodRange } from "@/lib/domain/period";
 import { listDebitPayout } from "@/lib/db/admin";
@@ -289,28 +292,51 @@ export async function setPagarmeModeAction(
   return { ok: true, mode: safe };
 }
 
+/** Devolve pro gateway padrão os métodos na Tuna de bares que não ficam prontos
+ *  com o estado novo. Falha aqui não desfaz a troca já gravada (a guarda da
+ *  cobrança recusa o bar não pronto de qualquer jeito): loga e devolve
+ *  undefined. `null` = lê o valor atual do BANCO (nunca o cache do provider). */
+async function rerouteTunaSafely(
+  mode: PaymentEnv | null,
+  cardsEnabled: boolean | null,
+): Promise<number | undefined> {
+  try {
+    return await rerouteUnreadyTunaBars(
+      mode ?? (await getTunaMode()),
+      cardsEnabled ?? (await getTunaCardsEnabled()),
+    );
+  } catch (e) {
+    console.error("[tuna/reroute] falha", e instanceof Error ? e.name : "erro");
+    return undefined;
+  }
+}
+
 export async function setTunaModeAction(
   mode: PaymentEnv,
-): Promise<{ ok: boolean; mode: PaymentEnv }> {
+): Promise<{ ok: boolean; mode: PaymentEnv; rerouted?: number }> {
   await assertAdmin();
   const safe = safeEnv(mode);
   await setTunaMode(safe);
   bustTunaModeCache(); // o provider relê o modo na próxima cobrança
+  // Cadastro do bar é por ambiente: quem não está pronto no modo novo sai da Tuna.
+  const rerouted = await rerouteTunaSafely(safe, null);
   revalidatePath("/admin");
-  return { ok: true, mode: safe };
+  return { ok: true, mode: safe, ...(rerouted !== undefined ? { rerouted } : {}) };
 }
 
 /** Chave GLOBAL dos cartões e carteiras pela Tuna (crédito, débito, Apple Pay,
  *  Google Pay). Desligada até o app e o site com a tokenização da Tuna estarem
- *  publicados; desligada, a Tuna só serve Pix. */
+ *  publicados; desligada, a Tuna só serve Pix — e os bares com cartão/carteira
+ *  na Tuna voltam pro gateway padrão nesses métodos. */
 export async function setTunaCardsEnabledAction(
   on: boolean,
-): Promise<{ ok: boolean; enabled: boolean }> {
+): Promise<{ ok: boolean; enabled: boolean; rerouted?: number }> {
   await assertAdmin();
   const enabled = on === true;
   await setTunaCardsEnabled(enabled);
+  const rerouted = await rerouteTunaSafely(null, enabled); // modo lido do banco
   revalidatePath("/admin");
-  return { ok: true, enabled };
+  return { ok: true, enabled, ...(rerouted !== undefined ? { rerouted } : {}) };
 }
 
 export type DebitPayoutPeriod = "hoje" | "7d" | "30d" | "tudo";

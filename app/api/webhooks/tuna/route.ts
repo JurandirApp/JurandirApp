@@ -15,8 +15,9 @@ const ok = () => new Response("ok", { status: 200 });
  *  marca pago: só dispara a re-consulta do Payment/Status pelo paymentKey.
  *  Ids do corpo validados (formato curto) antes de usar/logar; log só com
  *  paymentKey/statusId. Erro transitório ao reconciliar (inclui 408/429 da
- *  Tuna) → 500 (a Tuna re-tenta); recusa definitiva e o resto → 200; segredo
- *  errado → 401. */
+ *  Tuna e o modo da Tuna indisponível) → 500 (a Tuna re-tenta); notificação de
+ *  outro ambiente que não o modo atual → 503 (re-entrega depois); recusa
+ *  definitiva e o resto → 200; segredo errado → 401. */
 export async function POST(req: Request): Promise<Response> {
   const env = tunaWebhookAuth(req.headers.get("authorization"), {
     prod: process.env.TUNA_WEBHOOK_SECRET,
@@ -45,12 +46,21 @@ export async function POST(req: Request): Promise<Response> {
   const { paymentKey } = n;
   console.log("[tuna/webhook]", JSON.stringify({ env, paymentKey, statusId: n.statusId.slice(0, 8) }));
 
-  // Notificação de um ambiente com o modo no outro: a re-consulta usa o modo
-  // atual (pode não achar a cobrança) — só avisa e segue.
+  // Notificação de um ambiente com o modo no outro: a re-consulta usaria a
+  // credencial do modo atual (a cobrança é da outra conta). 503 SEM consultar a
+  // Tuna — ela re-entrega, e a notificação é processada quando o modo voltar.
+  // Modo indisponível (banco fora) → 500, a Tuna re-tenta.
   if (env !== "any") {
-    const mode = await ensureTunaMode();
+    let mode: Awaited<ReturnType<typeof ensureTunaMode>>;
+    try {
+      mode = await ensureTunaMode();
+    } catch (e) {
+      console.error("[tuna/webhook] modo da Tuna indisponível", JSON.stringify({ paymentKey, error: tunaErrorSummary(e) }));
+      return new Response("retry", { status: 500 });
+    }
     if (env !== mode) {
       console.warn("[tuna/webhook] ambiente da notificação ≠ modo atual", JSON.stringify({ env, mode, paymentKey }));
+      return new Response("retry", { status: 503 });
     }
   }
 

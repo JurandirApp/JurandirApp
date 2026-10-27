@@ -1,9 +1,12 @@
+import type { PaymentEnv, PaymentProvider, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getTunaMode, getTunaCardsEnabled } from "@/lib/db/settings";
 import { tunaMerchantSchema } from "@/lib/validation";
-import { registerTunaMerchant, TunaError, ensureTunaMode } from "@/lib/payments/tuna";
+import { registerTunaMerchant, TunaError, ensureTunaMode, tunaReadinessContext } from "@/lib/payments/tuna";
 import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
-import { tunaReadiness, parseTunaTestSlugs, type TunaReadiness } from "@/lib/payments/tuna-readiness";
+import { tunaErrorSummary } from "@/lib/payments/tuna-webhook";
+import { ROUTE_FALLBACK, ROUTE_KEYS, type RouteKey } from "@/lib/payments/capabilities";
+import { tunaReadiness, type TunaReadiness } from "@/lib/payments/tuna-readiness";
 
 // Serviço compartilhado do cadastro do bar na Tuna: usado pela server action do
 // painel web e pelas rotas do app do estabelecimento. Nunca loga o formulário.
@@ -33,17 +36,20 @@ export async function registerEstablishmentInTuna(
   if (!condition) return { ok: false, error: "notConfigured" };
   const mcc = (process.env.TUNA_MERCHANT_MCC ?? "").trim() || "5812";
 
-  const mode = await ensureTunaMode();
+  // Modo indisponível (banco fora, sem cache) → tente depois; nada gravado nem enviado.
+  let mode: PaymentEnv;
+  try {
+    mode = await ensureTunaMode();
+  } catch {
+    return { ok: false, error: "tryLater" };
+  }
   const est = await prisma.establishment.findUnique({
     where: { id: establishmentId },
     select: { slug: true, tunaMerchantEnv: true, tunaPixStatus: true, tunaCardStatus: true },
   });
   if (!est) return { ok: false, error: "notFound" };
   // Mesma regra de visibilidade da prontidão, com o MESMO modo da chamada.
-  const { visible } = tunaReadiness(
-    { ...est, tunaMerchantEnv: null },
-    { mode, cardsEnabled: false, testSlugs: parseTunaTestSlugs(process.env.TUNA_TEST_SLUGS) },
-  );
+  const { visible } = tunaReadiness({ ...est, tunaMerchantEnv: null }, tunaReadinessContext(mode, false));
   if (!visible) return { ok: false, error: "notAvailable" };
   const inProgress = (s: string | null) => s === "analysis" || s === "active";
   if (est.tunaMerchantEnv === mode && (inProgress(est.tunaPixStatus) || inProgress(est.tunaCardStatus))) {
@@ -73,6 +79,8 @@ export async function registerEstablishmentInTuna(
     });
     return { ok: true };
   } catch (e) {
+    // Só o resumo (status/code) + o id do bar: nunca o corpo (documento, conta).
+    console.warn("[tuna/register] falha", JSON.stringify({ establishmentId, error: tunaErrorSummary(e) }));
     if (isDefiniteGatewayFailure(e)) {
       // Recusa definitiva: libera nova tentativa.
       await prisma.establishment
@@ -98,12 +106,75 @@ export async function getEstablishmentTunaStatus(
     getTunaMode(),
     getTunaCardsEnabled(),
   ]);
-  const testSlugs = parseTunaTestSlugs(process.env.TUNA_TEST_SLUGS);
   const fields = est ?? { slug: "", tunaMerchantEnv: null, tunaPixStatus: null, tunaCardStatus: null };
   return {
-    ...tunaReadiness(fields, { mode, cardsEnabled, testSlugs }),
+    ...tunaReadiness(fields, tunaReadinessContext(mode, cardsEnabled)),
     // Status de outro ambiente não vale pro modo atual.
     pixStatus: est?.tunaMerchantEnv === mode ? (est.tunaPixStatus ?? null) : null,
     cardStatus: est?.tunaMerchantEnv === mode ? (est.tunaCardStatus ?? null) : null,
   };
+}
+
+/** Coluna do gateway de cada método no Establishment. */
+const ROUTE_FIELD = {
+  pix: "gatewayPix",
+  credit: "gatewayCredit",
+  debit: "gatewayDebit",
+  applePay: "gatewayApplePay",
+  googlePay: "gatewayGooglePay",
+} as const satisfies Record<RouteKey, string>;
+
+/** Depois que o admin troca o modo da Tuna ou a chave dos cartões: cada método
+ *  roteado pra Tuna num bar que NÃO está pronto com o `mode`/`cardsEnabled`
+ *  DADOS (passados explicitamente — nada de cache) volta pro gateway padrão do
+ *  método (`ROUTE_FALLBACK`). Mesma regra do painel (`tunaReadiness`); o bar
+ *  re-escolhe a Tuna quando ficar pronto de novo. Só troca o que ainda é Tuna.
+ *  Devolve quantos bares mudaram; loga só a contagem. */
+export async function rerouteUnreadyTunaBars(mode: PaymentEnv, cardsEnabled: boolean): Promise<number> {
+  const bars = await prisma.establishment.findMany({
+    where: {
+      OR: [
+        { gatewayPix: "TUNA" },
+        { gatewayCredit: "TUNA" },
+        { gatewayDebit: "TUNA" },
+        { gatewayApplePay: "TUNA" },
+        { gatewayGooglePay: "TUNA" },
+      ],
+    },
+    select: {
+      id: true,
+      slug: true,
+      tunaMerchantEnv: true,
+      tunaPixStatus: true,
+      tunaCardStatus: true,
+      gatewayPix: true,
+      gatewayCredit: true,
+      gatewayDebit: true,
+      gatewayApplePay: true,
+      gatewayGooglePay: true,
+    },
+  });
+  const ctx = tunaReadinessContext(mode, cardsEnabled);
+  const idsByKey = new Map<RouteKey, string[]>();
+  const changed = new Set<string>();
+  for (const bar of bars) {
+    const r = tunaReadiness(bar, ctx);
+    for (const key of ROUTE_KEYS) {
+      if (bar[ROUTE_FIELD[key]] !== "TUNA") continue;
+      if (key === "pix" ? r.pixReady : r.cardReady) continue;
+      idsByKey.set(key, [...(idsByKey.get(key) ?? []), bar.id]);
+      changed.add(bar.id);
+    }
+  }
+  // Um updateMany por método; o filtro `= TUNA` não sobrescreve uma escolha
+  // que o bar tenha salvo entre a leitura e a escrita.
+  for (const [key, ids] of idsByKey) {
+    const field = ROUTE_FIELD[key];
+    await prisma.establishment.updateMany({
+      where: { id: { in: ids }, [field]: "TUNA" } as Prisma.EstablishmentWhereInput,
+      data: { [field]: ROUTE_FALLBACK[key] as PaymentProvider },
+    });
+  }
+  console.log("[tuna/reroute]", JSON.stringify({ mode, cardsEnabled, bars: changed.size }));
+  return changed.size;
 }

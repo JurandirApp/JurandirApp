@@ -239,6 +239,10 @@ describe("tunaWebhookShouldRetry", () => {
     expect(tunaWebhookShouldRetry(new TunaError(408, null, "x"))).toBe(true);
     expect(tunaWebhookShouldRetry(new TunaError(429, null, "x"))).toBe(true);
   });
+  it("modo da Tuna indisponível (424 local, leitura do banco falhou) → true: a Tuna re-tenta", () => {
+    const e = new TunaError(424, null, JSON.stringify({ message: "modo da Tuna indisponível" }));
+    expect(tunaWebhookShouldRetry(e)).toBe(true);
+  });
   it("recusa definitiva do gateway (4xx / code < 0) → false", () => {
     expect(tunaWebhookShouldRetry(new TunaError(422, -111, "x"))).toBe(false);
     expect(tunaWebhookShouldRetry(new TunaError(400, null, "x"))).toBe(false);

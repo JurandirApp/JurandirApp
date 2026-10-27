@@ -184,8 +184,9 @@ export function isSafeTunaId(id: string): boolean {
 
 /** Erro ao reconciliar vale re-tentativa (HTTP 500 pra Tuna)? Tudo que não é
  *  recusa definitiva do gateway — e 408/429 da Tuna, que são transitórios
- *  apesar de 4xx. */
+ *  apesar de 4xx, e o 424 local de "modo da Tuna indisponível" (o banco não
+ *  respondeu; nada foi consultado na Tuna — re-tentar resolve). */
 export function tunaWebhookShouldRetry(e: unknown): boolean {
-  if (e instanceof TunaError && (e.status === 408 || e.status === 429)) return true;
+  if (e instanceof TunaError && (e.status === 408 || e.status === 424 || e.status === 429)) return true;
   return !isDefiniteGatewayFailure(e);
 }

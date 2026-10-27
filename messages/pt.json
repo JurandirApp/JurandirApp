@@ -968,7 +968,8 @@
       "tunaCardsTitle": "Cartões e carteiras pela Tuna",
       "tunaCardsDesc": "Deixe DESLIGADO até o app e o site com a Tuna estarem publicados. Com ele desligado, a Tuna só aparece para Pix.",
       "tunaCardsOn": "Ligado",
-      "tunaCardsOff": "Desligado"
+      "tunaCardsOff": "Desligado",
+      "tunaRerouted": "{count, plural, one {# bar voltou pro gateway padrão nos métodos sem Tuna pronta.} other {# bares voltaram pro gateway padrão nos métodos sem Tuna pronta.}} Pra voltar pra Tuna, o bar precisa escolhê-la de novo no painel depois de ficar pronto."
     },
     "repasseDebito": {
       "title": "Repasse de débito (Pix)",

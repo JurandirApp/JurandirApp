@@ -21,6 +21,7 @@ export function PagamentosSection() {
     setTunaMode,
     tunaCardsEnabled,
     setTunaCardsEnabled,
+    tunaRerouted,
   } = useAdmin();
   const t = useTranslations("admin.pagamentos");
 
@@ -80,6 +81,12 @@ export function PagamentosSection() {
         onLabel={t("tunaCardsOn")}
         offLabel={t("tunaCardsOff")}
       />
+      {tunaRerouted ? (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-[12px] leading-snug text-[#92400e]">
+          <Icon name="info" size={15} className="mt-px flex-none" />
+          <span className="min-w-0 flex-1 font-medium">{t("tunaRerouted", { count: tunaRerouted })}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

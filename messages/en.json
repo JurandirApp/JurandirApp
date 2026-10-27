@@ -968,7 +968,8 @@
       "tunaCardsTitle": "Cards and wallets via Tuna",
       "tunaCardsDesc": "Keep it OFF until the app and the site with Tuna are published. While off, Tuna is only offered for Pix.",
       "tunaCardsOn": "On",
-      "tunaCardsOff": "Off"
+      "tunaCardsOff": "Off",
+      "tunaRerouted": "{count, plural, one {# bar was moved back to the default gateway for the methods without Tuna ready.} other {# bars were moved back to the default gateway for the methods without Tuna ready.}} To go back to Tuna, a bar must pick it again in its panel once it is ready."
     },
     "repasseDebito": {
       "title": "Debit payout (Pix)",

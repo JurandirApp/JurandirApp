@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const settings = vi.hoisted(() => ({ getMode: vi.fn(), getCards: vi.fn() }));
+// O provider lê a chave dos cartões (e, fora do modo de teste, o modo) do banco.
+vi.mock("@/lib/db/settings", () => ({ getTunaMode: settings.getMode, getTunaCardsEnabled: settings.getCards }));
+
 import {
   tunaPost,
   TunaError,
@@ -14,6 +19,8 @@ import {
   registerTunaMerchant,
   tunaSafeMessage,
   tunaTokenUrl,
+  ensureTunaMode,
+  bustTunaModeCache,
 } from "@/lib/payments/tuna";
 import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
 import type { Establishment } from "@prisma/client";
@@ -31,10 +38,13 @@ function respond(body: unknown, status = 200) {
 
 const ENV = [
   "TUNA_ACCOUNT", "TUNA_APPTOKEN", "TUNA_ACCOUNT_TEST", "TUNA_APPTOKEN_TEST",
-  "TUNA_ENGINE_URL", "TUNA_TOKEN_URL", "TUNA_ENGINE_URL_TEST", "TUNA_TOKEN_URL_TEST",
+  "TUNA_ENGINE_URL", "TUNA_TOKEN_URL", "TUNA_ENGINE_URL_TEST", "TUNA_TOKEN_URL_TEST", "TUNA_TEST_SLUGS",
 ];
 beforeEach(() => {
   ENV.forEach((k) => delete process.env[k]);
+  settings.getMode.mockReset();
+  settings.getCards.mockReset().mockResolvedValue(true);
+  process.env.TUNA_TEST_SLUGS = "bar-teste";
   process.env.TUNA_ACCOUNT_TEST = "acc_t";
   process.env.TUNA_APPTOKEN_TEST = "tok_t";
   process.env.TUNA_ACCOUNT = "acc_p";
@@ -190,8 +200,20 @@ function seq(bodies: unknown[]) {
 const bodyOf = (fn: ReturnType<typeof vi.fn>, i = 0) => JSON.parse(fn.mock.calls[i][1].body as string);
 const headersOf = (fn: ReturnType<typeof vi.fn>, i = 0) => fn.mock.calls[i][1].headers as Record<string, string>;
 
-const est = { id: "est1", tunaMerchantExternalId: "jur_est1" } as unknown as Establishment;
-const noMerchant = { id: "est2", tunaMerchantExternalId: null } as unknown as Establishment;
+/** Bar PRONTO na Tuna no modo TEST (cadastrado em TEST, Pix e cartão ativos,
+ *  slug na allowlist de teste). */
+const readyEst = (over: Record<string, unknown> = {}) =>
+  ({
+    id: "est1",
+    slug: "bar-teste",
+    tunaMerchantExternalId: "jur_est1",
+    tunaMerchantEnv: "TEST",
+    tunaPixStatus: "active",
+    tunaCardStatus: "active",
+    ...over,
+  }) as unknown as Establishment;
+const est = readyEst();
+const noMerchant = readyEst({ id: "est2", tunaMerchantExternalId: null });
 
 const card = (over: Partial<CardTokenPaymentInput> = {}): CardTokenPaymentInput => ({
   est,
@@ -412,7 +434,9 @@ describe("tunaProvider.createPixCharge", () => {
     __setTunaModeForTests("PRODUCTION");
     process.env.TUNA_TEST_CPF = "111.444.777-35";
     const fn = seq([initOk({ status: "P" })]);
-    await tunaProvider.createPixCharge(pix({ customerDocument: undefined }));
+    await tunaProvider.createPixCharge(
+      pix({ est: readyEst({ tunaMerchantEnv: "PRODUCTION" }), customerDocument: undefined }),
+    );
     const b = bodyOf(fn);
     expect(b.customer).not.toHaveProperty("document");
     expect(b.customer).not.toHaveProperty("documentType");
@@ -801,7 +825,7 @@ describe("TunaError.message", () => {
     respond(body);
     const e = (await tunaProvider
       .createCardTokenPayment!({
-        est: { tunaMerchantExternalId: "jur_est1" } as Establishment,
+        est,
         reference: "PED-1",
         total: 20,
         platformFee: 1.6,
@@ -860,5 +884,156 @@ describe("tunaTokenUrl", () => {
     expect(tunaTokenUrl()).toBe("https://token.tunagateway.com");
     process.env.TUNA_TOKEN_URL = "https://token.prod.example";
     expect(tunaTokenUrl()).toBe("https://token.prod.example");
+  });
+});
+
+// ---- Rodada final: prontidão checada na cobrança + modo fail closed ----------
+
+describe("guarda de prontidão na cobrança (mesma regra do painel)", () => {
+  const pixIn = (e: Establishment): PixChargeInput => ({
+    est: e, reference: "PED-G", total: 20, platformFee: 1.6, description: "Pedido PED-G",
+  });
+  const methods = {
+    pix: (e: Establishment) => tunaProvider.createPixCharge(pixIn(e)),
+    credit: (e: Establishment) => tunaProvider.createCardTokenPayment!(card({ est: e })),
+    debit: (e: Establishment) =>
+      tunaProvider.createCardTokenPayment!(card({ est: e, method: "debit", tuna: { sessionId: "sess_1", threeDs } })),
+    wallet: (e: Establishment) =>
+      tunaProvider.createWalletPayment!({
+        est: e, reference: "PED-G", total: 20, platformFee: 1.6, description: "x",
+        walletType: "google_pay", token: "{}",
+      }),
+  } as const;
+  type M = keyof typeof methods;
+  const group = (m: M) => (m === "pix" ? "Pix" : "cartão");
+
+  /** Recusa DEFINITIVA local (422), sem nenhuma chamada à Tuna (nem NewSession). */
+  async function expectRefused(m: M, e: Establishment, mode: "TEST" | "PRODUCTION") {
+    const fn = seq([]);
+    const err = (await methods[m](e).catch((x: unknown) => x)) as TunaError;
+    expect(err).toBeInstanceOf(TunaError);
+    expect(err.status).toBe(422);
+    expect(tunaSafeMessage(err)).toBe(`bar não está pronto na Tuna (${group(m)}, ${mode})`);
+    expect(isDefiniteGatewayFailure(err)).toBe(true);
+    expect(fn).not.toHaveBeenCalled();
+  }
+
+  const all: M[] = ["pix", "credit", "debit", "wallet"];
+
+  it.each(all)("%s: cadastro de TEST com o modo em PRODUCTION → recusa sem fetch", async (m) => {
+    __setTunaModeForTests("PRODUCTION");
+    await expectRefused(m, readyEst({ tunaMerchantEnv: "TEST" }), "PRODUCTION");
+  });
+
+  it.each(all)("%s: cadastro de PRODUCTION com o modo em TEST → recusa sem fetch", async (m) => {
+    await expectRefused(m, readyEst({ tunaMerchantEnv: "PRODUCTION" }), "TEST");
+  });
+
+  it.each(all)("%s: sem cadastro (env null) → recusa sem fetch", async (m) => {
+    await expectRefused(m, readyEst({ tunaMerchantEnv: null }), "TEST");
+  });
+
+  it.each(all)("%s: status do grupo não ativo → recusa sem fetch", async (m) => {
+    const off = m === "pix" ? { tunaPixStatus: "analysis" } : { tunaCardStatus: "blocked" };
+    await expectRefused(m, readyEst(off), "TEST");
+  });
+
+  it.each(["credit", "debit", "wallet"] as M[])("%s: cartões da Tuna desligados → recusa sem fetch", async (m) => {
+    settings.getCards.mockResolvedValue(false);
+    await expectRefused(m, est, "TEST");
+  });
+
+  it.each(all)("%s: em TEST com o bar fora de TUNA_TEST_SLUGS → recusa sem fetch", async (m) => {
+    process.env.TUNA_TEST_SLUGS = "outro-bar";
+    await expectRefused(m, est, "TEST");
+  });
+
+  it("Pix não depende da chave dos cartões (nem lê): cartões desligados e Pix pronto → cobra", async () => {
+    settings.getCards.mockResolvedValue(false);
+    const fn = seq([initOk({ status: "P" })]);
+    await expect(methods.pix(est)).resolves.toMatchObject({ chargeId: "PK1" });
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(settings.getCards).not.toHaveBeenCalled();
+  });
+
+  it("cartão com o Pix não pronto continua cobrando (grupos independentes)", async () => {
+    const fn = seq([initOk()]);
+    await expect(methods.credit(readyEst({ tunaPixStatus: "rejected" }))).resolves.toMatchObject({ status: "paid" });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("PRODUCTION: bar cadastrado em PRODUCTION cobra mesmo fora de TUNA_TEST_SLUGS", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    process.env.TUNA_TEST_SLUGS = "";
+    const fn = seq([{ sessionId: "sess_w", code: 1 }, initOk()]);
+    await expect(methods.wallet(readyEst({ tunaMerchantEnv: "PRODUCTION" }))).resolves.toMatchObject({
+      status: "paid",
+    });
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(headersOf(fn, 1)["x-tuna-account"]).toBe("acc_p");
+  });
+
+  it("falha ao ler a chave dos cartões → recusa definitiva (424) sem fetch", async () => {
+    settings.getCards.mockRejectedValue(new Error("db down"));
+    const fn = seq([]);
+    const err = (await methods.credit(est).catch((x: unknown) => x)) as TunaError;
+    expect(err).toBeInstanceOf(TunaError);
+    expect(err.status).toBe(424);
+    expect(isDefiniteGatewayFailure(err)).toBe(true);
+    expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe("ensureTunaMode fora do modo de teste (lê o banco)", () => {
+  beforeEach(() => {
+    // Desliga o atalho de teste (VITEST/NODE_ENV) pra exercitar a leitura real.
+    vi.stubEnv("VITEST", "");
+    vi.stubEnv("NODE_ENV", "production");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("leitura falha e nenhum modo em cache → TunaError 424 definitivo (nunca chuta TEST)", async () => {
+    __setTunaModeForTests(null);
+    settings.getMode.mockRejectedValue(new Error("db down"));
+    const e = (await ensureTunaMode().catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(424);
+    expect(tunaSafeMessage(e)).toBe("modo da Tuna indisponível");
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
+  });
+
+  it("leitura falha com modo em cache vencido → segue com o cache", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    bustTunaModeCache(); // vence o cache, mas guarda o último modo
+    settings.getMode.mockRejectedValue(new Error("db down"));
+    await expect(ensureTunaMode()).resolves.toBe("PRODUCTION");
+  });
+
+  it("bustTunaModeCache mantém o último modo (quem está no meio não vira TEST) e força reler o banco", async () => {
+    process.env.TUNA_TOKEN_URL_TEST = "https://token.homolog.example";
+    __setTunaModeForTests("PRODUCTION");
+    settings.getMode.mockResolvedValue("TEST");
+    await expect(ensureTunaMode()).resolves.toBe("PRODUCTION"); // cache válido: não lê
+    expect(settings.getMode).not.toHaveBeenCalled();
+    bustTunaModeCache();
+    // Em memória continua PRODUCTION até a próxima leitura (antes virava TEST).
+    expect(tunaTokenUrl()).toBe("https://token.tunagateway.com");
+    await expect(ensureTunaMode()).resolves.toBe("TEST");
+    expect(settings.getMode).toHaveBeenCalledTimes(1);
+    expect(tunaTokenUrl()).toBe("https://token.homolog.example");
+  });
+
+  it("cobrança com o modo indisponível → recusa definitiva sem chamar a Tuna", async () => {
+    __setTunaModeForTests(null);
+    settings.getMode.mockRejectedValue(new Error("db down"));
+    const fn = seq([]);
+    const e = (await tunaProvider.createPixCharge({
+      est, reference: "PED-M", total: 20, platformFee: 1.6, description: "x",
+    }).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(424);
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
+    expect(fn).not.toHaveBeenCalled();
   });
 });

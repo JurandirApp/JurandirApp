@@ -11,6 +11,12 @@ import type {
   PixChargeInput,
   WalletPaymentInput,
 } from "./types";
+import {
+  parseTunaTestSlugs,
+  tunaReadiness,
+  type TunaContext,
+  type TunaEstFields,
+} from "./tuna-readiness";
 
 // Tuna Gateway (7º gateway). Núcleo: modo TEST/PRODUCTION, envs, HTTP, erros e
 // mapeamento de status; depois as cobranças (Pix, cartão com 3DS, carteiras),
@@ -25,7 +31,11 @@ const TIMEOUT_MS = 20_000;
 
 const modeSuffix = (): Mode => cachedMode ?? "TEST";
 
-/** Atualiza o modo a partir do banco (cacheado). No-op em teste (sem DB). */
+/** Atualiza o modo a partir do banco (cacheado). No-op em teste (sem DB).
+ *  Falha ao ler o banco: segue com o último modo conhecido (cache vencido); sem
+ *  nenhum, falha FECHADO com um TunaError 424 DEFINITIVO (nada foi enviado à
+ *  Tuna) — nunca chuta TESTE: com a plataforma em PRODUÇÃO, isso mandaria
+ *  cliente real pra conta de homologação. */
 export async function ensureTunaMode(): Promise<Mode> {
   if (process.env.VITEST || process.env.NODE_ENV === "test") return modeSuffix();
   if (cachedMode && Date.now() - cachedModeAt < MODE_TTL_MS) return cachedMode;
@@ -33,15 +43,16 @@ export async function ensureTunaMode(): Promise<Mode> {
     const { getTunaMode } = await import("@/lib/db/settings");
     cachedMode = (await getTunaMode()) as Mode;
   } catch {
-    cachedMode = cachedMode ?? "TEST";
+    if (!cachedMode) throw tunaLocalError(424, "modo da Tuna indisponível");
   }
   cachedModeAt = Date.now();
   return cachedMode;
 }
 
-/** Invalida o cache do modo — chamar quando o admin troca teste⇄produção. */
+/** Invalida o cache do modo — chamar quando o admin troca teste⇄produção. Só
+ *  vence o cache (a próxima `ensureTunaMode` relê o banco); o último modo fica
+ *  em memória, pra uma chamada em andamento não virar TESTE no meio. */
 export function bustTunaModeCache(): void {
-  cachedMode = null;
   cachedModeAt = 0;
 }
 
@@ -229,6 +240,43 @@ export function buildTunaCustomer(
   };
 }
 
+// ---- Prontidão do bar (mesma regra no painel, na cobrança e no reroute) -----
+
+/** Contexto da prontidão da Tuna (`tunaReadiness`): o modo e a chave dos
+ *  cartões DADOS + a allowlist de bares de teste (`TUNA_TEST_SLUGS`). Montado
+ *  sempre aqui — painel (getEstablishmentTunaStatus), guarda da cobrança e
+ *  reroute do admin usam a MESMA regra. */
+export function tunaReadinessContext(mode: Mode, cardsEnabled: boolean): TunaContext {
+  return { mode, cardsEnabled, testSlugs: parseTunaTestSlugs(process.env.TUNA_TEST_SLUGS) };
+}
+
+/** Chave global dos cartões (AppSetting). Falha ao ler → recusa DEFINITIVA
+ *  (424): nada foi enviado à Tuna. */
+async function readTunaCardsEnabled(): Promise<boolean> {
+  try {
+    const { getTunaCardsEnabled } = await import("@/lib/db/settings");
+    return await getTunaCardsEnabled();
+  } catch {
+    throw tunaLocalError(424, "chave dos cartões da Tuna indisponível");
+  }
+}
+
+/** Guarda da cobrança: o bar tem que estar PRONTO na Tuna pro grupo do método
+ *  no modo EM VIGOR (o mesmo das credenciais da chamada) — Pix → `pixReady`;
+ *  crédito, débito e carteiras → `cardReady` (inclui a chave dos cartões).
+ *  Senão, recusa DEFINITIVA (422) antes de qualquer chamada à Tuna (nem
+ *  NewSession): ex. modo virou e o cadastro do bar é do outro ambiente. Pix
+ *  não lê a chave dos cartões. Devolve o modo. */
+async function assertTunaReady(est: TunaEstFields, group: "pix" | "card"): Promise<Mode> {
+  const mode = await ensureTunaMode();
+  const cardsEnabled = group === "card" ? await readTunaCardsEnabled() : false;
+  const r = tunaReadiness(est, tunaReadinessContext(mode, cardsEnabled));
+  if (!(group === "pix" ? r.pixReady : r.cardReady)) {
+    throw tunaLocalError(422, `bar não está pronto na Tuna (${group === "pix" ? "Pix" : "cartão"}, ${mode})`);
+  }
+  return mode;
+}
+
 /** Item único do pedido com o split do bar: o bar recebe total − comissão; o
  *  resto (comissão, menos as taxas da Tuna) fica na conta da plataforma.
  *  Sem cadastro do bar na Tuna → recusa (4xx, antes de qualquer chamada). */
@@ -392,7 +440,7 @@ export const tunaProvider: PaymentProvider = {
   async createPixCharge(input: PixChargeInput): Promise<PixCharge> {
     const { est, reference, total, platformFee, customerName, customerDocument, customerPhone, description } = input;
     const item = tunaSplitItem(est, total, platformFee, description);
-    const mode = await ensureTunaMode();
+    const mode = await assertTunaReady(est, "pix");
     const customer = buildTunaCustomer(
       reference,
       { name: customerName, document: customerDocument, phone: customerPhone },
@@ -429,7 +477,7 @@ export const tunaProvider: PaymentProvider = {
     if (method === "debit" && !threeDs) throw tunaLocalError(422, "débito Tuna exige autenticação 3DS");
     if (!sessionId) throw tunaLocalError(422, "cartão Tuna exige a sessão de tokenização");
     const item = tunaSplitItem(est, total, platformFee, description);
-    const mode = await ensureTunaMode();
+    const mode = await assertTunaReady(est, "card");
     const customer = buildTunaCustomer(
       reference,
       { name: customerName, document: customerDocument, phone: customerPhone },
@@ -473,7 +521,7 @@ export const tunaProvider: PaymentProvider = {
   async createWalletPayment(input: WalletPaymentInput): Promise<CardPaymentResult> {
     const { est, reference, total, platformFee, description, walletType, token } = input;
     const item = tunaSplitItem(est, total, platformFee, description);
-    const mode = await ensureTunaMode();
+    const mode = await assertTunaReady(est, "card"); // antes do NewSession
     const customer = buildTunaCustomer(reference, {}, mode);
     const sessionId = await createTunaSession({ id: customer.id, email: customer.email });
     const apple = walletType === "apple_pay";

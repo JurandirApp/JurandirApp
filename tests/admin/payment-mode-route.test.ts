@@ -6,6 +6,8 @@ const m = vi.hoisted(() => ({
   setPagbankMode: vi.fn(),
   setPagarmeMode: vi.fn(),
   setTunaMode: vi.fn(),
+  getTunaCardsEnabled: vi.fn(),
+  reroute: vi.fn(),
   bustPagbank: vi.fn(),
   bustPagarme: vi.fn(),
   bustTuna: vi.fn(),
@@ -18,7 +20,9 @@ vi.mock("@/lib/db/settings", () => ({
   setPagbankMode: m.setPagbankMode,
   setPagarmeMode: m.setPagarmeMode,
   setTunaMode: m.setTunaMode,
+  getTunaCardsEnabled: m.getTunaCardsEnabled,
 }));
+vi.mock("@/lib/db/tuna", () => ({ rerouteUnreadyTunaBars: m.reroute }));
 vi.mock("@/lib/payments/pagbank", () => ({ bustPagbankModeCache: m.bustPagbank }));
 vi.mock("@/lib/payments/pagarme", () => ({ bustPagarmeModeCache: m.bustPagarme }));
 vi.mock("@/lib/payments/tuna", () => ({ bustTunaModeCache: m.bustTuna }));
@@ -42,6 +46,8 @@ beforeEach(() => {
     pagarmeMode: "PRODUCTION",
     tunaMode: "TEST",
   });
+  m.getTunaCardsEnabled.mockResolvedValue(true);
+  m.reroute.mockResolvedValue(0);
 });
 
 describe("GET /api/public/admin/payment-mode", () => {
@@ -66,9 +72,13 @@ describe("GET /api/public/admin/payment-mode", () => {
 
 describe("POST /api/public/admin/payment-mode", () => {
   it("gateway tuna → grava o modo e invalida só o cache da Tuna", async () => {
+    m.reroute.mockResolvedValue(2);
     const res = await POST(post({ gateway: "tuna", mode: "PRODUCTION" }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, mode: "PRODUCTION" });
+    expect(await res.json()).toEqual({ ok: true, mode: "PRODUCTION", rerouted: 2 });
+    // Bares não prontos no novo modo voltam pro padrão (com a chave dos cartões atual).
+    expect(m.reroute).toHaveBeenCalledWith("PRODUCTION", true);
+    expect(m.setTunaMode.mock.invocationCallOrder[0]).toBeLessThan(m.reroute.mock.invocationCallOrder[0]);
     expect(m.setTunaMode).toHaveBeenCalledWith("PRODUCTION");
     expect(m.bustTuna).toHaveBeenCalledTimes(1);
     expect(m.setPagbankMode).not.toHaveBeenCalled();
@@ -89,11 +99,21 @@ describe("POST /api/public/admin/payment-mode", () => {
     const others = (["bustPagbank", "bustPagarme", "bustTuna"] as const).filter((b) => b !== bust);
     for (const b of others) expect(m[b]).not.toHaveBeenCalled();
     expect(m.setTunaMode).not.toHaveBeenCalled();
+    expect(m.reroute).not.toHaveBeenCalled(); // resposta igual à de antes
+  });
+
+  it("gateway tuna: falha no reroute não derruba a troca (200 sem `rerouted`)", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    m.reroute.mockRejectedValue(new Error("db down"));
+    const res = await POST(post({ gateway: "tuna", mode: "TEST" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, mode: "TEST" });
+    err.mockRestore();
   });
 
   it("modo desconhecido vira TEST", async () => {
     const res = await POST(post({ gateway: "tuna", mode: "prod" }));
-    expect(await res.json()).toEqual({ ok: true, mode: "TEST" });
+    expect(await res.json()).toEqual({ ok: true, mode: "TEST", rerouted: 0 });
     expect(m.setTunaMode).toHaveBeenCalledWith("TEST");
   });
 
@@ -103,6 +123,7 @@ describe("POST /api/public/admin/payment-mode", () => {
     expect(res.status).toBe(401);
     expect(m.setTunaMode).not.toHaveBeenCalled();
     expect(m.bustTuna).not.toHaveBeenCalled();
+    expect(m.reroute).not.toHaveBeenCalled();
   });
 
   it("gateway desconhecido → 400", async () => {

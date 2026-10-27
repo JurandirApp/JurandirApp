@@ -73,6 +73,8 @@ export function AdminApp({
   const [pagbankDebitEnabled, setPagbankDebitEnabledState] = useState(initialDebitEnabled);
   const [tunaMode, setTunaModeState] = useState<PaymentEnv>(initialTunaMode);
   const [tunaCardsEnabled, setTunaCardsEnabledState] = useState(initialTunaCardsEnabled);
+  // Quantos bares voltaram pro gateway padrão na última troca da Tuna (aviso).
+  const [tunaRerouted, setTunaRerouted] = useState<number | null>(null);
 
   const [editing, setEditing] = useState<{ est: AdminEst | null } | null>(null);
   const [del, setDel] = useState<AdminEst | null>(null);
@@ -151,6 +153,7 @@ export function AdminApp({
           try {
             const r = await setTunaModeAction(mode);
             setTunaModeState(r.ok ? r.mode : prev);
+            setTunaRerouted(r.rerouted ?? null);
           } catch {
             setTunaModeState(prev);
           }
@@ -164,13 +167,15 @@ export function AdminApp({
           try {
             const r = await setTunaCardsEnabledAction(on);
             setTunaCardsEnabledState(r.ok ? r.enabled : prev);
+            setTunaRerouted(r.rerouted ?? null);
           } catch {
             setTunaCardsEnabledState(prev);
           }
         });
       },
+      tunaRerouted,
     }),
-    [now, tab, period, month, estabScope, ests, orders, events, allScaled, scopedScaled, pagbankMode, pagarmeMode, pagbankDebitEnabled, tunaMode, tunaCardsEnabled],
+    [now, tab, period, month, estabScope, ests, orders, events, allScaled, scopedScaled, pagbankMode, pagarmeMode, pagbankDebitEnabled, tunaMode, tunaCardsEnabled, tunaRerouted],
   );
 
   const saveReg = (payload: RegPayload, id: string | null) => {

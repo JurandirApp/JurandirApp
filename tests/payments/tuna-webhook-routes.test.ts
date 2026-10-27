@@ -3,7 +3,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const m = vi.hoisted(() => ({
   handlePayment: vi.fn(),
   applyMerchant: vi.fn(),
+  getMode: vi.fn(),
 }));
+
+// Só usado quando o atalho de teste do ensureTunaMode é desligado (fail closed).
+vi.mock("@/lib/db/settings", () => ({ getTunaMode: m.getMode }));
 
 vi.mock("@/lib/db/tuna-webhook", () => ({
   handleTunaPaymentWebhook: m.handlePayment,
@@ -60,11 +64,14 @@ describe("POST /api/webhooks/tuna (pagamento)", () => {
     expect(m.handlePayment).not.toHaveBeenCalled();
   });
 
-  it("segredo certo (prod ou teste) → reconcilia pelo paymentKey + partnerUniqueId e responde 200", async () => {
+  it("segredo certo (prod ou teste) do modo atual → reconcilia pelo paymentKey + partnerUniqueId e responde 200", async () => {
     process.env.TUNA_WEBHOOK_SECRET = "s-prod";
     process.env.TUNA_WEBHOOK_SECRET_TEST = "s-test";
+    __setTunaModeForTests("TEST");
     expect((await paymentPOST(req(pixPaid, "Bearer s-test"))).status).toBe(200);
+    __setTunaModeForTests("PRODUCTION");
     expect((await paymentPOST(req(pixPaid, "Bearer s-prod"))).status).toBe(200);
+    expect(m.handlePayment).toHaveBeenCalledTimes(2);
     expect(m.handlePayment).toHaveBeenCalledWith("134D946015A08C9", "ABC123");
   });
 
@@ -125,12 +132,26 @@ describe("POST /api/webhooks/tuna (pagamento) — rodada de correções", () => 
     expect(m.handlePayment).toHaveBeenCalledWith("134D946015A08C9", "");
   });
 
-  it("ambiente do segredo ≠ modo atual → avisa e segue reconciliando", async () => {
-    process.env.TUNA_WEBHOOK_SECRET_TEST = "s-test";
-    __setTunaModeForTests("PRODUCTION");
-    expect((await paymentPOST(req(pixPaid, "Bearer s-test"))).status).toBe(200);
-    expect(m.handlePayment).toHaveBeenCalledWith("134D946015A08C9", "ABC123");
-    expect(logged("warn")).toContain("[tuna/webhook] ambiente da notificação ≠ modo atual");
+  it.each([
+    ["TEST", "PRODUCTION", "Bearer s-test"],
+    ["PRODUCTION", "TEST", "Bearer s-prod"],
+  ] as const)(
+    "notificação de %s com o modo em %s → 503 SEM consultar a Tuna (ela re-entrega)",
+    async (_env, mode, auth) => {
+      process.env.TUNA_WEBHOOK_SECRET = "s-prod";
+      process.env.TUNA_WEBHOOK_SECRET_TEST = "s-test";
+      __setTunaModeForTests(mode);
+      expect((await paymentPOST(req(pixPaid, auth))).status).toBe(503);
+      expect(m.handlePayment).not.toHaveBeenCalled();
+      expect(logged("warn")).toContain("[tuna/webhook] ambiente da notificação ≠ modo atual");
+    },
+  );
+
+  it("reconciliação lança o 424 do modo indisponível → 500 (a Tuna re-tenta)", async () => {
+    m.handlePayment.mockRejectedValue(
+      new TunaError(424, null, JSON.stringify({ message: "modo da Tuna indisponível" })),
+    );
+    expect((await paymentPOST(req(pixPaid))).status).toBe(500);
   });
 
   it("ambiente do segredo = modo atual (ou sem segredo) → sem aviso", async () => {
@@ -237,5 +258,32 @@ describe("POST /api/webhooks/tuna/merchant", () => {
     expect(out).toContain("jur_e1");
     expect(out).toContain("SRVMerchantRegisterOk");
     expect(out).not.toContain("segredo");
+  });
+});
+
+describe("modo da Tuna indisponível (fail closed) nos webhooks", () => {
+  beforeEach(() => {
+    // Desliga o atalho de teste do ensureTunaMode: lê o "banco", que falha.
+    vi.stubEnv("VITEST", "");
+    vi.stubEnv("NODE_ENV", "production");
+    __setTunaModeForTests(null);
+    m.getMode.mockRejectedValue(new Error("db down"));
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("pagamento com segredo (ambiente conhecido) → 500, sem reconciliar", async () => {
+    process.env.TUNA_WEBHOOK_SECRET = "s-prod";
+    const res = await paymentPOST(req(pixPaid, "Bearer s-prod"));
+    expect(res.status).toBe(500);
+    expect(m.handlePayment).not.toHaveBeenCalled();
+  });
+
+  it("merchant sem segredo → 500 (nem 200 nem 401), sem aplicar", async () => {
+    const body = { externalId: "jur_e1", serviceId: 69, message: { code: "SRVMerchantRegisterOk" } };
+    const res = await merchantPOST(req(body));
+    expect(res.status).toBe(500);
+    expect(m.applyMerchant).not.toHaveBeenCalled();
   });
 });

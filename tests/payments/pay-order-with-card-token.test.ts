@@ -5,6 +5,9 @@ const m = vi.hoisted(() => ({
   paymentUpdate: vi.fn(),
   createCardTokenPayment: vi.fn(),
   providerName: "TUNA",
+  getCards: vi.fn(),
+  /** Provider Tuna REAL (guarda de prontidão); null = provider falso. */
+  real: null as null | import("@/lib/payments/types").PaymentProvider,
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
@@ -15,11 +18,12 @@ vi.mock("@/lib/db/prisma", () => ({
 }));
 vi.mock("@/lib/payments", () => ({
   resolveWalletGateway: () => "TUNA",
-  getProviderByName: () => ({ name: m.providerName, createCardTokenPayment: m.createCardTokenPayment }),
+  getProviderByName: () => m.real ?? { name: m.providerName, createCardTokenPayment: m.createCardTokenPayment },
 }));
+vi.mock("@/lib/db/settings", () => ({ getTunaCardsEnabled: m.getCards }));
 
 import { payOrderWithCardToken } from "@/lib/db/payments";
-import { TunaError } from "@/lib/payments/tuna";
+import { TunaError, tunaProvider, __setTunaModeForTests } from "@/lib/payments/tuna";
 import { PagarmeError } from "@/lib/payments/pagarme";
 
 const SESSION = "sess_SEGREDO_123";
@@ -157,5 +161,65 @@ describe("payOrderWithCardToken — outros gateways (comportamento inalterado)",
     const r = await payOrderWithCardToken("o1", CARD, 1, "credit");
     expect(r).toEqual({ status: "pending", statusDetail: "x" });
     expect(Object.keys(r)).toEqual(["status", "statusDetail"]);
+  });
+});
+
+describe("payOrderWithCardToken — guarda de prontidão da Tuna (provider real)", () => {
+  let fetchFn: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    m.real = tunaProvider;
+    m.getCards.mockResolvedValue(true);
+    process.env.TUNA_TEST_SLUGS = "bar-teste";
+    process.env.TUNA_ACCOUNT = "acc_p";
+    process.env.TUNA_APPTOKEN = "tok_p";
+    fetchFn = vi.fn();
+    vi.stubGlobal("fetch", fetchFn);
+    m.findUnique.mockResolvedValue({
+      id: "o1",
+      code: "ABC123",
+      status: "AWAITING_PAYMENT",
+      total: 50,
+      platformFee: 4,
+      customerName: "Ana Souza",
+      customerPhone: null,
+      establishment: {
+      id: "e1",
+      slug: "bar-teste",
+      tunaMerchantExternalId: "jur_e1",
+      tunaMerchantEnv: "TEST",
+      tunaPixStatus: "active",
+      tunaCardStatus: "active",
+    },
+      payment: { id: "p1", method: "CREDIT", provider: "TUNA" },
+    });
+  });
+  afterEach(() => {
+    m.real = null;
+    __setTunaModeForTests(null);
+    delete process.env.TUNA_TEST_SLUGS;
+    delete process.env.TUNA_ACCOUNT;
+    delete process.env.TUNA_APPTOKEN;
+    vi.unstubAllGlobals();
+  });
+
+  it("modo virou PRODUCTION com o bar cadastrado em TEST → failed DEFINITIVO (não pending), nada enviado nem gravado", async () => {
+    __setTunaModeForTests("PRODUCTION");
+    expect(await pay({ sessionId: SESSION })).toEqual({
+      status: "failed",
+      statusDetail: "bar não está pronto na Tuna (cartão, PRODUCTION)",
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(m.paymentUpdate).not.toHaveBeenCalled();
+    expectNoSecretsLogged();
+  });
+
+  it("cartões da Tuna desligados → failed definitivo, nada enviado", async () => {
+    __setTunaModeForTests("TEST");
+    m.getCards.mockResolvedValue(false);
+    expect(await pay({ sessionId: SESSION })).toEqual({
+      status: "failed",
+      statusDetail: "bar não está pronto na Tuna (cartão, TEST)",
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 });
