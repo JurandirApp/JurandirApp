@@ -20,6 +20,7 @@ vi.mock("@/lib/payments", () => ({
 import { payOrderWithWallet } from "@/lib/db/payments";
 import { PagbankError } from "@/lib/payments/pagbank";
 import { PagarmeError } from "@/lib/payments/pagarme";
+import { TunaError } from "@/lib/payments/tuna";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -58,6 +59,17 @@ describe("payOrderWithWallet - erro do gateway", () => {
     m.createWalletPayment.mockRejectedValue(new TypeError("fetch failed"));
     const r = await payOrderWithWallet("o1", "google_pay", "tok");
     expect(r).toMatchObject({ status: "failed", uncertain: true });
+  });
+  it("erro da Tuna → só a mensagem curta, nunca o corpo cru", async () => {
+    const body = JSON.stringify({ code: -1, customer: { document: "12345678909" }, message: { message: "Recusado" } });
+    m.createWalletPayment.mockRejectedValue(new TunaError(422, -1, body));
+    expect(await payOrderWithWallet("o1", "google_pay", "tok")).toEqual({ status: "failed", statusDetail: "Recusado" });
+    m.createWalletPayment.mockRejectedValue(new TunaError(502, null, "<html>12345678909</html>"));
+    expect(await payOrderWithWallet("o1", "google_pay", "tok")).toEqual({
+      status: "failed",
+      statusDetail: "tuna:502",
+      uncertain: true,
+    });
   });
   it("aprovado → grava a cobrança (sem uncertain)", async () => {
     m.createWalletPayment.mockResolvedValue({ chargeId: "ch_1", status: "pending" });

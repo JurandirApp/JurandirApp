@@ -12,6 +12,8 @@ import {
   refundTunaPayment,
   tunaStatusDates,
   registerTunaMerchant,
+  tunaSafeMessage,
+  tunaTokenUrl,
 } from "@/lib/payments/tuna";
 import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
 import type { Establishment } from "@prisma/client";
@@ -716,5 +718,49 @@ describe("registerTunaMerchant", () => {
     await expect(
       registerTunaMerchant(form, { externalId: "e", condition: "c", mcc: "5812" }),
     ).rejects.toBeInstanceOf(TunaError);
+  });
+});
+
+describe("tunaSafeMessage", () => {
+  it("usa message.message da Tuna (objeto)", () => {
+    const e = new TunaError(
+      422,
+      -111,
+      '{"code":-111,"message":{"source":1,"code":"SRVNoPartnerToken","message":"Inform the partner token in the request."}}',
+    );
+    expect(tunaSafeMessage(e)).toBe("Inform the partner token in the request.");
+  });
+  it("usa message quando a Tuna manda string", () => {
+    expect(tunaSafeMessage(new TunaError(422, -1, '{"code":-1,"message":"Session object is invalid"}'))).toBe(
+      "Session object is invalid",
+    );
+  });
+  it("corpo não-JSON (HTML de 502, texto local) → tuna:<status>", () => {
+    expect(tunaSafeMessage(new TunaError(502, null, "<html>Bad gateway 12345678909</html>"))).toBe("tuna:502");
+    expect(tunaSafeMessage(new TunaError(422, null, "bar sem cadastro na Tuna"))).toBe("tuna:422");
+  });
+  it("JSON sem mensagem nunca ecoa o corpo (ex.: CPF)", () => {
+    const e = new TunaError(422, -113, '{"code":-113,"customer":{"document":"12345678909"},"message":{"code":"X"}}');
+    expect(tunaSafeMessage(e)).toBe("tuna:422");
+  });
+  it("limita a 160 caracteres", () => {
+    const long = "x".repeat(400);
+    const out = tunaSafeMessage(new TunaError(422, -1, JSON.stringify({ code: -1, message: { message: long } })));
+    expect(out.length).toBeLessThanOrEqual(160);
+  });
+});
+
+describe("tunaTokenUrl", () => {
+  it("TEST: host do token padrão; override _TEST sem barra final", () => {
+    expect(tunaTokenUrl()).toBe("https://token.tunagateway.com");
+    process.env.TUNA_TOKEN_URL_TEST = "https://token.sandbox.example/";
+    expect(tunaTokenUrl()).toBe("https://token.sandbox.example");
+  });
+  it("PRODUCTION: lê TUNA_TOKEN_URL (ignora _TEST)", () => {
+    __setTunaModeForTests("PRODUCTION");
+    process.env.TUNA_TOKEN_URL_TEST = "https://token.sandbox.example";
+    expect(tunaTokenUrl()).toBe("https://token.tunagateway.com");
+    process.env.TUNA_TOKEN_URL = "https://token.prod.example";
+    expect(tunaTokenUrl()).toBe("https://token.prod.example");
   });
 });

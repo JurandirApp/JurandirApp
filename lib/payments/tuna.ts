@@ -63,6 +63,10 @@ const hostFor = (api: "engine" | "token"): string => {
   return (envByMode(name) || def).replace(/\/$/, "");
 };
 
+/** Host da API de token no modo atual (o app/site manda o cartão direto pra
+ *  `<host>/api/Token/Generate`). Chamar depois de `ensureTunaMode()`. */
+export const tunaTokenUrl = (): string => hostFor("token");
+
 export class TunaError extends Error {
   constructor(
     public status: number,
@@ -72,6 +76,21 @@ export class TunaError extends Error {
     super(`Tuna ${status}${code !== null ? ` (code ${code})` : ""}: ${body}`);
     this.name = "TunaError";
   }
+}
+
+/** Texto do erro que pode ir pro cliente/log: só a mensagem da Tuna
+ *  (`message.message`, ou `message` quando vem string), até 160 caracteres;
+ *  senão `tuna:<status>`. Nunca o corpo cru (pode ter CPF, sessão, token). */
+export function tunaSafeMessage(e: TunaError): string {
+  let msg: unknown;
+  try {
+    const m = (JSON.parse(e.body) as { message?: unknown } | null)?.message;
+    msg = m && typeof m === "object" ? (m as { message?: unknown }).message : m;
+  } catch {
+    msg = undefined;
+  }
+  const text = typeof msg === "string" ? msg.trim() : "";
+  return text ? text.slice(0, 160) : `tuna:${e.status}`;
 }
 
 export async function tunaPost<T>(

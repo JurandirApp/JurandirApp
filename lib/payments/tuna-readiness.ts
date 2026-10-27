@@ -29,6 +29,25 @@ export function parseTunaTestSlugs(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
+/** Pode abrir a sessão de tokenização da Tuna pra este pedido? Ordem: pedido
+ *  inexistente → `notfound`; não é cartão (crédito/débito) Tuna aguardando
+ *  pagamento sem cobrança iniciada → `notChargeable`; cartões Tuna desligados
+ *  → `cardsDisabled`; senão `ok`. */
+export function decideTunaSession(
+  o: { status: string; method: string | null; provider: string | null; hasGatewayCharge: boolean } | null,
+  cardsEnabled: boolean,
+): "ok" | "cardsDisabled" | "notfound" | "notChargeable" {
+  if (!o) return "notfound";
+  const chargeable =
+    o.status === "AWAITING_PAYMENT" &&
+    o.provider === "TUNA" &&
+    (o.method === "CREDIT" || o.method === "DEBIT") &&
+    !o.hasGatewayCharge;
+  if (!chargeable) return "notChargeable";
+  if (!cardsEnabled) return "cardsDisabled";
+  return "ok";
+}
+
 export function tunaReadiness(est: TunaEstFields, ctx: TunaContext): TunaReadiness {
   const visible =
     ctx.mode === "PRODUCTION" || ctx.testSlugs.includes(est.slug.trim().toLowerCase());
