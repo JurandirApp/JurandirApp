@@ -57,6 +57,55 @@ Sem estas variáveis os botões simplesmente não aparecem (o resto do checkout 
 ### Sobre as 2 últimas (a URL de produção)
 O domínio de produção é **`https://jurandir.app.br`** (apontado pro Vercel via DNS). Use ele nas duas — é pra lá que o cliente volta depois de pagar (back_urls) e é o callback do OAuth do marketplace.
 
+### Tuna (Pix, cartões e carteiras com split)
+O ambiente da Tuna (Teste/Produção) é escolhido no **admin → Pagamentos → Tuna** (padrão Teste; sem deploy, e a troca vale em até ~30 s, porque cada instância do servidor guarda o modo em cache por 30 s). Por isso cadastre as variáveis com e sem `_TEST` no ambiente **Production** da Vercel: o admin é que decide qual usar.
+
+> **Ordem de deploy:** as colunas da Tuna têm que existir no banco **antes** de subir este código: o valor `TUNA` no enum `PaymentProvider`, os campos `Establishment.tuna*` e `AppSetting.tunaMode` / `AppSetting.tunaCardsEnabled`. Já foram aplicadas no Neon em 2026-10-26; num banco novo, aplique antes do deploy.
+
+- **Credenciais (`TUNA_ACCOUNT` / `TUNA_APPTOKEN`) NÃO caem no sem sufixo.** Em Teste o servidor lê **só** `TUNA_ACCOUNT_TEST` / `TUNA_APPTOKEN_TEST` (a conta `-homolog`); em Produção, só `TUNA_ACCOUNT` / `TUNA_APPTOKEN`. Motivo: a homologação da Tuna usa **os mesmos hosts** da produção, e quem define o ambiente é a conta. Se Teste usasse a credencial de produção, "Teste" faria cobranças e cadastros **reais**. Sem as `_TEST`, toda chamada à Tuna em Teste falha antes de sair do servidor e **nada é cobrado** (o mesmo vale pra Produção sem as credenciais sem sufixo).
+- **Hosts (`TUNA_ENGINE_URL` / `TUNA_TOKEN_URL`)**: em Teste lê `NOME_TEST` e cai no `NOME` se o `_TEST` não existir; em Produção lê só `NOME`. Sem nenhum, usa o padrão abaixo.
+- **Os segredos de webhook seguem uma terceira regra** (ver abaixo).
+
+| Variável | Significado |
+|---|---|
+| `TUNA_ACCOUNT` (+ `_TEST`) | **Secreto.** Conta da Tuna (header `x-tuna-account`). Sem sufixo = conta principal (Produção); `_TEST` = conta `-homolog`, **obrigatória pra Teste funcionar** (sem fallback). Console → Settings → Integration |
+| `TUNA_APPTOKEN` (+ `_TEST`) | **Secreto.** App token da Tuna (header `x-tuna-apptoken`), de cada conta, com a mesma regra (o `_TEST` é obrigatório pra Teste). Fica só no servidor — nunca vai pro app nem pro site |
+| `TUNA_ENGINE_URL` (+ `_TEST`) | Host da API de pagamento e de cadastro (merchant). Padrão `https://engine.tunagateway.com` — só preencha se a Tuna indicar outro host |
+| `TUNA_TOKEN_URL` (+ `_TEST`) | Host da API de token (o app/site manda o cartão direto pra ele, com a sessão gerada no servidor). Padrão `https://token.tunagateway.com` |
+| `TUNA_WEBHOOK_SECRET` | **Secreto.** Segredo Bearer do webhook de **pagamento** — conta de produção |
+| `TUNA_WEBHOOK_SECRET_TEST` | **Secreto.** Segredo Bearer do webhook de **pagamento** — conta `-homolog` |
+| `TUNA_MERCHANT_WEBHOOK_SECRET` | **Secreto. OBRIGATÓRIO antes de ligar a Tuna em Produção.** Segredo Bearer do webhook de **cadastro do bar (merchant)** — conta de produção |
+| `TUNA_MERCHANT_WEBHOOK_SECRET_TEST` | **Secreto.** Segredo Bearer do webhook de **cadastro do bar (merchant)** — conta `-homolog` |
+| `TUNA_MERCHANT_CONDITION` | Chave do plano de taxas (`condition`) que a Tuna informar. Vale pros dois ambientes (sem `_TEST`). **Sem ela o cadastro do bar na Tuna não roda** (o painel mostra "Cadastro na Tuna indisponível no momento.") |
+| `TUNA_MERCHANT_MCC` | MCC usado no cadastro do bar. Padrão `5812` (restaurantes). Vale pros dois ambientes (sem `_TEST`) |
+| `TUNA_TEST_CPF` | CPF (só os dígitos contam) mandado como documento do cliente **só em Teste**: quando o pedido não tem CPF/CNPJ válido do pagador (11 ou 14 dígitos) e **sempre** nos pagamentos por carteira (Apple Pay / Google Pay), que não mandam documento. Em Produção, nesses casos o documento é simplesmente omitido (nunca inventamos CPF) |
+| `TUNA_TEST_SLUGS` | Slugs dos bares, separados por vírgula (espaços e maiúsculas/minúsculas são ignorados), que enxergam a Tuna enquanto ela está em **Teste** (card de cadastro no painel e a Tuna como opção nos métodos). Os outros bares não veem a Tuna em Teste; vazio = nenhum bar vê. Em Produção a Tuna aparece pra todos e esta variável é ignorada |
+
+**Segredos de webhook (como funcionam):**
+- Produção e homologação postam nas **mesmas URLs**. O servidor compara o `Authorization: Bearer <segredo>` com os **dois** segredos (`NOME` e `NOME_TEST`, lado a lado — aqui não existe o "cai no sem sufixo"): o que bater define de qual ambiente veio a notificação. Nenhum bateu → `401`.
+- **O segredo de produção e o de teste TÊM que ser diferentes.** Se forem iguais, toda notificação conta como PRODUÇÃO.
+- Gere cada segredo como um valor aleatório longo (ex.: `openssl rand -hex 32`) e cole o MESMO valor na Vercel e no Console da Tuna da conta correspondente (produção ou `-homolog`). Se configurar o segredo de um ambiente, configure o do outro também; senão as notificações do outro ambiente levam `401`.
+- **No Console, escolha a autorização por Bearer / header `Authorization`**, não "header customizado": o servidor só lê o `Authorization`. O header que chega tem que ser `Authorization: Bearer <segredo>` (só `<segredo>`, sem o prefixo, também é aceito). Se o Console já coloca o prefixo `Bearer`, cole **só o segredo**; senão o header vira `Bearer Bearer <segredo>` e toda notificação leva `401`.
+- **Sem nenhum segredo configurado**, toda notificação é aceita. A exceção é o webhook de cadastro (merchant): com a Tuna em **Produção** e sem segredo de merchant, ele responde `401` a tudo, e os bares ficam presos em "em análise". Por isso **`TUNA_MERCHANT_WEBHOOK_SECRET` é obrigatório antes de virar a Tuna pra Produção.**
+- O corpo do webhook de pagamento nunca marca pedido como pago: o servidor sempre re-consulta o status do pagamento na Tuna. O webhook de cadastro não tem API pra re-consultar, então quem o protege é o segredo (mais um motivo pra ele ser obrigatório em produção).
+
+**URLs de webhook a cadastrar no Console da Tuna** (Console → Settings → Webhook, nas duas contas — produção e `-homolog` —, cada uma com o seu segredo):
+```
+Pagamento:           https://jurandir.app.br/api/webhooks/tuna
+Cadastro (merchant): https://jurandir.app.br/api/webhooks/tuna/merchant
+```
+(O de pagamento também vai em cada cobrança, montado a partir do `APP_BASE_URL`; cadastre no Console mesmo assim.)
+
+> **⚠️ Ordem de liberação — "Cartões e carteiras pela Tuna" (admin → Pagamentos):** deixe **DESLIGADO** até o app e o site com a tokenização da Tuna serem a versão publicada nas lojas. Versões antigas do app instaladas nos celulares não conseguem tokenizar o cartão na Tuna, e os pedidos de cartão delas pela Tuna seriam recusados como "não aprovado". Com a chave desligada, a Tuna só serve Pix (que funciona no app e no site atuais).
+>
+> **Cadastro do bar é por ambiente:** cadastros feitos com a Tuna em Teste não valem em Produção. Ao virar pra Produção, cada bar precisa se cadastrar de novo (e esperar a aprovação da Tuna, até 48 h).
+>
+> **Trocar o modo da Tuna ou DESLIGAR os cartões devolve os bares que deixaram de estar prontos pro gateway padrão, automaticamente**, só nos métodos afetados: Mercado Pago no Pix, crédito e débito; Pagar.me no Apple Pay e no Google Pay. Exemplos: ao virar pra Produção, todo bar cadastrado só em Teste sai da Tuna em todos os métodos; ao desligar os cartões, saem crédito, débito e carteiras, e o Pix pela Tuna continua. O admin mostra quantos bares mudaram. **Nada volta sozinho pra Tuna:** quando o bar estiver pronto de novo (cadastro aprovado no modo atual, ou cartões religados), ele precisa escolher a Tuna outra vez no painel. Além disso, cada cobrança confere a prontidão na hora: um bar que não está pronto no modo atual é recusado antes de qualquer chamada à Tuna.
+>
+> **Depois do go-live, evite virar a Tuna de Produção pra Teste.** Pagamentos Pix ou com 3DS da Tuna que estiverem pendentes na hora da troca só se confirmam depois que o modo voltar pra Produção, pelo reenvio do webhook (que recebe `503` enquanto o modo estiver em Teste) ou pela consulta de status. Notificações da homologação que chegarem com a Tuna em Produção são só registradas e ignoradas (`200`).
+>
+> **⚠️ Sem rollback depois da primeira linha com `TUNA`:** assim que qualquer linha do banco guardar o provedor `TUNA` (a rota de um bar, um pagamento ou uma parte de conta dividida), **NÃO** volte o deploy pra uma versão sem a Tuna. O Prisma Client dessa versão não conhece o valor `TUNA` do enum e quebra ao ler essas linhas, o que derruba, por exemplo, a listagem de bares. Tirar a Tuna das rotas dos bares não resolve: os pagamentos e as partes já gravados continuam com `TUNA`.
+
 ## 4. Registrar o Redirect URI no Mercado Pago
 No painel do MP → app **JurandirDev** → **Configurações da aplicação** → **Redirect URIs**, adicione **exatamente** o mesmo valor do `MP_REDIRECT_URI`:
 ```

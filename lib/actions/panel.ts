@@ -21,6 +21,7 @@ import { toPanelMenuItem, toPanelOrder, toPanelPrintJob } from "@/lib/panel/adap
 import { cloudinaryConfigured, signUpload, type SignedUpload } from "@/lib/cloudinary";
 import { getOAuthUrl, signState, probePixReady } from "@/lib/payments/mercadopago";
 import { createPagarmeRecipient, getPagarmeKycLink, PagarmeError } from "@/lib/payments/pagarme";
+import { registerEstablishmentInTuna, getEstablishmentTunaStatus } from "@/lib/db/tuna";
 import { createSubaccount } from "@/lib/payments/asaas";
 import { getConnectUrl as getPagbankConnectUrl, signConnectState, ensurePagbankMode } from "@/lib/payments/pagbank";
 import {
@@ -55,6 +56,7 @@ import {
   type BulkPriceAdjustInput,
   type MenuItemUpsertInput,
   type PagarmeRecipientForm,
+  type TunaMerchantFormInput,
   type ProfileSaveInput,
   type WaiterUpsertInput,
 } from "@/lib/validation";
@@ -140,7 +142,7 @@ export async function checkPixReadyAction(): Promise<{
 }
 
 // Gateways que o painel deixa escolher (os demais do enum ficam de fora).
-const SELECTABLE_GATEWAYS = ["MERCADO_PAGO", "PAGARME", "ASAAS", "PAGBANK", "INFINITEPAY"] as const;
+const SELECTABLE_GATEWAYS = ["MERCADO_PAGO", "PAGARME", "ASAAS", "PAGBANK", "INFINITEPAY", "TUNA"] as const;
 type SelectableGateway = (typeof SELECTABLE_GATEWAYS)[number];
 
 /** Salva o gateway escolhido POR MÉTODO (Pix/Crédito/Débito/Apple Pay/Google Pay),
@@ -150,13 +152,19 @@ export async function savePaymentRoutingAction(
   routing: Routing,
 ): Promise<{ ok: boolean; error?: string; routing: Record<RouteKey, SelectableGateway> }> {
   const s = await requireEst();
-  const est = await prisma.establishment.findUnique({
-    where: { id: s.establishmentId! },
-    select: { pagarmeRecipientId: true, asaasWalletId: true, appmaxRecipientHash: true },
-  });
+  const [est, pagbankDebitEnabled, tuna] = await Promise.all([
+    prisma.establishment.findUnique({
+      where: { id: s.establishmentId! },
+      select: { pagarmeRecipientId: true, asaasWalletId: true, appmaxRecipientHash: true },
+    }),
+    getPagbankDebitEnabled(),
+    // Tuna: prontidão por método (visível + cadastrado no modo atual + status + chave dos cartões).
+    getEstablishmentTunaStatus(s.establishmentId!),
+  ]);
   const readiness = {
     ...(est ?? { pagarmeRecipientId: null }),
-    pagbankDebitEnabled: await getPagbankDebitEnabled(),
+    pagbankDebitEnabled,
+    tuna: { pixReady: tuna.pixReady, cardReady: tuna.cardReady },
   };
   const resolve = (key: RouteKey): SelectableGateway => {
     const v = routing[key];
@@ -203,6 +211,16 @@ export async function createPagarmeRecipientAction(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message.slice(0, 200) : "error" };
   }
+}
+
+/** Cadastra o bar na Tuna (sub-merchant p/ split). Lógica compartilhada com o app. */
+export async function registerTunaMerchantAction(
+  form: TunaMerchantFormInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const s = await requireEst();
+  const r = await registerEstablishmentInTuna(s.establishmentId!, form);
+  if (r.ok) revalidatePath("/painel");
+  return r;
 }
 
 /** Gera o link/QR do webapp hospedado do Pagar.me pra o dono completar conta

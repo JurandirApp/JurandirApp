@@ -7,7 +7,8 @@ import { useAdmin } from "../context";
 
 /** Config global de pagamentos: o ambiente (teste/produção) de cada gateway.
  *  Um switch por gateway — virar um pra teste NÃO arrasta o outro (a Pagar.me
- *  está no ar; o PagBank ainda não). Os tokens ficam no backend; aqui só escolhe. */
+ *  está no ar; o PagBank ainda não). Os tokens ficam no backend; aqui só escolhe.
+ *  Abaixo, as chaves globais: débito PagBank e cartões/carteiras pela Tuna. */
 export function PagamentosSection() {
   const {
     pagbankMode,
@@ -16,6 +17,11 @@ export function PagamentosSection() {
     setPagarmeMode,
     pagbankDebitEnabled,
     setPagbankDebitEnabled,
+    tunaMode,
+    setTunaMode,
+    tunaCardsEnabled,
+    setTunaCardsEnabled,
+    tunaRerouted,
   } = useAdmin();
   const t = useTranslations("admin.pagamentos");
 
@@ -49,40 +55,86 @@ export function PagamentosSection() {
           tokenNote={t("pagbankTokenNote")}
           t={t}
         />
+        <GatewayModeCard
+          title="Tuna"
+          mode={tunaMode}
+          onChange={setTunaMode}
+          warn={tunaMode === "PRODUCTION" ? t("tunaProductionWarn") : t("tunaTestWarn")}
+          tokenNote={t("tunaTokenNote")}
+          t={t}
+        />
       </div>
 
-      <div className="mt-3 rounded-xl border-2 border-ink bg-white p-4 shadow-hard">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="font-display text-sm font-extrabold">{t("debitTitle")}</span>
-          <StatusChip
-            live={pagbankDebitEnabled}
-            liveLabel={t("debitOn")}
-            testLabel={t("debitOff")}
-          />
+      <SwitchCard
+        title={t("debitTitle")}
+        desc={t("debitDesc")}
+        on={pagbankDebitEnabled}
+        onChange={setPagbankDebitEnabled}
+        onLabel={t("debitOn")}
+        offLabel={t("debitOff")}
+      />
+      <SwitchCard
+        title={t("tunaCardsTitle")}
+        desc={t("tunaCardsDesc")}
+        on={tunaCardsEnabled}
+        onChange={setTunaCardsEnabled}
+        onLabel={t("tunaCardsOn")}
+        offLabel={t("tunaCardsOff")}
+      />
+      {tunaRerouted ? (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-[12px] leading-snug text-[#92400e]">
+          <Icon name="info" size={15} className="mt-px flex-none" />
+          <span className="min-w-0 flex-1 font-medium">{t("tunaRerouted", { count: tunaRerouted })}</span>
         </div>
-        <p className="m-0 mb-3 text-[12px] leading-snug text-ink/60">{t("debitDesc")}</p>
-        <div className="grid grid-cols-2 gap-2">
-          <ModeButton
-            active={pagbankDebitEnabled}
-            icon="toggle_on"
-            label={t("debitOn")}
-            hint=""
-            onClick={() => !pagbankDebitEnabled && setPagbankDebitEnabled(true)}
-          />
-          <ModeButton
-            active={!pagbankDebitEnabled}
-            icon="toggle_off"
-            label={t("debitOff")}
-            hint=""
-            onClick={() => pagbankDebitEnabled && setPagbankDebitEnabled(false)}
-          />
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }
 
 type Tr = ReturnType<typeof useTranslations>;
+
+/** Chave global liga/desliga (ex.: débito PagBank, cartões pela Tuna). */
+function SwitchCard({
+  title,
+  desc,
+  on,
+  onChange,
+  onLabel,
+  offLabel,
+}: {
+  title: string;
+  desc: string;
+  on: boolean;
+  onChange: (on: boolean) => void;
+  onLabel: string;
+  offLabel: string;
+}) {
+  return (
+    <div className="mt-3 rounded-xl border-2 border-ink bg-white p-4 shadow-hard">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="font-display text-sm font-extrabold">{title}</span>
+        <StatusChip live={on} liveLabel={onLabel} testLabel={offLabel} />
+      </div>
+      <p className="m-0 mb-3 text-[12px] leading-snug text-ink/60">{desc}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <ModeButton
+          active={on}
+          icon="toggle_on"
+          label={onLabel}
+          hint=""
+          onClick={() => !on && onChange(true)}
+        />
+        <ModeButton
+          active={!on}
+          icon="toggle_off"
+          label={offLabel}
+          hint=""
+          onClick={() => on && onChange(false)}
+        />
+      </div>
+    </div>
+  );
+}
 
 function GatewayModeCard({
   title,

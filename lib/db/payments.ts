@@ -8,7 +8,15 @@ import {
   checkInfinitePayment,
   parseChargeId,
 } from "@/lib/payments/infinitepay";
-import type { CardBillingAddress, CardBrickData, ChargeStatus } from "@/lib/payments/types";
+import { TunaError, tunaSafeMessage } from "@/lib/payments/tuna";
+import { tunaErrorSummary } from "@/lib/payments/tuna-webhook";
+import type {
+  CardBillingAddress,
+  CardBrickData,
+  CardPaymentResult,
+  CardTokenPaymentInput,
+  ChargeStatus,
+} from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
 
 /** Sincroniza o status do recebedor Pagar.me (webhook recipient.updated). */
@@ -242,7 +250,20 @@ export function cardChargeMethod(orderMethod: string | null | undefined): "credi
  *  confirma e vai pra produção; devolve o status pra UI reagir.
  *  O parâmetro `method` é mantido só por compatibilidade: o tipo da cobrança
  *  vem de `order.payment.method` (evita crédito cobrado como débito sem split
- *  e vice-versa). */
+ *  e vice-versa).
+ *  Tuna: `tuna` (sessão/bandeira/3DS) vai pro provider e o desafio 3DS volta em
+ *  `challenge`. Erro da Tuna nunca expõe o corpo cru (só `tunaSafeMessage`), e
+ *  erro INCERTO (5xx/rede/timeout/-108) vira `pending` — o app vai pra tela de
+ *  processamento e a cobrança é recuperada pelo webhook (anexa pelo código do
+ *  pedido) ou pela reconciliação (`findApprovedPayment`).
+ *  ⚠️ Retentativa no MESMO pedido depois de um `pending` incerto: reenvia o Init
+ *  com o mesmo `partnerUniqueID` e Idempotency-Key, mas com outro token/sessão.
+ *  A Tuna NÃO cobra de novo (o partnerUniqueID é único; a chave com parâmetros
+ *  diferentes dá erro — CONTRACT §9), mas o status desse erro não está
+ *  confirmado (pergunta pra homolog): se vier 4xx definitivo, o app mostra
+ *  "não aprovado" mesmo com a 1ª tentativa cobrada. Não é cobrança dupla, é
+ *  risco de mensagem errada — por isso o cliente (Fase 2) NÃO pode cobrar de
+ *  novo o mesmo orderId depois de `pending`: só consultar o status. */
 export async function payOrderWithCardToken(
   orderId: string,
   cardToken: string,
@@ -251,7 +272,8 @@ export async function payOrderWithCardToken(
   customerDocument?: string,
   billing?: CardBillingAddress,
   authenticationId?: string,
-): Promise<{ status: ChargeStatus; statusDetail?: string }> {
+  tuna?: CardTokenPaymentInput["tuna"],
+): Promise<{ status: ChargeStatus; statusDetail?: string; challenge?: CardPaymentResult["challenge"] }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { establishment: true, payment: true },
@@ -279,8 +301,20 @@ export async function payOrderWithCardToken(
       customerPhone: order.customerPhone ?? undefined,
       billing,
       authenticationId,
+      ...(tuna ? { tuna } : {}),
     });
   } catch (e) {
+    if (provider.name === "TUNA") {
+      // Só um 4xx prova que NÃO cobrou; o resto pode ter cobrado → pending.
+      if (!isDefiniteGatewayFailure(e)) {
+        const why = e instanceof TunaError ? tunaSafeMessage(e) : tunaErrorSummary(e);
+        console.warn("[cartao] cobranca incerta (tuna)", order.code, why);
+        return { status: "pending" };
+      }
+      const detail = e instanceof TunaError ? tunaSafeMessage(e) : "tuna:erro";
+      console.warn("[cartao] gateway recusou", order.code, detail);
+      return { status: "failed", statusDetail: detail };
+    }
     const detail = e instanceof Error ? e.message : String(e);
     // Sem isso a recusa do gateway some (o app só mostra "não aprovado").
     console.warn("[cartao] gateway recusou", order.code, detail.slice(0, 400));
@@ -294,7 +328,11 @@ export async function payOrderWithCardToken(
   if (res.status === "failed") {
     console.warn("[cartao] nao aprovado", order.code, (res.statusDetail ?? "").slice(0, 400));
   }
-  return { status: res.status, statusDetail: res.statusDetail };
+  return {
+    status: res.status,
+    statusDetail: res.statusDetail,
+    ...(res.challenge ? { challenge: res.challenge } : {}),
+  };
 }
 
 /** Cobra o pedido via carteira nativa (Google Pay / Apple Pay) usando o token do
@@ -328,7 +366,9 @@ export async function payOrderWithWallet(
       token,
     });
   } catch (e) {
-    const statusDetail = e instanceof Error ? e.message.slice(0, 160) : "erro";
+    // Tuna: nunca o corpo cru da resposta (pode ter CPF/sessão) — só a mensagem curta.
+    const statusDetail =
+      e instanceof TunaError ? tunaSafeMessage(e) : e instanceof Error ? e.message.slice(0, 160) : "erro";
     // Só um 4xx do gateway prova que NÃO cobrou; 5xx/rede/timeout/parse → incerto
     // (pode ter cobrado): quem chama não pode tratar como recusa.
     if (isDefiniteGatewayFailure(e)) return { status: "failed", statusDetail };

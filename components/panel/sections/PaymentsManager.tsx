@@ -2,12 +2,13 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import type { PagarmeRecipientForm } from "@/lib/validation";
 import { gatewayImplements, type RouteKey } from "@/lib/payments/capabilities";
 import { usePanel } from "../context";
+import { F, MiniDd, formatDoc, formatPhone, maskDoc, onlyDigits } from "./PaymentFormKit";
+import { TunaConnection, tunaRouteNoteKey } from "./TunaConnection";
 
 const GATEWAYS = [
   { id: "MERCADO_PAGO", label: "Mercado Pago" },
@@ -15,6 +16,8 @@ const GATEWAYS = [
   { id: "ASAAS", label: "Asaas" },
   { id: "PAGBANK", label: "PagBank" },
   { id: "INFINITEPAY", label: "InfinitePay" },
+  // Só aparece quando a Tuna está visível pro bar (produção, ou bar de teste em homolog).
+  { id: "TUNA", label: "Tuna" },
 ] as const;
 
 const METHODS: { key: RouteKey; icon: string }[] = [
@@ -34,11 +37,13 @@ export function PaymentsManager() {
     pagbankDebitEnabled,
     pagarmeReady,
     asaasReady,
+    tuna,
     createPagarmeRecipient,
     toast,
   } = usePanel();
   const t = useTranslations("panel.config");
   const [modal, setModal] = useState(false);
+  const gateways = GATEWAYS.filter((g) => g.id !== "TUNA" || tuna.visible);
 
   const readyMap: Record<string, boolean> = {
     MERCADO_PAGO: true,
@@ -47,7 +52,9 @@ export function PaymentsManager() {
     PAGBANK: true, // sem Connect, cobra na conta da plataforma
     INFINITEPAY: true, // tag única da plataforma (sem split)
   };
-  const isReady = (g: string) => readyMap[g] ?? false;
+  // Tuna: prontidão POR MÉTODO (Pix e cartão/carteiras liberam separadamente).
+  const isReady = (g: string, key: RouteKey) =>
+    g === "TUNA" ? (key === "pix" ? tuna.pixReady : tuna.cardReady) : (readyMap[g] ?? false);
   // Gateways de conta conectada por OAuth: "conta conectada" vs "conta da plataforma".
   const oauthConnected: Record<string, boolean> = {
     MERCADO_PAGO: mpConnected,
@@ -68,22 +75,24 @@ export function PaymentsManager() {
               {t(`method_${m.key}`)}
             </p>
             <div className="grid grid-cols-2 gap-2">
-              {GATEWAYS.map((g) => {
+              {gateways.map((g) => {
                 // Gateway que não implementa o método aparece como "em breve".
                 const impl = gatewayImplements(g.id, m.key, { pagbankDebitEnabled });
-                const ready = isReady(g.id);
+                const ready = isReady(g.id, m.key);
                 const selectable = impl && ready;
                 const selected = routing[m.key] === g.id;
                 const oauth = oauthConnected[g.id];
                 const note = !impl
                   ? t("soon")
-                  : oauth !== undefined
-                    ? oauth
-                      ? t("pgConnected")
-                      : t("pgSingleAccount")
-                    : ready
-                      ? t("pgRecipientReady")
-                      : t("needsSetup");
+                  : g.id === "TUNA"
+                    ? t(tunaRouteNoteKey(tuna, m.key))
+                    : oauth !== undefined
+                      ? oauth
+                        ? t("pgConnected")
+                        : t("pgSingleAccount")
+                      : ready
+                        ? t("pgRecipientReady")
+                        : t("needsSetup");
                 return (
                   <GatewayCell
                     key={g.id}
@@ -109,6 +118,7 @@ export function PaymentsManager() {
           <PagbankConnection />
           <AsaasConnection />
           <InfinitePayConnection />
+          {tuna.visible && <TunaConnection />}
         </div>
       </div>
 
@@ -544,35 +554,6 @@ const REQUIRED_PF: (keyof Form)[] = ["birthdate", "professionalOccupation", "mon
 const REQUIRED_PARTNER: (keyof Form)[] = ["pName", "pDocument", "pEmail", "pPhone", "pBirthdate", "pOccupation", "pIncome"];
 const REQUIRED_PARTNER_ADDR: (keyof Form)[] = ["pStreet", "pStreetNumber", "pNeighborhood", "pCity", "pState", "pZipCode"];
 
-const onlyDigits = (v: string) => v.replace(/\D/g, "");
-
-function formatDoc(v: string, type: "individual" | "corporation"): string {
-  const d = onlyDigits(v).slice(0, type === "individual" ? 11 : 14);
-  if (type === "individual") {
-    return d
-      .replace(/(\d{3})(\d)/, "$1.$2")
-      .replace(/(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
-      .replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
-  }
-  return d
-    .replace(/(\d{2})(\d)/, "$1.$2")
-    .replace(/(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/(\d{2})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3/$4")
-    .replace(/(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, "$1.$2.$3/$4-$5");
-}
-
-function formatPhone(v: string): string {
-  const d = onlyDigits(v).slice(0, 11);
-  if (d.length <= 2) return d.replace(/(\d*)/, "($1");
-  if (d.length <= 6) return d.replace(/(\d{2})(\d*)/, "($1) $2");
-  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d*)/, "($1) $2-$3");
-  return d.replace(/(\d{2})(\d{5})(\d*)/, "($1) $2-$3");
-}
-
-/** Máscara que alterna CPF/CNPJ pelo tamanho (≤11 = CPF). */
-const maskDoc = (v: string) =>
-  formatDoc(v, onlyDigits(v).length > 11 ? "corporation" : "individual");
-
 function RecipientModal({
   onClose,
   onDone,
@@ -893,58 +874,5 @@ function RecipientModal({
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <p className="m-0 mb-2 text-[11px] font-bold uppercase tracking-wide text-ink/45">{children}</p>
-  );
-}
-
-function F({
-  label,
-  req,
-  children,
-  className,
-}: {
-  label: string;
-  req?: boolean;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={`block ${className ?? ""}`}>
-      <span className="text-[11px] font-medium text-ink/55">
-        {label}
-        {req && <span className="text-coral"> *</span>}
-      </span>
-      <div className="mt-1">{children}</div>
-    </label>
-  );
-}
-
-function MiniDd({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  const cur = options.find((o) => o.value === value)?.label ?? value;
-  return (
-    <Dropdown
-      align="stretch"
-      value={value}
-      onChange={onChange}
-      options={options}
-      panelClassName="max-h-48"
-      renderTrigger={({ open, toggle }) => (
-        <button
-          type="button"
-          onClick={toggle}
-          className="box-border flex w-full items-center justify-between gap-1 rounded-xl border-2 border-ink/15 bg-white px-3 py-2 text-left text-sm font-medium text-ink"
-        >
-          <span className="truncate">{cur}</span>
-          <Icon name="expand_more" size={15} className="text-ink/40 transition-transform duration-150" style={{ transform: open ? "rotate(180deg)" : "none" }} />
-        </button>
-      )}
-    />
   );
 }

@@ -1,0 +1,3148 @@
+openapi: 3.0.1
+servers:
+  - url: https://sandbox.tuna-demo.uy
+    description: sandbox
+  - url: https://engine.tunagateway.com
+    description: production
+info:
+  title: Tuna Merchant API
+  description: >
+    # Introduction
+
+
+    Tuna Merchant API can perform operations for merchants using payment split.
+
+
+    We always recommend using our plugins, but be our guest and use the API
+    described below.
+
+    Tuna is a PCI Level 1 certified company; your data is safe with us.
+
+
+    Tuna APIs are organized around REST. Our APIs have predictable
+    resource-oriented URLs,
+
+    accept form-encoded request bodies, return JSON-encoded responses, and use
+    standard HTTP
+
+    response codes, authentication, and verbs.
+
+
+    You can use the Tuna APIs in sandbox mode, which does not affect your live
+    data or
+
+    interact with the banking networks. The API server and keys you use for the
+    request
+
+    determine whether the request is in production mode or sandbox mode.
+
+
+    # API REST Guides
+
+
+    - **API REST**: are you looking for a guide for our APIs? Check out the
+    introduction to the [API REST](/api).
+
+
+    - **Payment Integration**: do you need to be able to perform secure credit
+    card payments and/or also use other payment methods such as Debit Card,
+    Boleto, PIX, and Bitcoin? Check out how to perform a [Payment
+    Integration](/api/payment-integration) with our [Payment API](/api/payment)
+    and [Token API](/api/token).
+
+
+    - **Split Integration**: are you looking to set up a marketplace so your
+    merchants will use split payment solutions in your marketplace? Check out
+    how to perform a [Split Integration](/api/split-integration) with our
+    [Merchant API](/api/merchant).
+
+
+    - **Tuna Codes**: do you need to learn about your codes and status? Please,
+    check out the [Tuna Codes](/api/tuna-codes).
+
+
+    - **Webhooks Notifications**: learn more about our notifications in the
+    guide [Webhooks Notifications](/api/webhooks-notifications).
+
+
+    - **Sandbox Environment**: check out for information about test data and a
+    full description of the [Sandbox Environment](/api/sandbox-environment).
+
+
+    - **Idempotent Requests**: do you require idempotent requests? Take a look
+    how to make [Idempotent Requests](/api/idempotent-requests).
+
+
+    # Examples
+
+
+    There are many examples on the right. Please check all that are meaningful
+    to your company.
+
+
+    # Authentication
+
+
+    Your first secrets are provided when you sign up for an account:  account
+    name and app token.
+
+
+    You can generate additional API keys and delete API keys (as you may need to
+    rotate your
+
+    keys in the future). You authenticate to Tuna APIs by providing your account
+    name and app
+
+    token key in the request HTTP headers.
+
+
+    Tuna's sandbox environment uses public keys available to anyone:
+
+
+    ```yaml
+
+    "x-tuna-account": "demo"
+
+    "x-tuna-apptoken": "a3823a59-66bb-49e2-95eb-b47c447ec7a7"
+
+    ```
+  version: v1
+  license:
+    name: MIT License
+    url: https://dev.tuna.uy/api/license
+components:
+  schemas:
+    Account:
+      description: The name of your account.
+      type: string
+    AppToken:
+      description: The app token associated with your account.
+      type: string
+      format: uuid
+    RegisterRequestSchema:
+      type: object
+      properties: &ref_0
+        externalId:
+          type: string
+          description: Your unique ID for the merchant.
+          nullable: true
+        document:
+          type: string
+          description: Merchant's document ID.
+          nullable: true
+        documentType:
+          type: string
+          description: >-
+            Document ID type (pt-br: can be either "CPF" or "CNPJ"; can also be
+            "SSN" or other types).
+          nullable: true
+          enum:
+            - CNPJ
+            - CPF
+        name:
+          type: string
+          description: >-
+            The name of the person or legal business name (pt-br: "Razão
+            Social").
+          nullable: true
+        fantasyName:
+          type: string
+          description: 'Business fantasy name (pt-br: "Nome Fantasia").'
+          nullable: true
+        countryId:
+          type: integer
+          description: >-
+            Numeric code for the country where the financial transaction occurs.
+            The default value is 1 for Brazil.
+          format: int16
+          enum:
+            - '1'
+        statusId:
+          type: string
+          description: >-
+            After a successful registration process, i.e., the status is "1"
+            which means "active", it is possible to either inactive or suspend
+            an account by sending an update message with its related key values.
+            Possible values are: <ul><li>"0" for "InAnalysis"</li> <li>"1": for
+            "Active"</li> <li>"2": for "Inactive"</li> <li>"3": for
+            "Suspended"</li> </ul>
+          format: char
+          nullable: true
+          enum:
+            - '0'
+            - '1'
+            - '2'
+            - '3'
+        mccCode:
+          type: string
+          description: Merchant Category Code (MCC).
+          nullable: true
+        registrationDate:
+          type: string
+          description: The registration date of the merchant.
+          format: date-time
+          nullable: true
+        condition:
+          type: string
+          description: >-
+            It is the key in the Payment Condition Table, where are defined
+            payment plan rules. Check out
+            [here](/api/split-integration#payment-plans) how to define your
+            Payment Condition Table.
+          nullable: true
+        websiteUrl:
+          type: string
+          description: Website URL.
+          nullable: true
+        stateFiscalDocument:
+          type: string
+          description: >-
+            State fiscal document (pt-br: "Inscrição Estadual: recebe uma string
+            de números ou a string "ISENTO" quando não possuir inscrição
+            estadual.").
+          nullable: true
+        acceptedContract:
+          type: boolean
+          description: >-
+            A boolean to represent if the merchant has accepted the split
+            contract.
+          nullable: true
+        marketplaceStore:
+          type: boolean
+          description: Indicates if the merchant is a marketplace store.
+          nullable: true
+        multiStore:
+          type: boolean
+          description: Whether the merchant is multistore or not.
+          nullable: true
+        birthday:
+          type: string
+          description: Birthday in date format.
+          format: date
+          nullable: true
+        occupation:
+          type: string
+          description: >-
+            Profession or activity field, just required if the business is
+            performed by a person (pt-br: "Para profissionais liberais que
+            exercem atividade com CPF.").
+          nullable: true
+        motherName:
+          type: string
+          description: >-
+            A mother's name is just required if the business is performed by a
+            person.
+          nullable: true
+        pixKeyType:
+          type: string
+          description: >-
+            Possible values are: <ul><li>"1": for CPF</li> <li>"2": for
+            CNPJ</li> <li>"3": for Email</li> <li>"4": for Cellphone</li>
+            <li>"5": for Random Key</li> <li>"6": for Bank Account</li></ul>
+          format: char
+          nullable: true
+          enum:
+            - '1'
+            - '2'
+            - '3'
+            - '4'
+            - '5'
+            - '6'
+        pixKey:
+          type: string
+          description: >-
+            The merchant's PIX key value. It must be for the same **document
+            ID** registered.
+          nullable: true
+        contact:
+          type: object
+          description: Merchant's contact information.
+          nullable: true
+          properties:
+            name:
+              type: string
+              description: Full name.
+              nullable: true
+            email:
+              type: string
+              description: Email.
+              nullable: true
+            phone:
+              type: string
+              description: A string containing the phone number.
+              nullable: true
+            cellPhone:
+              type: string
+              description: A string containing the cellphone number.
+              nullable: true
+        legalRepresentative:
+          type: object
+          description: A person who legally represents the business.
+          nullable: true
+          properties:
+            name:
+              type: string
+              description: Full name.
+              nullable: true
+            document:
+              type: string
+              description: 'Document ID (pt-br: only type "CPF").'
+              nullable: true
+            birthday:
+              type: string
+              description: Birthday in date format.
+              format: date
+              nullable: true
+        bankAccounts:
+          type: array
+          description: >-
+            List of bank accounts associated with the merchant. Each bank
+            account must be registered with the business document (either "CPF"
+            or "CNPJ") used in the registration process.
+          nullable: true
+          items:
+            type: object
+            properties:
+              externalId:
+                type: string
+                description: Unique ID for the bank object.
+                nullable: true
+              document:
+                type: string
+                description: Merchant's document ID.
+                nullable: true
+              documentType:
+                type: string
+                description: >-
+                  Document ID type (pt-br: can be either "CPF" or "CNPJ"; can
+                  also be "SSN" or other types).
+                nullable: true
+                enum:
+                  - CNPJ
+                  - CPF
+              accountType:
+                type: string
+                description: >-
+                  The type of bank account in the banking system. Possible
+                  values are: <ul><li>"C" for Checking Account (pt-br:
+                  "Conta-Corrente")</li> <li>"S" for Savings Account (pt-br:
+                  "Poupança")</li> </ul>
+                format: char
+                enum:
+                  - C
+                  - S
+              bankCode:
+                type: string
+                description: >-
+                  String of numbers associated with the bank (pt-br: "Veja a
+                  lista completa no site do Banco Central do Brasil -
+                  https://www.bcb.gov.br/").
+                nullable: true
+              agency:
+                type: string
+                description: Agency number represented as a string.
+                nullable: true
+              number:
+                type: string
+                description: >-
+                  The bank account number is composed of the account number and
+                  digit separated by a dash (e.g., "3429-4").
+                nullable: true
+              bankName:
+                type: string
+                description: >-
+                  Name of the bank associated with the bank code - this field is
+                  just for description, i.e., not required.
+                nullable: true
+        address:
+          type: object
+          description: An object that contains the merchant address fields.
+          nullable: true
+          properties:
+            street:
+              type: string
+              description: Street name.
+              nullable: true
+            number:
+              type: string
+              description: Building number.
+              nullable: true
+            complement:
+              type: string
+              description: Address complement (e.g., apartment number).
+              nullable: true
+            neighborhood:
+              type: string
+              description: Neighborhood.
+              nullable: true
+            city:
+              type: string
+              description: City.
+              nullable: true
+            state:
+              type: string
+              description: State.
+              nullable: true
+            postalCode:
+              type: string
+              description: 'Postal code (pt-br: "CEP").'
+              nullable: true
+            phone:
+              type: string
+              description: A string containing the phone number.
+              nullable: true
+    RegisterResponseSchema:
+      type: object
+      properties: &ref_6
+        merchantId:
+          type: integer
+          description: Merchant's unique ID at Tuna.
+          format: int32
+        code:
+          type: integer
+          description: >-
+            Numeric code that states if the execution was successful or not.
+            Positive numbers mean success, negative numbers indicate failures.
+            Please refer to the [message code
+            table](/api/tuna-codes#message-code-list) for a detailed list of all
+            possible values.
+          format: int32
+        message:
+          type: object
+          description: An object that contains the message fields.
+          nullable: true
+          properties:
+            source:
+              type: integer
+              description: >-
+                It is used to track the source of the message. Possible values
+                are: <ol><li>"Engine"</li> <li>"AntiFraud"</li>
+                <li>"Gateway"</li> <li>"Customization"</li> </ol>
+              format: int32
+            code:
+              type: string
+              description: >-
+                Numeric code that states if the execution was successful or not.
+                Positive numbers mean success; negative numbers indicate
+                failures. Please refer to the [message code
+                table](/api/tuna-codes#message-code-list) for a detailed list of
+                all possible values.
+              nullable: true
+            message:
+              type: string
+              description: >-
+                A human readable message that gives details about what the code
+                means.
+              nullable: true
+            info:
+              type: string
+              description: >-
+                When available, info gives further information about the
+                execution of the process. This shouldn't matter for treating
+                this response but can help dig information afterward. For
+                example, it might contain internal messages from a payment
+                method.
+              nullable: true
+    GetMerchantRequestSchema:
+      type: object
+      properties: &ref_10
+        merchantID:
+          type: string
+          description: Your unique ID for the merchant.
+    GetMerchantSummaryRequestSchema:
+      type: object
+      properties: &ref_101
+        ExternalId:
+          type: string
+          description: Your unique ID for the merchant.
+    FlagsChangeRequestSchema:
+      type: object
+      properties: &ref_201
+        ExternalId:
+          type: string
+          description: Your unique ID for the merchant.
+        AutomaticPayOnWeekend:
+          type: boolean
+          description: Sets whether the merchant will receive payments on weekends and holidays automatically.
+    GetMerchantResponseSchema:
+      type: object
+      properties: &ref_14
+        merchant:
+          type: object
+          description: Details about a specific merchant.
+          nullable: true
+          properties:
+            id:
+              type: integer
+              description: Merchant's unique ID at Tuna.
+              format: int32
+            externalId:
+              type: string
+              description: Your unique ID for the merchant.
+              nullable: true
+            document:
+              type: string
+              description: Merchant's document ID.
+              nullable: true
+            documentType:
+              type: string
+              description: >-
+                Document ID type (pt-br: can be either "CPF" or "CNPJ"; can also
+                be "SSN" or other types).
+              nullable: true
+            name:
+              type: string
+              description: >-
+                The name of the person or legal business name (pt-br: "Razão
+                Social").
+              nullable: true
+            fantasyName:
+              type: string
+              description: 'Business fantasy name (pt-br: "Nome Fantasia").'
+              nullable: true
+            countryId:
+              type: integer
+              description: >-
+                Numeric code for the country where the financial transaction
+                occurs. The default value is 1 for Brazil.
+              format: int16
+              nullable: true
+            statusId:
+              type: string
+              description: >-
+                After a successful registration process, i.e., the status is "1"
+                which means "active", it is possible to either inactive or
+                suspend an account by sending an update message with its related
+                key values. Possible values are: <ul><li>"0" for
+                "InAnalysis"</li> <li>"1": for "Active"</li> <li>"2": for
+                "Inactive"</li> <li>"3": for "Suspended"</li> </ul>
+              format: char
+              nullable: true
+              enum:
+                - '0'
+                - '1'
+                - '2'
+                - '3'
+            mccCode:
+              type: string
+              description: Merchant Category Code (MCC).
+              nullable: true
+            registrationDate:
+              type: string
+              description: The registration date of the merchant at Tuna.
+              format: date
+              nullable: true
+            condition:
+              type: string
+              description: >-
+                It is the key in the Payment Condition Table, where are defined
+                payment plan rules. Check out
+                [here](/api/split-integration#payment-plans) how to define your
+                Payment Condition Table.
+              nullable: true
+            websiteUrl:
+              type: string
+              description: Website URL.
+              nullable: true
+            stateFiscalDocument:
+              type: string
+              description: >-
+                State fiscal document (pt-br: "Inscrição Estadual: recebe uma
+                string de números ou a string "ISENTO" quando não possuir
+                inscrição estadual.").
+              nullable: true
+            acceptedContract:
+              type: boolean
+              description: >-
+                A boolean to represent if the merchant has accepted the split
+                contract.
+              nullable: true
+            marketplaceStore:
+              type: boolean
+              description: Indicates if the merchant is a marketplace store.
+              nullable: true
+            multiStore:
+              type: boolean
+              description: Whether the merchant is multistore or not.
+              nullable: true
+            birthday:
+              type: string
+              description: Birthday in date format.
+              format: date
+              nullable: true
+            occupation:
+              type: string
+              description: >-
+                Profession or activity field, just required if the business is
+                performed by a person (pt-br: "Para profissionais liberais que
+                exercem atividade com CPF.").
+              nullable: true
+            motherName:
+              type: string
+              description: >-
+                A mother's name is just required if the business is performed by
+                a person.
+              nullable: true
+            pixKeyType:
+              type: string
+              description: >-
+                Possible values are: <ul><li>"1": for CPF</li> <li>"2": for
+                CNPJ</li> <li>"3": for Email</li> <li>"4": for Cellphone</li>
+                <li>"5": for Random Key</li> <li>"6": for Bank Account</li></ul>
+              format: char
+              nullable: true
+            pixKey:
+              type: string
+              description: >-
+                The merchant's PIX key value. It must be for the same **document
+                ID** registered.
+              nullable: true
+            contact:
+              type: object
+              description: Merchant's contact information.
+              nullable: true
+              properties:
+                name:
+                  type: string
+                  description: Full name.
+                  nullable: true
+                email:
+                  type: string
+                  description: Email.
+                  nullable: true
+                phone:
+                  type: string
+                  description: A string containing the phone number.
+                  nullable: true
+                cellPhone:
+                  type: string
+                  description: A string containing the cellphone number.
+                  nullable: true
+            legalRepresentative:
+              type: object
+              description: A person who legally represents the business.
+              nullable: true
+              properties:
+                name:
+                  type: string
+                  description: Full name.
+                  nullable: true
+                document:
+                  type: string
+                  description: 'Document ID (pt-br: only type "CPF").'
+                  nullable: true
+                birthday:
+                  type: string
+                  description: Birthday in date format.
+                  format: date
+                  nullable: true
+            bankAccounts:
+              type: array
+              description: >-
+                List of bank accounts associated with the merchant. Each bank
+                account must be registered with the business document (either
+                "CPF" or "CNPJ") used in the registration process.
+              nullable: true
+              items:
+                type: object
+                properties:
+                  externalId:
+                    type: string
+                    description: Unique ID for the bank object.
+                    nullable: true
+                  document:
+                    type: string
+                    description: Merchant's document ID.
+                    nullable: true
+                  documentType:
+                    type: string
+                    description: >-
+                      Document ID type (pt-br: can be either "CPF" or "CNPJ";
+                      can also be "SSN" or other types).
+                    nullable: true
+                  accountType:
+                    type: string
+                    description: >-
+                      The type of bank account in the banking system. Possible
+                      values are: <ul><li>"C" for Checking Account (pt-br:
+                      "Conta-Corrente")</li> <li>"S" for Savings Account (pt-br:
+                      "Poupança")</li> </ul>
+                    format: char
+                    enum:
+                      - C
+                      - S
+                  bankCode:
+                    type: string
+                    description: >-
+                      String of numbers associated with the bank (pt-br: "Veja a
+                      lista completa no site do Banco Central do Brasil -
+                      https://www.bcb.gov.br/").
+                    nullable: true
+                  agency:
+                    type: string
+                    description: Agency number represented as a string.
+                    nullable: true
+                  number:
+                    type: string
+                    description: >-
+                      The bank account number is composed of the account number
+                      and digit separated by a dash (e.g., "3429-4").
+                    nullable: true
+                  bankName:
+                    type: string
+                    description: >-
+                      Name of the bank associated with the bank code - this
+                      field is just for description, i.e., not required.
+                    nullable: true
+            address:
+              type: object
+              description: An object that contains the merchant address fields.
+              nullable: true
+              properties:
+                street:
+                  type: string
+                  description: Street name.
+                  nullable: true
+                number:
+                  type: string
+                  description: Building number.
+                  nullable: true
+                complement:
+                  type: string
+                  description: Address complement (e.g., apartment number).
+                  nullable: true
+                neighborhood:
+                  type: string
+                  description: Neighborhood.
+                  nullable: true
+                city:
+                  type: string
+                  description: City.
+                  nullable: true
+                state:
+                  type: string
+                  description: State.
+                  nullable: true
+                country:
+                  type: string
+                  description: Country.
+                  nullable: true
+                postalCode:
+                  type: string
+                  description: 'Postal code (pt-br: "CEP").'
+                  nullable: true
+                phone:
+                  type: string
+                  description: A string containing the phone number.
+                  nullable: true
+        code:
+          type: integer
+          description: >-
+            Numeric code that states if the execution was successful or not.
+            Positive numbers mean success, negative numbers indicate failures.
+            Please refer to the [message code
+            table](/api/tuna-codes#message-code-list) for a detailed list of all
+            possible values.
+          format: int32
+    FlagsChangeResponseSchema:
+      type: object
+      properties: &ref_244        
+            merchantId:
+              type: integer
+              description: Tuna's merchant id.
+              format: int32
+            code:
+              type: integer
+              description: >-
+                Numeric code that states if the execution was successful or not.
+                Positive numbers mean success, negative numbers indicate failures.
+                Please refer to the [message code
+                table](/api/tuna-codes#message-code-list) for a detailed list of all
+                possible values.
+              format: int32
+            message:
+              type: object
+              description: An object that contains the message fields.
+              nullable: true
+              properties:
+                source:
+                  type: integer
+                  description: >-
+                    It is used to track the source of the message.
+                  format: int32               
+                message:
+                  type: string
+                  description: >-
+                    A human readable message that gives details about what the code
+                    means.
+                  nullable: true            
+    GetMerchantSummaryResponseSchema:
+      type: object
+      properties: &ref_144        
+            IntransitAmount:
+              type: number
+              description: Sum of the amount of the orders pending delivery.
+              format: double
+            PendingBalance:
+              type: number
+              description: Merchant's balance including current and future receivables.
+              format: double
+            AvailableBalance:
+              type: number
+              description: Merchant's available balance today.
+              format: double
+            CanWithdraw:
+              type: boolean
+              description: Whether the merchant can do on demand withdrawals.
+              nullable: true
+            MerchantBlocked:
+              type: boolean
+              description: Whether the merchant is blocked.
+              nullable: true
+            PayoutInProcess:
+              type: boolean
+              description: Whether the merchant has a payout in progress.
+              nullable: true
+            AccumulatesReceivables:
+              type: boolean
+              description: Whether the merchant receives payments automatically or accumulates balance.
+              nullable: true
+            PayOnWeekend:
+              type: boolean
+              description: Whether the merchant can rereive payments at weekends and holidays.
+              nullable: true
+            PayoutErrorToday:
+              type: boolean
+              description: Trus when there is an error at the merchant's payout of the current day.
+              nullable: true
+            AutomaticPayOnWeekend:
+              type: boolean
+              description: Whether the merchant receives payments automatically on weekends and holidays.
+              nullable: true
+            PayoutFee:
+              type: number
+              description: Fee charged for automatic transfers during weekdays.
+              format: double
+            PayoutFeeWithdraw:
+              type: number
+              description: Fee charged for manual(on demand) transfers.
+              format: double
+            PayoutFeeWeekend:
+              type: number
+              description: Fee charged for automatic transfers during weekends and holidays.
+              format: double
+    GetMerchantListRequestSchema:
+      type: object
+      properties: &ref_18
+        externalId:
+          type: string
+          description: Your unique ID for the merchant.
+        fantasyName:
+          type: string
+          description: 'Business fantasy name (pt-br: "Nome Fantasia").'
+        rowsPerPage:
+          type: integer
+          description: The maximum number of objects to be returned is between 1 and 200.
+          format: int32
+        pageNumber:
+          type: integer
+          description: >-
+            The current page number for the results in the API call. This
+            property is used for pagination control. In the response object, the
+            property **TotalPages** value gives the maximum number of pages.
+          format: int32
+    GetMerchantListResponseSchema:
+      type: object
+      properties: &ref_21
+        total:
+          type: integer
+          description: The total count of merchants in the query.
+          format: int32
+        merchantList:
+          type: array
+          description: List with all your merchants.
+          nullable: true
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: Merchant's unique ID at Tuna.
+                format: int32
+              externalId:
+                type: string
+                description: Your unique ID for the merchant.
+                nullable: true
+              document:
+                type: string
+                description: Merchant's document ID.
+                nullable: true
+              documentType:
+                type: string
+                description: >-
+                  Document ID type (pt-br: can be either "CPF" or "CNPJ"; can
+                  also be "SSN" or other types).
+                nullable: true
+              name:
+                type: string
+                description: >-
+                  The name of the person or legal business name (pt-br: "Razão
+                  Social").
+                nullable: true
+              fantasyName:
+                type: string
+                description: 'Business fantasy name (pt-br: "Nome Fantasia").'
+                nullable: true
+              countryId:
+                type: integer
+                description: >-
+                  Numeric code for the country where the financial transaction
+                  occurs. The default value is 1 for Brazil.
+                format: int16
+                nullable: true
+              statusId:
+                type: string
+                description: >-
+                  After a successful registration process, i.e., the status is
+                  "1" which means "active", it is possible to either inactive or
+                  suspend an account by sending an update message with its
+                  related key values. Possible values are: <ul><li>"0" for
+                  "InAnalysis"</li> <li>"1": for "Active"</li> <li>"2": for
+                  "Inactive"</li> <li>"3": for "Suspended"</li> </ul>
+                format: char
+                nullable: true
+                enum:
+                  - '0'
+                  - '1'
+                  - '2'
+                  - '3'
+              mccCode:
+                type: string
+                description: Merchant Category Code (MCC).
+                nullable: true
+              registrationDate:
+                type: string
+                description: The registration date of the merchant at Tuna.
+                format: date
+                nullable: true
+              condition:
+                type: string
+                description: >-
+                  It is the key in the Payment Condition Table, where are
+                  defined payment plan rules. Check out
+                  [here](/api/split-integration#payment-plans) how to define
+                  your Payment Condition Table.
+                nullable: true
+              websiteUrl:
+                type: string
+                description: Website URL.
+                nullable: true
+              stateFiscalDocument:
+                type: string
+                description: >-
+                  State fiscal document (pt-br: "Inscrição Estadual: recebe uma
+                  string de números ou a string "ISENTO" quando não possuir
+                  inscrição estadual.").
+                nullable: true
+              acceptedContract:
+                type: boolean
+                description: >-
+                  A boolean to represent if the merchant has accepted the split
+                  contract.
+                nullable: true
+              marketplaceStore:
+                type: boolean
+                description: Indicates if the merchant is a marketplace store.
+                nullable: true
+              multiStore:
+                type: boolean
+                description: Whether the merchant is multistore or not.
+                nullable: true
+              birthday:
+                type: string
+                description: Birthday in date format.
+                format: date
+                nullable: true
+              occupation:
+                type: string
+                description: >-
+                  Profession or activity field, just required if the business is
+                  performed by a person (pt-br: "Para profissionais liberais que
+                  exercem atividade com CPF.").
+                nullable: true
+              motherName:
+                type: string
+                description: >-
+                  A mother's name is just required if the business is performed
+                  by a person.
+                nullable: true
+              pixKeyType:
+                type: string
+                description: >-
+                  Possible values are: <ul><li>"1": for CPF</li> <li>"2": for
+                  CNPJ</li> <li>"3": for Email</li> <li>"4": for Cellphone</li>
+                  <li>"5": for Random Key</li> <li>"6": for Bank Account</li> </ul>
+                format: char
+                nullable: true
+              pixKey:
+                type: string
+                description: >-
+                  The merchant's PIX key value. It must be for the same
+                  **document ID** registered.
+                nullable: true
+              contact:
+                type: object
+                description: Merchant's contact information.
+                nullable: true
+                properties:
+                  name:
+                    type: string
+                    description: Full name.
+                    nullable: true
+                  email:
+                    type: string
+                    description: Email.
+                    nullable: true
+                  phone:
+                    type: string
+                    description: A string containing the phone number.
+                    nullable: true
+                  celPhone:
+                    type: string
+                    description: A string containing the cellphone number.
+                    nullable: true
+              legalRepresentative:
+                type: object
+                description: A person who legally represents the business.
+                nullable: true
+                properties:
+                  name:
+                    type: string
+                    description: Full name.
+                    nullable: true
+                  document:
+                    type: string
+                    description: 'Document ID (pt-br: only type "CPF").'
+                    nullable: true
+                  birthday:
+                    type: string
+                    description: Birthday in date format.
+                    format: date
+                    nullable: true
+              bankAccounts:
+                type: array
+                description: >-
+                  List of bank accounts associated with the merchant. Each bank
+                  account must be registered with the business document (either
+                  "CPF" or "CNPJ") used in the registration process.
+                nullable: true
+                items:
+                  type: object
+                  properties:
+                    externalId:
+                      type: string
+                      description: Unique ID for the bank object.
+                      nullable: true
+                    document:
+                      type: string
+                      description: Merchant's document ID.
+                      nullable: true
+                    documentType:
+                      type: string
+                      description: >-
+                        Document ID type (pt-br: can be either "CPF" or "CNPJ";
+                        can also be "SSN" or other types).
+                      nullable: true
+                    accountType:
+                      type: string
+                      description: >-
+                        The type of bank account in the banking system. Possible
+                        values are: <ul><li>"C" for Checking Account (pt-br:
+                        "Conta-Corrente")</li> <li>"S" for Savings Account
+                        (pt-br: "Poupança")</li> </ul>
+                      format: char
+                      enum:
+                        - C
+                        - S
+                    bankCode:
+                      type: string
+                      description: >-
+                        String of numbers associated with the bank (pt-br: "Veja
+                        a lista completa no site do Banco Central do Brasil -
+                        https://www.bcb.gov.br/").
+                      nullable: true
+                    agency:
+                      type: string
+                      description: Agency number represented as a string.
+                      nullable: true
+                    number:
+                      type: string
+                      description: >-
+                        The bank account number is composed of the account
+                        number and digit separated by a dash (e.g., "3429-4").
+                      nullable: true
+                    bankName:
+                      type: string
+                      description: >-
+                        Name of the bank associated with the bank code - this
+                        field is just for description, i.e., not required.
+                      nullable: true
+              address:
+                type: object
+                description: An object that contains the merchant address fields.
+                nullable: true
+                properties:
+                  street:
+                    type: string
+                    description: Street name.
+                    nullable: true
+                  number:
+                    type: string
+                    description: Building number.
+                    nullable: true
+                  complement:
+                    type: string
+                    description: Address complement (e.g., apartment number).
+                    nullable: true
+                  neighborhood:
+                    type: string
+                    description: Neighborhood.
+                    nullable: true
+                  city:
+                    type: string
+                    description: City.
+                    nullable: true
+                  state:
+                    type: string
+                    description: State.
+                    nullable: true
+                  country:
+                    type: string
+                    description: Country.
+                    nullable: true
+                  postalCode:
+                    type: string
+                    description: 'Postal code (pt-br: "CEP").'
+                    nullable: true
+                  phone:
+                    type: string
+                    description: A string containing the phone number.
+                    nullable: true
+        code:
+          type: integer
+          description: >-
+            Numeric code that states if the execution was successful or not.
+            Positive numbers mean success, negative numbers indicate failures.
+            Please refer to the [message code
+            table](/api/tuna-codes#message-code-list) for a detailed list of all
+            possible values.
+          format: int32
+    TransactionsRequestSchema:
+      type: object
+      properties: &ref_24
+        dateFrom:
+          type: string
+          description: The date that search results will start from.
+          format: date
+        dateTo:
+          type: string
+          description: The date that search results will end.
+          format: date
+        dateSortAsc:
+          type: boolean
+          description: Sort results, **true** for ascending and **false** for descending.
+          nullable: true
+        pageSize:
+          type: integer
+          description: The maximum number of objects to be returned is between 1 and 200.
+          format: int32
+          nullable: true
+        pageNumber:
+          type: integer
+          description: >-
+            The current page number for the results in the API call. This
+            property is used for pagination control. In the response object, the
+            property **TotalPages** value gives the maximum number of pages.
+          format: int32
+          nullable: true
+        merchantID:
+          type: string
+          description: Your unique ID for the merchant.
+          nullable: true
+        paymentStatusId:
+          type: string
+          description: >-
+            The overall status of a payment. Please refer to the [payment status
+            reference table](/api/tuna-codes#payment-status).
+          format: char
+          nullable: true
+        paymentMethodTypeId:
+          type: string
+          description: >-
+            A code that indicates the type of payment method. Possible values
+            are found at [payment methods reference
+            table](/api/tuna-codes#payment-methods).
+          format: char
+          nullable: true
+    TransactionsResponseSchema:
+      type: object
+      properties: &ref_28
+        totalCount:
+          type: integer
+          description: The total count of transactions in the query.
+          format: int32
+        totalPages:
+          type: integer
+          description: >-
+            The maximum number of pages in the results. This property is used
+            for pagination control along with **PageNumber**.
+          format: int32
+        totalAmount:
+          type: number
+          description: The total amount for valid transactions in the query.
+          format: double
+        transactions:
+          type: array
+          description: List of transactions.
+          nullable: true
+          items:
+            type: object
+            properties:
+              paymentId:
+                type: integer
+                description: >-
+                  The unique ID for the transaction generated by the payment
+                  gateway. In order to request a transaction's status, you must
+                  either include the ID from the client platform, OR the ID from
+                  the payment gateway. If you provide both and they correspond
+                  to different transactions, an error will result.
+                format: int32
+              partnerUniqueId:
+                type: string
+                description: Your unique ID for the order. It is used to track the order.
+                nullable: true
+              customerEmail:
+                type: string
+                description: Email.
+                nullable: true
+              paymentDate:
+                type: string
+                description: The datetime of the payment.
+                format: date-time
+              amount:
+                type: number
+                description: The total value paid by the payment method.
+                format: double
+              paymentStatus:
+                type: string
+                description: >-
+                  The status of the payment method. Please refer to the [payment
+                  method status table](/api/tuna-codes#payment-method-status).
+                nullable: true
+              paymentMethodType:
+                type: string
+                description: >-
+                  A string that indicates the type of payment method. Possible
+                  values are found at [payment methods reference
+                  table](/api/tuna-codes#payment-methods).
+                nullable: true
+              totalCount:
+                type: integer
+                description: The total count of transactions in the query.
+                format: int32
+              totalAmount:
+                type: number
+                description: The total amount for valid transactions in the query.
+                format: double
+              paymentMethodTypeId:
+                type: string
+                description: >-
+                  A code that indicates the type of payment method. Possible
+                  values are found at [payment methods reference
+                  table](/api/tuna-codes#payment-methods).
+                format: char
+                nullable: true
+              cardBrandId:
+                type: integer
+                description: >-
+                  The brand identifier is related to the brand name of the
+                  credit card. It can be accordingly to the table below:
+                  <ul><li>1: MasterCard</li> <li>2: VISA</li> <li>3: Amex</li>
+                  <li>4: DinersClub</li> <li>5: Elo</li> <li>6: Hipercard</li>
+                  <li>7: Alelo</li> <li>8: PrivateLabel</li> <li>9:
+                  GiftCard</li> <li>10: Voucher</li> <li>11: Cabal</li> <li>12:
+                  Banescard</li> <li>13: JCB</li> <li>14: Mais</li> <li>15:
+                  Ourocard</li> <li>16: Sorocred</li> <li>17: Verdecard</li>
+                  <li>18: Credz</li> <li>19: Goodcard</li> </ul>
+                format: int16
+                nullable: true
+              cardBrandName:
+                type: string
+                description: >-
+                  The brand name of the credit card. For a complete reference,
+                  please, look at the table within the description of the
+                  property **cardBrandId**.'
+                nullable: true
+        code:
+          type: integer
+          description: >-
+            Numeric code that states if the execution was successful or not.
+            Positive numbers mean success, negative numbers indicate failures.
+            Please refer to the [message code
+            table](/api/tuna-codes#message-code-list) for a detailed list of all
+            possible values.
+          format: int32
+        message:
+          type: object
+          description: An object that contains the message fields.
+          nullable: true
+          properties:
+            source:
+              type: integer
+              description: >-
+                It is used to track the source of the message. Possible values
+                are: <ol><li>"Engine"</li> <li>"AntiFraud"</li>
+                <li>"Gateway"</li> <li>"Customization"</li> </ol>
+              format: int32
+            code:
+              type: string
+              description: >-
+                Numeric code that states if the execution was successful or not.
+                Positive numbers mean success; negative numbers indicate
+                failures. Please refer to the [message code
+                table](/api/tuna-codes#message-code-list) for a detailed list of
+                all possible values.
+              nullable: true
+            message:
+              type: string
+              description: >-
+                A human readable message that gives details about what the code
+                means.
+              nullable: true
+            info:
+              type: string
+              description: >-
+                When available, info gives further information about the
+                execution of the process. This shouldn't matter for treating
+                this response but can help dig information afterward. For
+                example, it might contain internal messages from a payment
+                method.
+              nullable: true
+        externalId:
+          type: string
+          description: Your unique ID for the merchant.
+          nullable: true
+    StatementRequestSchema:
+      type: object
+      properties: &ref_30
+        merchantID:
+          type: string
+          description: Your unique ID for the merchant.
+          nullable: true
+        dateFrom:
+          type: string
+          description: The date that search results will start from.
+          format: date
+          nullable: true
+        dateTo:
+          type: string
+          description: The date that search results will end.
+          format: date
+          nullable: true
+        pageSize:
+          type: integer
+          description: The maximum number of objects to be returned is between 1 and 200.
+          format: int32
+          nullable: true
+        pageNumber:
+          type: integer
+          description: >-
+            The current page number for the results in the API call. This
+            property is used for pagination control. In the response object, the
+            property **TotalPages** value gives the maximum number of pages.
+          format: int32
+          nullable: true
+        serviceId:
+          type: integer
+          description: >-
+            The split service identifier. For a complete reference, please, look
+            at the table within the description of the property **serviceName**.
+          format: int16
+          nullable: true
+        serviceName:
+          type: string
+          description: >-
+            The split service name that you will receive your incoming money
+            transfers. It can be accordingly to the table below: <ul><li>40:
+            Tuna Split para PIX</li> <li>41: Tuna Split para Cartão</li> <li>36:
+            GetNetSplit (you may change this name in your console).</li></ul>
+          nullable: true
+    StatementResponseSchema:
+      type: object
+      properties: &ref_32
+        statement:
+          type: array
+          description: List of statements.
+          nullable: true
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                description: The datetime for the related payment transaction.
+                format: date-time
+              id:
+                type: string
+                description: The unique payment ID.
+                nullable: true
+              orderId:
+                type: string
+                description: The unique order (transaction) ID.
+                nullable: true
+              type:
+                type: string
+                description: The nature of the financial operation.
+                nullable: true
+                enum:
+                  - transaction
+                  - commission
+                  - adjustment
+                  - chargeback
+              amount:
+                type: number
+                description: The amount for the related payment transaction.
+                format: double
+              sellerAmount:
+                type: number
+                description: The amount for the seller due to split rules.
+                format: double
+              sign:
+                type: string
+                description: >-
+                  The operation sign can be either "+" for incoming or "-"
+                  negative for revenues.
+                nullable: true
+              description:
+                type: string
+                description: Transaction description or notes.
+                nullable: true
+              statusPayout:
+                type: string
+                description: Status of the payout settlement.
+                nullable: true
+                enum:
+                  - Scheduled
+                  - Settled
+                  - Error
+                  - Manual Analysis
+                  - Blocked
+                  - Canceled
+              transactionDate:
+                type: string
+                description: The original transaction date and time.
+                format: date-time
+                nullable: true
+              scheduleDate:
+                type: string
+                description: The scheduled date and time for payout settlement.
+                format: date-time
+                nullable: true
+              payoutDate:
+                type: string
+                description: The actual date and time when the payout was settled.
+                format: date-time
+                nullable: true
+              payoutError:
+                type: string
+                description: Error message if the payout failed.
+                nullable: true
+              paymentMethodTypeID:
+                type: string
+                description: >-
+                  Payment method type ID. Possible values: 1=Credit Card, 3=Boleto, 9=External, C=Credit Card Private Brand, D=Pix, E=Crypto, G=WalletCredit, H=WalletDebit, I=BNPL.
+                nullable: true
+              paymentMethodTypeName:
+                type: string
+                description: Payment method type name (e.g., Credit Card, Boleto, Pix).
+                nullable: true
+              cardBrandID:
+                type: integer
+                description: Card brand identifier (e.g., 2 for Visa).
+                format: int16
+                nullable: true
+              captureDate:
+                type: string
+                description: The date and time when the transaction was captured.
+                format: date-time
+                nullable: true
+              referenceId:
+                type: string
+                description: Reference ID for the transaction.
+                nullable: true
+        totalPages:
+          type: integer
+          description: >-
+            The maximum number of pages in the results. This property is used
+            for pagination control along with **PageNumber**.
+          format: int32
+          nullable: true
+        pageNumber:
+          type: integer
+          description: >-
+            The current page number for the results in the API call. This
+            property is used for pagination control. In the response object, the
+            property **TotalPages** value gives the maximum number of pages.
+          format: int32
+          nullable: true
+        code:
+          type: integer
+          description: >-
+            Numeric code that states if the execution was successful or not.
+            Positive numbers mean success, negative numbers indicate failures.
+            Please refer to the [message code
+            table](/api/tuna-codes#message-code-list) for a detailed list of all
+            possible values.
+          format: int32
+        message:
+          type: object
+          description: An object that contains the message fields.
+          nullable: true
+          properties:
+            source:
+              type: integer
+              description: >-
+                It is used to track the source of the message. Possible values
+                are: <ol><li>"Engine"</li> <li>"AntiFraud"</li>
+                <li>"Gateway"</li> <li>"Customization"</li> </ol>
+              format: int32
+            code:
+              type: string
+              description: >-
+                Numeric code that states if the execution was successful or not.
+                Positive numbers mean success; negative numbers indicate
+                failures. Please refer to the [message code
+                table](/api/tuna-codes#message-code-list) for a detailed list of
+                all possible values.
+              nullable: true
+            message:
+              type: string
+              description: >-
+                A human readable message that gives details about what the code
+                means.
+              nullable: true
+            info:
+              type: string
+              description: >-
+                When available, info gives further information about the
+                execution of the process. This shouldn't matter for treating
+                this response but can help dig information afterward. For
+                example, it might contain internal messages from a payment
+                method.
+              nullable: true
+        externalId:
+          type: string
+          description: Your unique ID for the merchant.
+          nullable: true
+    ConsolidatedStatementRequestSchema:
+      type: object
+      properties: &ref_34
+        merchantID:
+          type: string
+          description: Your unique ID for the merchant.
+          nullable: true
+        dateFrom:
+          type: string
+          description: The date that search results will start from.
+          format: date-time
+          nullable: true
+        dateTo:
+          type: string
+          description: The date that search results will end.
+          format: date-time
+          nullable: true
+    GetScheduleListRequestSchema:
+      type: object
+      properties: &ref_300
+        merchantId:
+          type: string
+          description: Your unique ID for the merchant.
+        rowsPerPage:
+          type: integer
+          description: The maximum number of objects to be returned per page. Default is 10.
+          format: int32
+        pageNumber:
+          type: integer
+          description: >-
+            The current page number for the results in the API call. Used for
+            pagination control. Default is 1.
+          format: int32
+        statusId:
+          type: string
+          description: >-
+            Filter schedules by status ID. Possible values: S=Scheduled,
+            L=Settled, E=Error, M=Manual Analysis, B=Blocked, C=Canceled.
+          format: char
+          nullable: true
+          enum:
+            - S
+            - L
+            - E
+            - M
+            - B
+            - C
+        scheduleTypeId:
+          type: string
+          description: >-
+            Filter schedules by type ID. Possible values: S=Seller,
+            P=Partner (Marketplace), F=Financial Contract.
+          format: char
+          nullable: true
+          enum:
+            - S
+            - P
+            - F
+        payoutId:
+          type: integer
+          description: Filter by a specific payout ID.
+          format: int16
+          nullable: true
+        payoutDate:
+          type: string
+          description: Filter by payout date.
+          format: date-time
+          nullable: true
+        startDate:
+          type: string
+          description: The start date of the schedule search range.
+          format: date-time
+        endDate:
+          type: string
+          description: The end date of the schedule search range.
+          format: date-time
+    GetScheduleListResponseSchema:
+      type: object
+      properties: &ref_310
+        total:
+          type: integer
+          description: The total count of schedules in the query.
+          format: int32
+        scheduleList:
+          type: array
+          description: List of schedules.
+          nullable: true
+          items:
+            type: object
+            properties:
+              scheduleID:
+                type: integer
+                description: Unique ID of the schedule entry.
+                format: int32
+              merchantID:
+                type: integer
+                description: Merchant's unique ID at Tuna.
+                format: int32
+              externalID:
+                type: string
+                description: Your unique ID for the merchant.
+                nullable: true
+              scheduleDate:
+                type: string
+                description: The scheduled date for the payout.
+                format: date-time
+                nullable: true
+              amount:
+                type: number
+                description: The scheduled amount.
+                format: double
+              scheduleTypeID:
+                type: string
+                description: >-
+                  Type of the schedule entry. Possible values:
+                  <ul><li>S: Seller</li><li>P: Partner (Marketplace)</li><li>F: Financial Contract</li></ul>
+                nullable: true
+                enum:
+                  - S
+                  - P
+                  - F
+              scheduleStatusID:
+                type: string
+                description: >-
+                  Status of the schedule entry. Possible values:
+                  <ul><li>S: Scheduled</li><li>L: Settled</li><li>E: Error</li><li>M: Manual Analysis</li><li>B: Blocked</li><li>C: Canceled</li></ul>
+                nullable: true
+                enum:
+                  - S
+                  - L
+                  - E
+                  - M
+                  - B
+                  - C
+              scheduleTypeName:
+                type: string
+                description: Human-readable schedule type name.
+                nullable: true
+              scheduleStatusName:
+                type: string
+                description: Human-readable schedule status name.
+                nullable: true
+              sentToPayout:
+                type: boolean
+                description: Whether this schedule has been sent to payout.
+                nullable: true
+              settlementDate:
+                type: string
+                description: The actual settlement date.
+                format: date-time
+                nullable: true
+              cardBrandId:
+                type: integer
+                description: Card brand identifier.
+                format: int16
+                nullable: true
+              cardBrand:
+                type: string
+                description: Card brand name.
+                nullable: true
+              waitingPayoutRequirement:
+                type: boolean
+                description: Whether the schedule is waiting on a payout requirement.
+                nullable: true
+              bankAccount:
+                type: object
+                description: Bank account associated with this schedule.
+                nullable: true
+                properties:
+                  pixKeyTypeId:
+                    type: string
+                    description: PIX key type ID.
+                    format: char
+                    nullable: true
+                  pixKey:
+                    type: string
+                    description: PIX key value.
+                    nullable: true
+                  bankName:
+                    type: string
+                    description: Bank name.
+                    nullable: true
+                  bankCode:
+                    type: string
+                    description: Bank code.
+                    nullable: true
+                  bankCode2:
+                    type: string
+                    description: Secondary bank code.
+                    nullable: true
+                  bankAccountTypeId:
+                    type: string
+                    description: Bank account type (C=Checking, S=Savings).
+                    format: char
+                    nullable: true
+                  agencyNumber:
+                    type: string
+                    description: Bank agency number.
+                    nullable: true
+                  accountNumber:
+                    type: string
+                    description: Bank account number.
+                    nullable: true
+                  legalDocumentType:
+                    type: string
+                    description: Legal document type (e.g., CPF, CNPJ).
+                    nullable: true
+                  legalDocument:
+                    type: string
+                    description: Legal document number.
+                    nullable: true
+                  accountName:
+                    type: string
+                    description: Name of the account holder.
+                    nullable: true
+              recipient:
+                type: object
+                description: Recipient details for this schedule.
+                nullable: true
+                properties:
+                  name:
+                    type: string
+                    description: Recipient full name.
+                    nullable: true
+                  fantasyName:
+                    type: string
+                    description: Recipient fantasy name.
+                    nullable: true
+                  legalDocumentType:
+                    type: string
+                    description: Legal document type (e.g., CPF, CNPJ).
+                    nullable: true
+                  legalDocument:
+                    type: string
+                    description: Legal document number.
+                    nullable: true
+              payout:
+                type: object
+                description: Payout details associated with this schedule.
+                nullable: true
+                properties:
+                  payoutID:
+                    type: integer
+                    description: Unique payout ID.
+                    format: int32
+                    nullable: true
+                  payoutDate:
+                    type: string
+                    description: Date and time the payout was processed.
+                    format: date-time
+                    nullable: true
+                  payoutMessage:
+                    type: string
+                    description: Message or notes from the payout processor.
+                    nullable: true
+                  payoutStatusId:
+                    type: string
+                    description: Payout status identifier.
+                    format: char
+                    nullable: true
+                  payoutStatusName:
+                    type: string
+                    description: Human-readable payout status name.
+                    nullable: true
+                  grossAmount:
+                    type: number
+                    description: Gross payout amount before fees.
+                    format: double
+                    nullable: true
+                  payoutFee:
+                    type: number
+                    description: Fee charged for this payout.
+                    format: double
+                    nullable: true
+                  netAmount:
+                    type: number
+                    description: Net payout amount after fees.
+                    format: double
+                    nullable: true
+                  transactionId:
+                    type: string
+                    description: External transaction identifier.
+                    nullable: true
+                  payoutTypeId:
+                    type: integer
+                    description: Payout type identifier.
+                    format: int16
+                    nullable: true
+                  payoutTypeName:
+                    type: string
+                    description: Human-readable payout type name.
+                    nullable: true
+              payer:
+                type: object
+                description: Payer details for the payout.
+                nullable: true
+                properties:
+                  payerName:
+                    type: string
+                    description: Name of the payer.
+                    nullable: true
+                  payerDocumentType:
+                    type: string
+                    description: Payer document type.
+                    nullable: true
+                  payerDocument:
+                    type: string
+                    description: Payer document number.
+                    nullable: true
+                  payerBankNumber:
+                    type: string
+                    description: Payer bank code.
+                    nullable: true
+                  payerBankName:
+                    type: string
+                    description: Payer bank name.
+                    nullable: true
+                  payerBankAgency:
+                    type: string
+                    description: Payer bank agency.
+                    nullable: true
+                  payerBankAccountNumber:
+                    type: string
+                    description: Payer bank account number.
+                    nullable: true
+                  comprovante:
+                    type: string
+                    description: Payment receipt reference.
+                    nullable: true
+              financialContract:
+                type: object
+                description: Financial contract (receivable) details linked to this schedule.
+                nullable: true
+                properties:
+                  legalDocument:
+                    type: integer
+                    description: Legal document number of the contract holder.
+                    format: int64
+                    nullable: true
+                  cardBrandId:
+                    type: integer
+                    description: Card brand identifier for the receivable.
+                    format: int16
+                    nullable: true
+                  effectType:
+                    type: string
+                    description: Effect type of the financial contract.
+                    format: char
+                    nullable: true
+                  bankCode:
+                    type: string
+                    description: Bank code for the contract.
+                    nullable: true
+                  accountTypeId:
+                    type: string
+                    description: Account type identifier.
+                    format: char
+                    nullable: true
+                  agency:
+                    type: string
+                    description: Bank agency for the contract.
+                    nullable: true
+                  account:
+                    type: string
+                    description: Bank account for the contract.
+                    nullable: true
+                  createdDate:
+                    type: string
+                    description: Date the financial contract was created.
+                    format: date-time
+                    nullable: true
+                  beneficiaryLegalDocument:
+                    type: integer
+                    description: Legal document of the beneficiary.
+                    format: int64
+                    nullable: true
+        code:
+          type: integer
+          description: >-
+            Numeric code that states if the execution was successful or not.
+            Positive numbers mean success, negative numbers indicate failures.
+            Please refer to the [message code
+            table](/api/tuna-codes#message-code-list) for a detailed list of all
+            possible values.
+          format: int32
+    ConsolidatedStatementResponseSchema:
+      type: object
+      properties: &ref_36
+        todayAmount:
+          type: number
+          description: The amount to be received today.
+          format: double
+          nullable: true
+        futureAmount:
+          type: number
+          description: The confirmed amount to be received in the next days.
+          format: double
+          nullable: true
+        pendingAmount:
+          type: number
+          description: >-
+            The amount from pending transactions, i.e., waiting to change the
+            status (e.g. cancelations and in analysis).
+          format: double
+          nullable: true
+        doneAmount:
+          type: number
+          description: Amount settled in the applicable period.
+          format: double
+          nullable: true
+  securitySchemes:
+    Account:
+      type: apiKey
+      in: header
+      name: x-tuna-account
+    AppToken:
+      type: apiKey
+      in: header
+      name: x-tuna-apptoken
+  examples:
+    RegisterRequestTemplate:
+      summary: Example Template
+      value: &ref_1
+        externalId: string
+        document: string
+        documentType: string
+        name: string
+        fantasyName: string
+        countryId: int16
+        statusId: char
+        mccCode: string
+        registrationDate: date-time
+        condition: string
+        websiteUrl: string
+        stateFiscalDocument: string
+        acceptedContract: boolean
+        marketplaceStore: boolean
+        multiStore: boolean
+        birthday: date
+        occupation: string
+        motherName: string
+        pixKeyType: char
+        pixKey: string
+        contact:
+          name: string
+          email: string
+          phone: string
+          cellPhone: string
+        legalRepresentative:
+          name: string
+          document: string
+          birthday: date
+        bankAccounts:
+          - externalId: string
+            document: string
+            documentType: string
+            accountType: char
+            bankCode: string
+            agency: string
+            number: string
+            bankName: string
+        address:
+          street: string
+          number: string
+          complement: string
+          neighborhood: string
+          city: string
+          state: string
+          postalCode: string
+          phone: string
+    RegisterRequestRegistrationMinimalPF:
+      summary: Registration PF (Minimal)
+      value: &ref_2
+        externalId: '##001'
+        document: 757.305.680-02
+        documentType: CPF
+        condition: '1'
+        acceptedContract: true
+        websiteUrl: www.synapcom.com.br
+        name: Natalia Cheapetta
+        birthday: '1985-01-01'
+        occupation: Desenvolvedor de Software
+        motherName: Salete Cheapetta
+        pixKeyType: '1'
+        pixKey: 757.305.680-02
+        contact:
+          email: natalia.cheapetta@synapcom.com.br
+          cellPhone: (11) 98071-9391
+        bankAccounts:
+          - externalId: '1'
+            document: 757.305.680-02
+            documentType: CPF
+            accountType: C
+            bankCode: '001'
+            bankName: Banco Do Brasil S.A (BB)
+            agency: '2946'
+            number: 0733-7
+        address:
+          street: Rua João Longo
+          number: '1004'
+          neighborhood: Jandira
+          complement: ''
+          city: São Paulo
+          state: SP
+          postalCode: 06608-420
+    RegisterRequestRegistrationMinimalPJ:
+      summary: Registration PJ (Minimal)
+      value: &ref_3
+        externalId: '##002'
+        document: 58.072.555/0001-29
+        documentType: CNPJ
+        condition: '1'
+        acceptedContract: true
+        websiteUrl: www.synapcom.com.br
+        name: Synacomp Corp.
+        fantasyName: Synacomp
+        pixKeyType: '2'
+        pixKey: 58.072.555/0001-29
+        contact:
+          name: Natalia Cheapetta
+          email: natalia.cheapetta@synapcom.com.br
+          cellPhone: (11) 98071-9391
+        bankAccounts:
+          - externalId: '1'
+            document: 58.072.555/0001-29
+            documentType: CNPJ
+            accountType: C
+            bankCode: '001'
+            bankName: Banco Do Brasil S.A (BB)
+            agency: '2946'
+            number: 0733-7
+        address:
+          street: Rua João Longo
+          number: '1004'
+          neighborhood: Jandira
+          complement: ''
+          city: São Paulo
+          state: SP
+          postalCode: 06608-420
+    RegisterRequestRegistrationTypicalPF:
+      summary: Registration PF (Typical)
+      value: &ref_4
+        externalId: '##003'
+        document: 225.465.960-04
+        documentType: CPF
+        condition: '1'
+        acceptedContract: true
+        websiteUrl: www.synapcom.com.br
+        registrationDate: '2022-03-16'
+        name: Natalia Cheapetta
+        birthday: '1985-01-01'
+        occupation: Desenvolvedor de Software
+        motherName: Salete Cheapetta
+        pixKeyType: '1'
+        pixKey: 225.465.960-04
+        contact:
+          email: natalia.cheapetta@synapcom.com.br
+          cellPhone: (11) 98071-9391
+        bankAccounts:
+          - externalId: '1'
+            document: 225.465.960-04
+            documentType: CPF
+            accountType: C
+            bankCode: '001'
+            bankName: Banco Do Brasil S.A (BB)
+            agency: '2946'
+            number: 0733-7
+        address:
+          street: Rua João Longo
+          number: '1004'
+          neighborhood: Jandira
+          complement: ''
+          city: São Paulo
+          state: SP
+          postalCode: 06608-420
+    RegisterRequestRegistrationTypicalPJ:
+      summary: Registration PJ (Typical)
+      value: &ref_5
+        externalId: '##004'
+        document: 90.920.135/0001-68
+        documentType: CNPJ
+        condition: '1'
+        acceptedContract: true
+        websiteUrl: www.synapcom.com.br
+        registrationDate: '2022-02-15'
+        stateFiscalDocument: ISENTO
+        mccCode: '5812'
+        name: Synacomp Corp.
+        fantasyName: Synacomp
+        pixKeyType: '2'
+        pixKey: 90.920.135/0001-68
+        contact:
+          name: Natalia Cheapetta
+          email: natalia.cheapetta@synapcom.com.br
+          cellPhone: (11) 98071-9391
+        bankAccounts:
+          - externalId: '1'
+            document: 90.920.135/0001-68
+            documentType: CNPJ
+            accountType: C
+            bankCode: '001'
+            bankName: Banco Do Brasil S.A (BB)
+            agency: '2946'
+            number: 0733-7
+        address:
+          street: Rua João Longo
+          number: '1004'
+          neighborhood: Jandira
+          complement: ''
+          city: São Paulo
+          state: SP
+          postalCode: 06608-420
+    RegisterResponseTemplate:
+      summary: Example Template
+      value: &ref_7
+        merchantId: int32
+        code: int32
+        message:
+          source: int32
+          code: string
+          message: string
+          info: string
+    RegisterResponseRegistrationMinimalPF:
+      summary: Registration PF (Minimal)
+      value: &ref_8
+        merchantId: 85
+        code: 1
+        message:
+          source: 0
+          message: New merchant has been created
+    RegisterResponseRegistrationMinimalPJ:
+      summary: Registration PJ (Minimal)
+      value: &ref_9
+        merchantId: 86
+        code: 1
+        message:
+          source: 0
+          message: New merchant has been created
+    GetMerchantRequestTemplate:
+      summary: Example Template
+      value: &ref_11
+        merchantID: string
+    GetMerchanSummaryRequestTemplate:
+      summary: Example Template
+      value: &ref_111
+        externalId: string
+    FlagsChangeRequestTemplate:
+      summary: Example Template
+      value: &ref_211
+        externalId: string
+        automaticPayOnWeekend: boolean
+    GetMerchantRequestGetPF:
+      summary: Get PF
+      value: &ref_12
+        merchantID: '##001'
+    GetMerchantRequestGetPJ:
+      summary: Get PJ
+      value: &ref_13
+        merchantID: '##002'
+    GetMerchantSummaryResponseTemplate:
+      summary: Example Template
+      value: &ref_155
+        IntransitAmount: number
+        PendingBalance: number
+        AvailableBalance: number
+        CanWithdraw: boolean
+        MerchantBlocked: boolean
+        PayoutInProcess: boolean
+        AccumulatesReceivables: boolean
+        PayOnWeekend: boolean
+        PayoutErrorToday: boolean
+        AutomaticPayOnWeekend: boolean
+        PayoutFee: number
+        PayoutFeeWithdraw: number
+        PayoutFeeWeekend: number
+    FlagsChangeResponseTemplate:
+      summary: Example Template
+      value: &ref_255
+        merchantId: integer
+        code: integer
+        message:
+          source: integer
+          message: string
+    FlagsChangeResponseExample:
+      summary: Example Response
+      value: &ref_256
+        merchantId: 2
+        code: 1
+        message:
+          source: 0
+          message: "Merchant was updated"
+    GetMerchantSummaryResponseExample:
+      summary: Example Template
+      value: &ref_156
+        IntransitAmount: 0.0
+        PendingBalance: 0.0
+        AvailableBalance: 0.0
+        CanWithdraw: false
+        MerchantBlocked: false
+        PayoutInProcess: false
+        AccumulatesReceivables: false
+        PayOnWeekend: true
+        PayoutErrorToday: false
+        AutomaticPayOnWeekend: true
+        PayoutFee: 0.0
+        PayoutFeeWithdraw: 9.99
+        PayoutFeeWeekend: 4.99
+    GetMerchantResponseTemplate:
+      summary: Example Template
+      value: &ref_15
+        merchant:
+          id: int32
+          externalId: string
+          document: string
+          documentType: string
+          name: string
+          fantasyName: string
+          countryId: int16
+          statusId: char
+          mccCode: string
+          registrationDate: date
+          condition: string
+          websiteUrl: string
+          stateFiscalDocument: string
+          acceptedContract: boolean
+          marketplaceStore: boolean
+          multiStore: boolean
+          birthday: date
+          occupation: string
+          motherName: string
+          pixKeyType: char
+          pixKey: string
+          contact:
+            name: string
+            email: string
+            phone: string
+            cellPhone: string
+          legalRepresentative:
+            name: string
+            document: string
+            birthday: date
+          bankAccounts:
+            - externalId: string
+              document: string
+              documentType: string
+              accountType: char
+              bankCode: string
+              agency: string
+              number: string
+              bankName: string
+          address:
+            street: string
+            number: string
+            complement: string
+            neighborhood: string
+            city: string
+            state: string
+            country: string
+            postalCode: string
+            phone: string
+        code: int32
+    GetMerchantResponseGetPJ:
+      summary: Get PJ
+      value: &ref_16
+        merchant:
+          id: 86
+          externalId: '##002'
+          document: '58072555000129'
+          documentType: cnpj
+          name: Synacomp Corp.
+          fantasyName: Synacomp
+          countryId: 1
+          statusId: '1'
+          paymentBlocked: false
+          registrationDate: '2022-03-16T00:00:00'
+          condition: '1'
+          websiteUrl: www.synapcom.com.br
+          acceptedContract: true
+          multiStore: false
+          paymentByMain: true
+          pixKeyType: '2'
+          pixKey: 58.072.555/0001-29
+          configuration:
+            frontEnd:
+              color: '#000000'
+            registration: {}
+          services: []
+          serviceRegistrations: []
+          contact:
+            name: Natalia Cheapetta
+            email: natalia.cheapetta@synapcom.com.br
+            cellPhone: '11980719391'
+          legalRepresentative: {}
+          bankAccounts:
+            - externalId: '1'
+              document: '58072555000129'
+              documentType: cnpj
+              accountType: C
+              bankCode: '001'
+              agency: '2946'
+              number: 0733-7
+              bankName: Banco Do Brasil S.A (BB)
+              services: []
+          address:
+            street: Rua João Longo
+            number: '1004'
+            complement: ''
+            neighborhood: Jandira
+            city: São Paulo
+            state: SP
+            postalCode: '06608420'
+        code: 1
+    GetMerchantResponseGetPF:
+      summary: Get PF
+      value: &ref_17
+        merchant:
+          id: 85
+          externalId: '##001'
+          document: '75730568002'
+          documentType: cpf
+          name: Natalia Cheapetta
+          fantasyName: ''
+          countryId: 1
+          statusId: '1'
+          paymentBlocked: false
+          registrationDate: '2022-03-16T00:00:00'
+          condition: '1'
+          websiteUrl: www.synapcom.com.br
+          acceptedContract: true
+          multiStore: false
+          paymentByMain: true
+          birthday: '1985-01-01T00:00:00'
+          occupation: Desenvolvedor de Software
+          motherName: Salete Cheapetta
+          pixKeyType: '1'
+          pixKey: 757.305.680-02
+          configuration:
+            frontEnd:
+              color: '#000000'
+            registration: {}
+          services: []
+          serviceRegistrations: []
+          contact:
+            email: natalia.cheapetta@synapcom.com.br
+            cellPhone: '11980719391'
+          legalRepresentative: {}
+          bankAccounts:
+            - externalId: '1'
+              document: '75730568002'
+              documentType: cpf
+              accountType: C
+              bankCode: '001'
+              agency: '2946'
+              number: 0733-7
+              bankName: Banco Do Brasil S.A (BB)
+              services: []
+          address:
+            street: Rua João Longo
+            number: '1004'
+            complement: ''
+            neighborhood: Jandira
+            city: São Paulo
+            state: SP
+            postalCode: '06608420'
+        code: 1
+    GetMerchantListRequestTemplate:
+      summary: Example Template
+      value: &ref_19
+        externalId: string
+        fantasyName: string
+        rowsPerPage: int32
+        pageNumber: int32
+    GetMerchantListRequest:
+      summary: Get Merchant List
+      value: &ref_20
+        rowsPerPage: 1
+        pageNumber: 10
+    GetMerchantListResponseTemplate:
+      summary: Example Template
+      value: &ref_22
+        total: int32
+        merchantList:
+          - id: int32
+            externalId: string
+            document: string
+            documentType: string
+            name: string
+            fantasyName: string
+            countryId: int16
+            statusId: char
+            mccCode: string
+            registrationDate: date
+            condition: string
+            websiteUrl: string
+            stateFiscalDocument: string
+            acceptedContract: boolean
+            marketplaceStore: boolean
+            multiStore: boolean
+            birthday: date
+            occupation: string
+            motherName: string
+            pixKeyType: char
+            pixKey: string
+            contact:
+              name: string
+              email: string
+              phone: string
+              celPhone: string
+            legalRepresentative:
+              name: string
+              document: string
+              birthday: date
+            bankAccounts:
+              - externalId: string
+                document: string
+                documentType: string
+                accountType: char
+                bankCode: string
+                agency: string
+                number: string
+                bankName: string
+            address:
+              street: string
+              number: string
+              complement: string
+              neighborhood: string
+              city: string
+              state: string
+              country: string
+              postalCode: string
+              phone: string
+        code: int32
+    GetMerchantListResponse:
+      summary: Get Merchant List
+      value: &ref_23
+        total: 44
+        merchantList:
+          - id: 84
+            externalId: '#008'
+            document: '30309644003'
+            documentType: cpf
+            name: Natalia Cheapetta
+            fantasyName: ''
+            countryId: 1
+            statusId: '1'
+            paymentBlocked: false
+            registrationDate: '2022-03-16T00:00:00'
+            condition: '1'
+            multiStore: false
+            paymentByMain: true
+            birthday: '1985-01-01T00:00:00'
+            occupation: Developer
+            motherName: Salete Cheapetta
+            pixKeyType: '2'
+            pixKey: 552.751.320-77
+            configuration:
+              frontEnd:
+                color: '#000000'
+              registration: {}
+            services: []
+            serviceRegistrations: []
+            contact:
+              email: natalia.cheapetta@synapcom.com.br
+              celPhone: '11980719391'
+            legalRepresentative: {}
+            bankAccounts:
+              - externalId: '1'
+                document: '55275132077'
+                documentType: cpf
+                accountType: C
+                bankCode: '001'
+                agency: '2946'
+                number: 0733-7
+                services: []
+            address:
+              street: Rua João Longo
+              number: '1004'
+              neighborhood: Jandira
+              city: São Paulo
+              state: SP
+              postalCode: '06608420'
+        code: 1
+    TransactionsRequestTemplate:
+      summary: Example Template
+      value: &ref_25
+        dateFrom: date
+        dateTo: date
+        dateSortAsc: boolean
+        pageSize: int32
+        pageNumber: int32
+        merchantID: string
+        paymentStatusId: char
+        paymentMethodTypeId: char
+    TransactionsRequestBasic:
+      summary: Basic Request
+      value: &ref_26
+        dateFrom: '2022-02-01'
+        dateTo: '2022-02-28'
+        dateSortAsc: true
+        pageSize: 20
+        pageNumber: 1
+        merchantID: '#0002'
+    TransactionsRequestFiltered:
+      summary: Filtered Request
+      value: &ref_27
+        dateFrom: '2022-02-01'
+        dateTo: '2022-02-28'
+        dateSortAsc: true
+        pageSize: 20
+        pageNumber: 1
+        merchantID: '#0002'
+        paymentStatusId: null
+        paymentMethodTypeId: null
+    TransactionsResponseTemplate:
+      summary: Example Template
+      value: &ref_29
+        totalCount: int32
+        totalPages: int32
+        totalAmount: double
+        transactions:
+          - paymentId: int32
+            partnerUniqueId: string
+            customerEmail: string
+            paymentDate: date-time
+            amount: double
+            paymentStatus: string
+            paymentMethodType: string
+            totalCount: int32
+            totalAmount: double
+            paymentMethodTypeId: char
+            cardBrandId: int16
+            cardBrandName: string
+        code: int32
+        message:
+          source: int32
+          code: string
+          message: string
+          info: string
+        externalId: string
+    StatementRequestTemplate:
+      summary: Example Template
+      value: &ref_31
+        merchantID: string
+        dateFrom: date
+        dateTo: date
+        pageSize: int32
+        pageNumber: int32
+        serviceId: int16
+        serviceName: string
+    StatementResponseTemplate:
+      summary: Example Template
+      value: &ref_33
+        statement:
+          - date: date-time
+            id: string
+            orderId: string
+            type: string
+            amount: double
+            sellerAmount: double
+            sign: string
+            description: string
+            statusPayout: string
+            transactionDate: date-time
+            scheduleDate: date-time
+            payoutDate: date-time
+            payoutError: string
+            paymentMethodTypeID: string
+            paymentMethodTypeName: string
+            cardBrandID: int16
+            captureDate: date-time
+            referenceId: string
+        totalPages: int32
+        pageNumber: int32
+        code: int32
+        message:
+          source: int32
+          code: string
+          message: string
+          info: string
+        externalId: string
+    ConsolidatedStatementRequestTemplate:
+      summary: Example Template
+      value: &ref_35
+        merchantID: string
+        dateFrom: date-time
+        dateTo: date-time
+    ConsolidatedStatementResponseTemplate:
+      summary: Example Template
+      value: &ref_37
+        todayAmount: double
+        futureAmount: double
+        pendingAmount: double
+        doneAmount: double
+    GetScheduleListRequestTemplate:
+      summary: Example Template
+      value: &ref_301
+        merchantId: string
+        rowsPerPage: 10
+        pageNumber: 1
+        statusId: char
+        scheduleTypeId: char
+        payoutId: int16
+        payoutDate: date-time
+        startDate: date-time
+        endDate: date-time
+    GetScheduleListRequestBasic:
+      summary: Basic Request
+      value: &ref_302
+        merchantId: '##001'
+        rowsPerPage: 20
+        pageNumber: 1
+        startDate: '2024-01-01T00:00:00'
+        endDate: '2024-01-31T23:59:59'
+    GetScheduleListResponseTemplate:
+      summary: Example Template
+      value: &ref_311
+        total: int32
+        scheduleList:
+          - scheduleID: int32
+            merchantID: int32
+            externalID: string
+            scheduleDate: date-time
+            amount: double
+            scheduleTypeID: string
+            scheduleStatusID: string
+            scheduleTypeName: string
+            scheduleStatusName: string
+            sentToPayout: boolean
+            settlementDate: date-time
+            cardBrandId: int16
+            cardBrand: string
+            waitingPayoutRequirement: boolean
+            bankAccount:
+              pixKeyTypeId: char
+              pixKey: string
+              bankName: string
+              bankCode: string
+              bankAccountTypeId: char
+              agencyNumber: string
+              accountNumber: string
+              legalDocumentType: string
+              legalDocument: string
+              accountName: string
+            recipient:
+              name: string
+              fantasyName: string
+              legalDocumentType: string
+              legalDocument: string
+            payout:
+              payoutID: int32
+              payoutDate: date-time
+              payoutStatusId: char
+              payoutStatusName: string
+              grossAmount: double
+              payoutFee: double
+              netAmount: double
+              transactionId: string
+              payoutTypeId: int16
+              payoutTypeName: string
+            payer:
+              payerName: string
+              payerDocumentType: string
+              payerDocument: string
+              payerBankNumber: string
+              payerBankName: string
+              payerBankAgency: string
+              payerBankAccountNumber: string
+            financialContract:
+              legalDocument: int64
+              cardBrandId: int16
+              effectType: char
+              bankCode: string
+              accountTypeId: char
+              agency: string
+              account: string
+              createdDate: date-time
+              beneficiaryLegalDocument: int64
+        code: int32
+security:
+  - Account: []
+    AppToken: []
+paths:
+  /api/Merchant/Register:
+    post:
+      summary: Register Merchant
+      description: |
+        Merchant registration for payment split.
+      operationId: Register
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_0
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_1
+              RegisterRegistrationMinimalPF:
+                summary: Registration PF (Minimal)
+                value: *ref_2
+              RegisterRegistrationMinimalPJ:
+                summary: Registration PJ (Minimal)
+                value: *ref_3
+              RegisterRegistrationTypicalPF:
+                summary: Registration PF (Typical)
+                value: *ref_4
+              RegisterRegistrationTypicalPJ:
+                summary: Registration PJ (Typical)
+                value: *ref_5
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_6
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_7
+                RegisterRegistrationMinimalPF:
+                  summary: Registration PF (Minimal)
+                  value: *ref_8
+                RegisterRegistrationMinimalPJ:
+                  summary: Registration PJ (Minimal)
+                  value: *ref_9
+  /api/Merchant/GetMerchant:
+    post:
+      summary: Get Merchant
+      description: Get details about a specific merchant.
+      operationId: GetMerchant
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_10
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_11
+              GetPF:
+                summary: Get PF
+                value: *ref_12
+              GetPJ:
+                summary: Get PJ
+                value: *ref_13
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_14
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_15
+                GetPJ:
+                  summary: Get PJ
+                  value: *ref_16
+                GetPF:
+                  summary: Get PF
+                  value: *ref_17
+  /api/Merchant/GetMerchantSummary:
+    post:
+      summary: Get Merchant Summary
+      description: Get a summary about a specific merchant.
+      operationId: GetMerchantSummary
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_101
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_111
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_144
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_155
+                Example 1:
+                  summary: Example response
+                  value: *ref_156
+  /api/Merchant/FlagsChange:
+    post:
+      summary: Merchant Flags Change
+      description: Update flgs of a merchant.
+      operationId: FlagsChange
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_201
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_211
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_244
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_255
+                Example 1:
+                  summary: Example response
+                  value: *ref_256            
+  /api/Merchant/GetMerchantList:
+    post:
+      summary: Get Merchant List
+      description: Retrieve a list with all your merchants.
+      operationId: GetMerchantList
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_18
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_19
+              GetMerchantList:
+                summary: Get Merchant List
+                value: *ref_20
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_21
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_22
+                GetMerchantList:
+                  summary: Get Merchant List
+                  value: *ref_23
+  /api/Merchant/Transactions:
+    post:
+      summary: Transactions
+      description: Retrieve order transactions for a merchant.
+      operationId: Transactions
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_24
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_25
+              Basic:
+                summary: Basic Request
+                value: *ref_26
+              Filtered:
+                summary: Filtered Request
+                value: *ref_27
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_28
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_29
+  /api/Merchant/Statement:
+    post:
+      summary: Statement
+      description: Retrieve a report of financial statements for a merchant.
+      operationId: Statement
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_30
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_31
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_32
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_33
+  /api/Merchant/GetScheduleList:
+    post:
+      summary: Get Schedule List
+      description: Retrieve a paginated list of payout schedules for a merchant.
+      operationId: GetScheduleList
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_300
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_301
+              Basic:
+                summary: Basic Request
+                value: *ref_302
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_310
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_311
+  /api/Merchant/ConsolidatedStatement:
+    post:
+      summary: ConsolidatedStatement
+      description: Summarizes the statement data in a consolidated daily report.
+      operationId: ConsolidatedStatement
+      parameters:
+        - in: header
+          name: x-tuna-account
+          required: true
+          schema:
+            description: The name of your account.
+            type: string
+        - in: header
+          name: x-tuna-apptoken
+          required: true
+          schema:
+            description: The app token associated with your account.
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: *ref_34
+            examples:
+              Template:
+                summary: Example Template
+                value: *ref_35
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: *ref_36
+              examples:
+                Template:
+                  summary: Example Template
+                  value: *ref_37

@@ -76,6 +76,7 @@ describe("getProviderByName", () => {
     expect(getProviderByName("ASAAS").name).toBe("ASAAS");
     expect(getProviderByName("PAGBANK").name).toBe("PAGBANK");
     expect(getProviderByName("INFINITEPAY").name).toBe("INFINITEPAY");
+    expect(getProviderByName("TUNA").name).toBe("TUNA");
   });
 });
 
@@ -84,5 +85,17 @@ describe("getProvider", () => {
     expect(getProvider(est(), "PIX").name).toBe("MERCADO_PAGO");
     expect(getProvider(est({ gatewayPix: "PAGARME" }), "PIX").name).toBe("PAGARME");
     expect(getProvider(est({ gatewayPix: "ASAAS" }), "PIX").name).toBe("ASAAS");
+  });
+});
+
+describe("canCharge TUNA", () => {
+  const base = { pagarmeRecipientId: null };
+  it("pix pronto cobra pix, nao credito", () => {
+    const e = { ...base, tuna: { pixReady: true, cardReady: false } };
+    expect(canCharge(e, "pix", "TUNA")).toBe(true);
+    expect(canCharge(e, "credit", "TUNA")).toBe(false);
+  });
+  it("sem tuna nao cobra", () => {
+    expect(canCharge(base, "pix", "TUNA")).toBe(false);
   });
 });

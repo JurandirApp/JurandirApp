@@ -39,6 +39,7 @@ enum PaymentProvider {
   APPMAX
   PAGBANK
   INFINITEPAY
+  TUNA
 }
 
 enum PrintJobStatus {
@@ -154,6 +155,15 @@ model Establishment {
   // PagBank: conta PagBank própria do bar (`ACCO_…`, via Connect). Sem ela, a
   // cobrança cai inteira na conta da plataforma (sem split).
   pagbankAccountId       String?
+  // Tuna (split por bar): merchant cadastrado no ambiente tunaMerchantEnv; Pix e
+  // cartão têm status independentes ("active" = pode cobrar).
+  tunaMerchantExternalId String?
+  tunaMerchantId         String?
+  tunaMerchantEnv        PaymentEnv?
+  tunaPixStatus          String?
+  tunaCardStatus         String?
+  tunaKycLevel           String?
+  tunaContractAcceptedAt DateTime?
   // Conta MP conectada consegue gerar QR Pix? (null = não verificado). Se false,
   // o painel avisa o dono pra cadastrar uma chave Pix no Mercado Pago dele.
   mpPixReady       Boolean?
@@ -462,5 +472,8 @@ model AppSetting {
   pagarmeMode PaymentEnv @default(PRODUCTION)
   // Chave geral do débito PagBank (3DS): off até o app com 3DS estar nas lojas.
   pagbankDebitEnabled Boolean @default(false)
+  // Tuna: ambiente em vigor e chave geral dos cartões (Pix liga sem ela).
+  tunaMode PaymentEnv @default(TEST)
+  tunaCardsEnabled Boolean @default(false)
   updatedAt   DateTime   @updatedAt
 }

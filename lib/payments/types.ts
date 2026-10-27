@@ -65,6 +65,9 @@ export type CardPaymentResult = {
   chargeId: string;
   status: ChargeStatus;
   statusDetail?: string; // status_detail do MP (ex.: cc_rejected_insufficient_amount)
+  /** Desafio 3DS pendente (Tuna): o app faz POST de um form para `url` com o
+   *  campo `JWT` = `token` numa WebView e depois consulta o status. */
+  challenge?: { url: string; token: string; paRequest?: string };
 };
 
 /** Cartão via TOKEN da tokenização (Pagar.me v5 correto): o app tokeniza com a
@@ -87,6 +90,14 @@ export type CardTokenPaymentInput = {
   billing?: CardBillingAddress;
   /** Id da autenticação 3DS (`3DS_…`) do SDK JS do PagBank — obrigatório no débito PagBank. */
   authenticationId?: string;
+  /** Tuna: sessão de tokenização (NewSession), bandeira devolvida pelo
+   *  Token/Generate e, com 3DS, os ids do device data collection. Débito Tuna
+   *  exige `threeDs`. */
+  tuna?: {
+    sessionId: string;
+    brand?: string;
+    threeDs?: { referenceId: string; transactionId: string };
+  };
 };
 
 /** billing_address do cartão (formato Pagar.me v5). */
@@ -114,7 +125,7 @@ export type WalletPaymentInput = {
 };
 
 export interface PaymentProvider {
-  readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME" | "APPMAX" | "PAGBANK" | "INFINITEPAY";
+  readonly name: "ASAAS" | "MERCADO_PAGO" | "PAGARME" | "APPMAX" | "PAGBANK" | "INFINITEPAY" | "TUNA";
   createPixCharge(input: PixChargeInput): Promise<PixCharge>;
   getChargeStatus(est: Establishment, chargeId: string, opts?: { debit?: boolean }): Promise<ChargeStatus>;
   /** Cria a preferência do checkout hospedado e devolve a URL de redirecionamento. */

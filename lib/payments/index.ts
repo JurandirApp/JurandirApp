@@ -10,6 +10,7 @@ import { asaasProvider } from "./asaas";
 import { appmaxProvider } from "./appmax";
 import { pagbankProvider } from "./pagbank";
 import { infinitePayProvider } from "./infinitepay";
+import { tunaProvider } from "./tuna";
 
 /** Nome do gateway configurado pro método (Pix/Crédito/Débito) do estabelecimento. */
 export function resolveGateway(est: Establishment, method: PaymentMethod): GatewayName {
@@ -39,6 +40,8 @@ export function getProviderByName(name: GatewayName): PaymentProvider {
       return pagbankProvider;
     case "INFINITEPAY":
       return infinitePayProvider;
+    case "TUNA":
+      return tunaProvider;
     default:
       return mercadoPagoProvider; // MERCADO_PAGO
   }

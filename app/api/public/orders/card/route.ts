@@ -2,6 +2,8 @@ import { createOrder, getOrdersByIds } from "@/lib/db/orders";
 import { payOrderWithCardToken, resolveChargeableOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
+import { TunaError, tunaSafeMessage } from "@/lib/payments/tuna";
+import type { CardTokenPaymentInput } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +17,35 @@ export async function OPTIONS(): Promise<Response> {
   return new Response(null, { status: 204, headers: CORS });
 }
 
+/** Campos opcionais da Tuna. Só vale com `sessionId` string não-vazia; `brand`
+ *  só string; `threeDs` só com `referenceId` E `transactionId` não-vazios. */
+function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
+  if (!raw || typeof raw !== "object") return undefined;
+  const t = raw as Record<string, unknown>;
+  const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const sessionId = s(t.sessionId);
+  if (!sessionId) return undefined;
+  const brand = s(t.brand);
+  const d = (t.threeDs && typeof t.threeDs === "object" ? t.threeDs : {}) as Record<string, unknown>;
+  const referenceId = s(d.referenceId);
+  const transactionId = s(d.transactionId);
+  return {
+    sessionId,
+    ...(brand ? { brand } : {}),
+    ...(referenceId && transactionId ? { threeDs: { referenceId, transactionId } } : {}),
+  };
+}
+
 /**
  * POST /api/public/orders/card
  * Body: { order: <orderCreateInput com payment.method=CREDIT|DEBIT>,
- *         cardToken: string, installments?: number, method?: "credit"|"debit" }
+ *         cardToken: string, installments?: number, method?: "credit"|"debit",
+ *         tuna?: { sessionId, brand?, threeDs?: { referenceId, transactionId } } }
  * Cria o pedido e cobra o cartão via `card_token` (tokenização Pagar.me v5 — o
  * app tokeniza com a chave pública; o cartão cru NUNCA chega aqui).
+ * Tuna: o token vem do Token/Generate (sessão de `/api/public/tuna/session`) e a
+ * resposta pode trazer `challenge` (desafio 3DS) — campos opcionais, o app
+ * publicado não manda nem lê.
  */
 export async function POST(req: Request): Promise<Response> {
   let body: {
@@ -32,6 +57,7 @@ export async function POST(req: Request): Promise<Response> {
     method?: unknown;
     billing?: unknown;
     authenticationId?: unknown;
+    tuna?: unknown;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -56,6 +82,7 @@ export async function POST(req: Request): Promise<Response> {
     typeof body.authenticationId === "string" && body.authenticationId.trim()
       ? body.authenticationId.trim()
       : undefined;
+  const tuna = parseTuna(body.tuna);
   const method = body.method === "debit" ? "debit" : "credit";
   const installments =
     typeof body.installments === "number" && Number.isInteger(body.installments) && body.installments > 0
@@ -95,7 +122,16 @@ export async function POST(req: Request): Promise<Response> {
       payerDoc = parsed.data.customerDocument;
     }
 
-    const pay = await payOrderWithCardToken(targetId, cardToken, installments, method, payerDoc, billing, authenticationId);
+    const pay = await payOrderWithCardToken(
+      targetId,
+      cardToken,
+      installments,
+      method,
+      payerDoc,
+      billing,
+      authenticationId,
+      tuna,
+    );
     const [fresh] = await getOrdersByIds([targetId]);
     return Response.json(
       {
@@ -103,11 +139,13 @@ export async function POST(req: Request): Promise<Response> {
         status: pay.status, // paid | pending | failed
         detail: pay.statusDetail,
         order: fresh ? toClientOrder(fresh) : null,
+        ...(pay.challenge ? { challenge: pay.challenge } : {}), // desafio 3DS (Tuna)
       },
       { headers: CORS },
     );
   } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
+    // Erro da Tuna (ex.: reconciliação) nunca loga o corpo cru.
+    const detail = e instanceof TunaError ? tunaSafeMessage(e) : e instanceof Error ? e.message : String(e);
     console.error("[orders/card] falha ao cobrar cartão:", detail);
     return Response.json({ ok: false, status: "failed", error: "failed" }, { status: 500, headers: CORS });
   }
