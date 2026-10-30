@@ -256,14 +256,12 @@ export function cardChargeMethod(orderMethod: string | null | undefined): "credi
  *  erro INCERTO (5xx/rede/timeout/-108) vira `pending` — o app vai pra tela de
  *  processamento e a cobrança é recuperada pelo webhook (anexa pelo código do
  *  pedido) ou pela reconciliação (`findApprovedPayment`).
- *  ⚠️ Retentativa no MESMO pedido depois de um `pending` incerto: reenvia o Init
- *  com o mesmo `partnerUniqueID` e Idempotency-Key, mas com outro token/sessão.
- *  A Tuna NÃO cobra de novo (o partnerUniqueID é único; a chave com parâmetros
- *  diferentes dá erro — CONTRACT §9), mas o status desse erro não está
- *  confirmado (pergunta pra homolog): se vier 4xx definitivo, o app mostra
- *  "não aprovado" mesmo com a 1ª tentativa cobrada. Não é cobrança dupla, é
- *  risco de mensagem errada — por isso o cliente (Fase 2) NÃO pode cobrar de
- *  novo o mesmo orderId depois de `pending`: só consultar o status. */
+ *  Retentativa no MESMO pedido: a idempotência da Tuna não segura (homologação
+ *  2026-10-29 — Init repetido cobrou de novo ou deu -120), então o provider
+ *  consulta o pedido na Tuna antes do Init: pago/pendente → não cobra e devolve
+ *  o que existe; recusado → cobra o novo cartão. Mesmo assim o cliente (Fase 2)
+ *  não deve cobrar de novo o mesmo orderId depois de `pending` (só consultar o
+ *  status): duas requisições simultâneas ainda passam pela consulta. */
 export async function payOrderWithCardToken(
   orderId: string,
   cardToken: string,

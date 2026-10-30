@@ -321,10 +321,48 @@ export async function createTunaSession(customer: { id: string; email: string },
   return sessionId;
 }
 
-type TunaInitResult = { paymentKey: string; status: string; method: unknown };
+/** `existing`: o pedido JÁ tinha pagamento pago/pendente na Tuna — nenhum Init
+ *  foi enviado e `method` vem vazio (sem QR nem desafio 3DS). */
+type TunaInitResult = { paymentKey: string; status: string; method: unknown; existing?: true };
+
+/** Pagamento que o pedido já tem na Tuna (Status por PartnerUniqueID), ou null
+ *  se não há nenhum (-102 em todas as datas). As datas vão em paralelo (a
+ *  consulta exige uma; na homolog qualquer data acha o pedido) e vence a
+ *  primeira, na ordem de `tunaStatusDates`, que achar o pedido.
+ *  Consulta que falha sem ser "não encontrado": 4xx propaga como veio; o resto
+ *  (rede/timeout/5xx) vira 424 DEFINITIVO — nada foi cobrado por esta chamada,
+ *  e sem saber se já existe pagamento não dá pra cobrar com segurança. */
+async function findTunaPayment(reference: string, mode: Mode): Promise<{ paymentKey: string; status: string } | null> {
+  const answers = await Promise.all(
+    tunaStatusDates().map((paymentDate) =>
+      tunaPost<unknown>("engine", "/api/Payment/Status", { PartnerUniqueID: reference, paymentDate }, { mode }).then(
+        (r) => ({ r }),
+        (e: unknown) => ({ e }),
+      ),
+    ),
+  );
+  for (const a of answers) {
+    if ("r" in a) {
+      const paymentKey = str(pickCi(a.r, "paymentKey"));
+      // Achou mas sem paymentKey: não dá pra saber o estado → não cobra.
+      if (!paymentKey) throw tunaLocalError(424, "consulta do pedido na Tuna sem paymentKey; nada cobrado");
+      return { paymentKey, status: str(pickCi(a.r, "status")) };
+    }
+    if (a.e instanceof TunaError && a.e.code === -102) continue; // não existe nesta data
+    if (a.e instanceof TunaError && a.e.status >= 400 && a.e.status < 500) throw a.e;
+    throw tunaLocalError(424, "não foi possível consultar o pedido na Tuna; nada cobrado");
+  }
+  return null;
+}
 
 /** Payment/Init com um método. `partnerUniqueID` = código do pedido e
- *  `Idempotency-Key` = `init:<código>` (retentativa não cobra duas vezes).
+ *  `Idempotency-Key` = `init:<código>`.
+ *  A idempotência da Tuna NÃO segura retentativa (homologação 2026-10-29): Init
+ *  repetido num Pix pendente cria um 2º método e cobra de novo; num pagamento
+ *  já capturado devolve -120. Por isso, ANTES do Init, consulta o pedido:
+ *  pago/pendente → não envia Init e devolve o que existe (`existing`); recusado
+ *  → envia (a Tuna acrescenta o novo método ao mesmo pagamento). Resta a janela
+ *  de duas requisições simultâneas no mesmo pedido.
  *  `mode` = o da checagem de prontidão (credenciais da mesma conta checada). */
 async function tunaInit(o: {
   reference: string;
@@ -348,6 +386,10 @@ async function tunaInit(o: {
       ...(cb ? { callbackUrl: cb } : {}),
     },
   };
+  const prev = await findTunaPayment(o.reference, o.mode);
+  if (prev && mapTunaStatus(prev.status) !== "failed") {
+    return { paymentKey: prev.paymentKey, status: prev.status, method: undefined, existing: true };
+  }
   let r: unknown;
   try {
     r = await tunaPost<unknown>("engine", "/api/Payment/Init", body, {
@@ -355,10 +397,11 @@ async function tunaInit(o: {
       mode: o.mode,
     });
   } catch (e) {
-    // -108 = partnerUniqueID já usado: é uma RETENTATIVA de um Init anterior
-    // (ex.: timeout) que pode ter cobrado. Não é recusa → vira INCERTO (5xx),
+    // -108 (partnerUniqueID já usado) e -120 (o que a homologação devolve no
+    // Init repetido de um pagamento já capturado) = RETENTATIVA de um Init
+    // anterior que pode ter cobrado. Não é recusa → vira INCERTO (5xx),
     // mantendo o code, pra quem chama reconciliar em vez de dar "recusado".
-    if (e instanceof TunaError && e.code === -108) throw new TunaError(503, -108, e.body);
+    if (e instanceof TunaError && (e.code === -108 || e.code === -120)) throw new TunaError(503, e.code, e.body);
     throw e;
   }
   const paymentKey = str(pickCi(r, "paymentKey"));
@@ -469,6 +512,8 @@ export const tunaProvider: PaymentProvider = {
         pix: { name: customer.name, ...docOf(customer), expirationSeconds: PIX_EXPIRES_MIN * 60 },
       },
     });
+    // Pix já existente: sem o QR não dá pra devolver a cobrança → incerto.
+    if (r.existing) throw tunaLocalError(503, "pedido já tem Pix na Tuna; nada cobrado de novo");
     const pixInfo = pickCi(r.method, "pixInfo");
     return {
       chargeId: r.paymentKey,

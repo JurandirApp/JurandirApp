@@ -186,16 +186,33 @@ describe("pickCi", () => {
 
 // ---- Cobranças (Task 3) ------------------------------------------------------
 
+const asResponse = (b: unknown) =>
+  b instanceof Response ? b : new Response(typeof b === "string" ? b : JSON.stringify(b), { status: 200 });
+
 /** Respostas em sequência (Response real: text/arrayBuffer/headers). */
-function seq(bodies: unknown[]) {
+function seqRaw(bodies: unknown[]) {
   const fn = vi.fn();
-  bodies.forEach((b) =>
-    fn.mockResolvedValueOnce(
-      b instanceof Response ? b : new Response(typeof b === "string" ? b : JSON.stringify(b), { status: 200 }),
-    ),
-  );
+  bodies.forEach((b) => fn.mockResolvedValueOnce(asResponse(b)));
   vi.stubGlobal("fetch", fn);
   return fn;
+}
+
+const isLookup = (init?: RequestInit) =>
+  typeof init?.body === "string" && init.body.includes('"PartnerUniqueID"');
+
+/** Como `seqRaw`, mas a consulta do pedido antes do Init (Status por
+ *  PartnerUniqueID) é respondida à parte — por padrão "não existe" (-102) — e
+ *  fica FORA do mock devolvido (índices/contagens só das outras chamadas). A
+ *  consulta fica em `fn.lookup`. `existing`: resposta da consulta (todas as datas). */
+function seq(bodies: unknown[], existing: unknown = { code: -102, message: "Check the payment identifier." }) {
+  const fn = vi.fn();
+  bodies.forEach((b) => fn.mockResolvedValueOnce(asResponse(b)));
+  const lookup = vi.fn(async (_url: string, _init?: RequestInit) => (existing instanceof Error ? Promise.reject(existing) : asResponse(existing)));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string, init?: RequestInit) => (isLookup(init) ? lookup(url, init) : fn(url, init))),
+  );
+  return Object.assign(fn, { lookup });
 }
 const bodyOf = (fn: ReturnType<typeof vi.fn>, i = 0) => JSON.parse(fn.mock.calls[i][1].body as string);
 const headersOf = (fn: ReturnType<typeof vi.fn>, i = 0) => fn.mock.calls[i][1].headers as Record<string, string>;
@@ -662,6 +679,91 @@ describe("tunaProvider.createWalletPayment", () => {
   });
 });
 
+// Homologação 2026-10-29: Init repetido no mesmo pedido cobrou de novo (Pix
+// pendente) ou deu -120 (cartão capturado) — a idempotência da Tuna não segura.
+describe("consulta o pedido antes do Init (não cobra duas vezes)", () => {
+  const pixIn: PixChargeInput = {
+    est, reference: "PED-1", total: 20, platformFee: 1.6, customerDocument: "52998224725", description: "Pedido PED-1",
+  };
+
+  it("pedido sem pagamento (-102 em todas as datas) → envia o Init, consultando pelo código do pedido", async () => {
+    const fn = seq([initOk()]);
+    await expect(tunaProvider.createCardTokenPayment!(card())).resolves.toMatchObject({ status: "paid" });
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn.lookup.mock.calls.length).toBe(tunaStatusDates().length);
+    const dates = fn.lookup.mock.calls.map((c) => JSON.parse((c as unknown as [string, RequestInit])[1].body as string));
+    expect(dates).toEqual(tunaStatusDates().map((paymentDate) => ({ PartnerUniqueID: "PED-2", paymentDate })));
+  });
+
+  it("cartão: pedido já PAGO → não envia Init e devolve pago com o paymentKey existente", async () => {
+    const fn = seq([], { code: 1, status: "2", paymentKey: "PK_OLD" });
+    await expect(tunaProvider.createCardTokenPayment!(card())).resolves.toEqual({ chargeId: "PK_OLD", status: "paid" });
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("cartão: pedido PENDENTE → não envia Init, devolve pending (reconcilia pelo paymentKey)", async () => {
+    const fn = seq([], { code: 1, status: "P", paymentKey: "PK_OLD" });
+    await expect(tunaProvider.createCardTokenPayment!(card())).resolves.toEqual({ chargeId: "PK_OLD", status: "pending" });
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("cartão: tentativa anterior RECUSADA → envia o Init (nova tentativa no mesmo pedido)", async () => {
+    const fn = seq([initOk({ paymentKey: "PK_OLD" })], { code: 1, status: "4", paymentKey: "PK_OLD" });
+    await expect(tunaProvider.createCardTokenPayment!(card())).resolves.toMatchObject({ status: "paid" });
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn.mock.calls[0][0]).toBe("https://engine.tunagateway.com/api/Payment/Init");
+  });
+
+  it("carteira: pedido já PAGO → não envia Init", async () => {
+    const fn = seq([{ sessionId: "sess_w", code: 1 }], { code: 1, status: "8", paymentKey: "PK_OLD" });
+    await expect(
+      tunaProvider.createWalletPayment!({
+        est, reference: "PED-3", total: 20, platformFee: 1.6, description: "x", walletType: "google_pay", token: "{}",
+      }),
+    ).resolves.toEqual({ chargeId: "PK_OLD", status: "paid" });
+    expect(fn.mock.calls.map((c) => c[0])).not.toContain("https://engine.tunagateway.com/api/Payment/Init");
+  });
+
+  it("Pix: pedido já tem Pix pendente → não envia Init (2º QR cobraria de novo); erro INCERTO", async () => {
+    const fn = seq([], { code: 1, status: "P", paymentKey: "PK_OLD" });
+    const e = (await tunaProvider.createPixCharge(pixIn).catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(isDefiniteGatewayFailure(e)).toBe(false);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("consulta falha por rede → 424 definitivo, sem Init (nada cobrado)", async () => {
+    const fn = seq([initOk()], new TypeError("fetch failed"));
+    const e = (await tunaProvider.createCardTokenPayment!(card()).catch((x: unknown) => x)) as TunaError;
+    expect(e).toBeInstanceOf(TunaError);
+    expect(e.status).toBe(424);
+    expect(isDefiniteGatewayFailure(e)).toBe(true);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("consulta com code negativo que não é -102 → recusa definitiva, sem Init", async () => {
+    const fn = seq([initOk()], { code: -113, message: "SRVPartnerAutErr" });
+    const e = (await tunaProvider.createCardTokenPayment!(card()).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(422);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("consulta acha o pedido sem paymentKey → 424, sem Init", async () => {
+    const fn = seq([initOk()], { code: 1, status: "2" });
+    const e = (await tunaProvider.createCardTokenPayment!(card()).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(424);
+    expect(fn).toHaveBeenCalledTimes(0);
+  });
+
+  it("Init com -120 (replay de pagamento capturado) → INCERTO (503), não recusa", async () => {
+    seq([{ code: -120, message: { code: "SRVInvalidAmount", message: "The payment method amount must be greater than zero." } }]);
+    const e = (await tunaProvider.createCardTokenPayment!(card()).catch((x: unknown) => x)) as TunaError;
+    expect(e.status).toBe(503);
+    expect(e.code).toBe(-120);
+    expect(isDefiniteGatewayFailure(e)).toBe(false);
+  });
+});
+
 describe("tunaProvider.getChargeStatus", () => {
   it("Payment/Status por paymentKey → status interno", async () => {
     const fn = seq([{ code: 1, status: "8" }, { code: 1, status: "P" }, { code: 1, status: "4" }]);
@@ -689,39 +791,39 @@ describe("tunaProvider.findApprovedPayment", () => {
   });
 
   it("procura hoje e ontem (SP) pelo código do pedido; primeiro pago vence", async () => {
-    const fn = seq([{ code: 1, status: "P" }, { code: 1, status: "2", paymentKey: "PK9" }]);
+    const fn = seqRaw([{ code: 1, status: "P" }, { code: 1, status: "2", paymentKey: "PK9" }]);
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toEqual({ paymentId: "PK9", status: "paid" });
     expect(bodyOf(fn, 0)).toEqual({ PartnerUniqueID: "PED-9", paymentDate: "2026-10-25" });
     expect(bodyOf(fn, 1)).toEqual({ PartnerUniqueID: "PED-9", paymentDate: "2026-10-24" });
   });
 
   it("não encontrado hoje (-102) → ainda consulta ontem", async () => {
-    seq([{ code: -102 }, { code: 1, status: "8", paymentKey: "PK7" }]);
+    seqRaw([{ code: -102 }, { code: 1, status: "8", paymentKey: "PK7" }]);
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toEqual({ paymentId: "PK7", status: "paid" });
   });
 
   it("pago hoje → não consulta ontem", async () => {
-    const fn = seq([{ code: 1, status: "8", paymentKey: "PK8" }]);
+    const fn = seqRaw([{ code: 1, status: "8", paymentKey: "PK8" }]);
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toEqual({ paymentId: "PK8", status: "paid" });
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it("pago só na data UTC de hoje → acha na 3ª consulta", async () => {
-    const fn = seq([{ code: -102 }, { code: -102 }, { code: 1, status: "2", paymentKey: "PKU" }]);
+    const fn = seqRaw([{ code: -102 }, { code: -102 }, { code: 1, status: "2", paymentKey: "PKU" }]);
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toEqual({ paymentId: "PKU", status: "paid" });
     expect(fn).toHaveBeenCalledTimes(3);
     expect(bodyOf(fn, 2)).toEqual({ PartnerUniqueID: "PED-9", paymentDate: "2026-10-26" });
   });
 
   it("nada pago → null; erro → null", async () => {
-    seq([{ code: 1, status: "P" }, { code: -102 }, { code: 1, status: "P" }]);
+    seqRaw([{ code: 1, status: "P" }, { code: -102 }, { code: 1, status: "P" }]);
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toBeNull();
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toBeNull();
   });
 
   it("pago mas sem paymentKey na resposta → null (não grava id vazio)", async () => {
-    seq([{ code: 1, status: "2" }, { code: 1, status: "P" }]);
+    seqRaw([{ code: 1, status: "2" }, { code: 1, status: "P" }]);
     expect(await tunaProvider.findApprovedPayment!(est, "PED-9")).toBeNull();
   });
 });
@@ -822,7 +924,7 @@ describe("TunaError.message", () => {
   });
   it("-108 no Init vira 503 mantendo a mensagem curta, sem o corpo", async () => {
     const body = { code: -108, customer: { document: "12345678909" }, message: { message: "Partner Unique ID already used" } };
-    respond(body);
+    seq([body]);
     const e = (await tunaProvider
       .createCardTokenPayment!({
         est,
@@ -1060,7 +1162,8 @@ describe("cobrança usa o modo da checagem de prontidão (não relê no meio)", 
       return new Response(JSON.stringify({ sessionId: "sess_w", code: 1 }), { status: 200 });
     });
     fn.mockResolvedValueOnce(new Response(JSON.stringify(initOk()), { status: 200 }));
-    vi.stubGlobal("fetch", fn);
+    const lookup = vi.fn(async (_u: string, _i?: RequestInit) => new Response(JSON.stringify({ code: -102 }), { status: 200 }));
+    vi.stubGlobal("fetch", vi.fn((u: string, i?: RequestInit) => (isLookup(i) ? lookup(u, i) : fn(u, i))));
     await expect(
       tunaProvider.createWalletPayment!({
         est, reference: "PED-R", total: 20, platformFee: 1.6, description: "x", walletType: "google_pay", token: "{}",
@@ -1071,6 +1174,11 @@ describe("cobrança usa o modo da checagem de prontidão (não relê no meio)", 
     expect(bodyOf(fn, 0).Is3dsTest).toBe(true);
     expect(headersOf(fn, 1)["x-tuna-account"]).toBe("acc_t");
     expect(headersOf(fn, 1)["x-tuna-apptoken"]).toBe("tok_t");
+    // A consulta do pedido antes do Init também usa a conta do modo checado.
+    expect(lookup).toHaveBeenCalled();
+    for (const c of lookup.mock.calls as unknown as [string, { headers: Record<string, string> }][]) {
+      expect(c[1].headers["x-tuna-account"]).toBe("acc_t");
+    }
   });
 
   it("Pix: Init com as credenciais do modo checado", async () => {
