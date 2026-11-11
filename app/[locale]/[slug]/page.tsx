@@ -6,6 +6,7 @@ import { listMenu, getPopularItemNames } from "@/lib/db/menu";
 import { listQrSpots } from "@/lib/db/qr";
 import { toAppEstablishment, toAppMenuItem } from "@/lib/app/adapters";
 import { getWalletWebConfig } from "@/lib/payments/wallet-web-env";
+import { tunaPublicReadiness } from "@/lib/payments/tuna-public";
 import { ClientApp } from "@/components/app/ClientApp";
 import { BEACH_TYPES } from "@/lib/data/admin";
 import { DEFAULT_LOC_BEACH, DEFAULT_LOC_TABLE } from "@/lib/data/app";
@@ -34,7 +35,8 @@ export default async function ClientAppPage({
   setRequestLocale(locale);
   const dbEst = await getEstablishmentBySlug(slug);
   if (!dbEst) notFound();
-  const appEst = toAppEstablishment(dbEst);
+  const tunaOf = await tunaPublicReadiness([dbEst]);
+  const appEst = toAppEstablishment({ ...dbEst, tuna: tunaOf(dbEst) });
   const [dbMenu, dbSpots, popularNames, wallets] = await Promise.all([
     listMenu(dbEst.id),
     listQrSpots(dbEst.id),

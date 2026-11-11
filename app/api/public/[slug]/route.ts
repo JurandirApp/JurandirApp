@@ -2,6 +2,7 @@ import { toAppEstablishment, toAppMenuItem } from "@/lib/app/adapters";
 import { getEstablishmentBySlug } from "@/lib/db/establishments";
 import { getPopularItemNames, listMenu } from "@/lib/db/menu";
 import { listQrSpots } from "@/lib/db/qr";
+import { tunaPublicReadiness } from "@/lib/payments/tuna-public";
 
 // Consultas ao Neon a cada request.
 export const dynamic = "force-dynamic";
@@ -33,15 +34,16 @@ export async function GET(
     return Response.json({ error: "not found" }, { status: 404, headers: CORS });
   }
 
-  const [menu, spots, popularNames] = await Promise.all([
+  const [menu, spots, popularNames, tunaOf] = await Promise.all([
     listMenu(est.id),
     listQrSpots(est.id),
     getPopularItemNames(est.id),
+    tunaPublicReadiness([est]),
   ]);
 
   return Response.json(
     {
-      est: toAppEstablishment(est),
+      est: toAppEstablishment({ ...est, tuna: tunaOf(est) }),
       menu: menu.filter((m) => m.active).map(toAppMenuItem),
       spots: spots.map((s) => s.label),
       popularNames,

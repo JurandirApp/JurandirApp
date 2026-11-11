@@ -35,6 +35,8 @@ type DbEstPayments = {
   gatewayPix: string; gatewayCredit: string; gatewayDebit: string;
   gatewayApplePay: string; gatewayGooglePay: string;
   pagarmeRecipientId: string | null; asaasWalletId: string | null; appmaxRecipientHash: string | null;
+  /** Prontidão da Tuna (`tunaPublicReadiness`) — sem ela, nada da Tuna é cobrável. */
+  tuna?: { pixReady: boolean; cardReady: boolean };
 };
 
 /** Pagamento visto pelo app: quais carteiras estão ativas e o gateway de cada
