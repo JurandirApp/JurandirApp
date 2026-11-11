@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const { getAppSettings } = vi.hoisted(() => ({ getAppSettings: vi.fn() }));
 vi.mock("@/lib/db/settings", () => ({ getAppSettings }));
+const ensureTunaMode = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/payments/tuna", () => ({ ensureTunaMode }));
 
 import { getWalletWebConfig, readWalletWebEnv } from "@/lib/payments/wallet-web-env";
 
@@ -18,11 +20,14 @@ const VARS = [
   "GOOGLE_PAY_PAGBANK_GATEWAY_MERCHANT_ID",
   "GOOGLE_PAY_PAGBANK_GATEWAY_MERCHANT_ID_TEST",
   "GOOGLE_PAY_TEST_SLUGS",
+  "TUNA_GOOGLE_GATEWAY_MERCHANT_ID",
+  "TUNA_GOOGLE_GATEWAY_MERCHANT_ID_TEST",
 ];
 
 beforeEach(() => {
   for (const v of VARS) vi.stubEnv(v, "");
   getAppSettings.mockReset();
+  ensureTunaMode.mockReset();
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -139,5 +144,53 @@ describe("getWalletWebConfig", () => {
     const g = (await getWalletWebConfig(est())).googlePay!;
     expect(g.environment).toBe("TEST");
     expect(g.gatewayMerchantId).toBe("pm_test");
+  });
+});
+
+describe("getWalletWebConfig - Tuna", () => {
+  const est = (applePay = "PAGARME") => ({
+    slug: "leo-teste",
+    applePay: true,
+    googlePay: true,
+    gateways: { applePay, googlePay: "TUNA" },
+  });
+  const TUNA_DEFAULT = "78c30483-2a55-422e-98f1-b68f77fcaa70";
+
+  it("TEST: id padrão do tuna.js, Google TEST; modo vem do ensureTunaMode (não do getAppSettings)", async () => {
+    ensureTunaMode.mockResolvedValue("TEST");
+    const g = (await getWalletWebConfig(est())).googlePay!;
+    expect(g).toMatchObject({ environment: "TEST", gateway: "tuna", gatewayMerchantId: TUNA_DEFAULT });
+    expect(g.merchantId).toBeUndefined();
+    expect(ensureTunaMode).toHaveBeenCalledTimes(1);
+    expect(getAppSettings).not.toHaveBeenCalled();
+  });
+  it("TUNA_GOOGLE_GATEWAY_MERCHANT_ID sobrepõe o padrão; TEST prefere o _TEST", async () => {
+    vi.stubEnv("TUNA_GOOGLE_GATEWAY_MERCHANT_ID", "tuna_prod");
+    ensureTunaMode.mockResolvedValue("PRODUCTION");
+    vi.stubEnv("GOOGLE_PAY_MERCHANT_ID", "BCR2DN123");
+    expect((await getWalletWebConfig(est())).googlePay).toMatchObject({
+      environment: "PRODUCTION",
+      merchantId: "BCR2DN123",
+      gatewayMerchantId: "tuna_prod",
+    });
+    vi.stubEnv("TUNA_GOOGLE_GATEWAY_MERCHANT_ID_TEST", "tuna_test");
+    ensureTunaMode.mockResolvedValue("TEST");
+    expect((await getWalletWebConfig(est())).googlePay?.gatewayMerchantId).toBe("tuna_test");
+  });
+  it("PRODUCTION sem GOOGLE_PAY_MERCHANT_ID → sem Google Pay", async () => {
+    ensureTunaMode.mockResolvedValue("PRODUCTION");
+    expect((await getWalletWebConfig(est())).googlePay).toBeNull();
+  });
+  it("modo da Tuna ilegível → sem Google Pay (falha fechado)", async () => {
+    ensureTunaMode.mockRejectedValue(new Error("db off"));
+    expect((await getWalletWebConfig(est())).googlePay).toBeNull();
+  });
+  it("Apple Pay com gateway TUNA nunca aparece no site", async () => {
+    vi.stubEnv("APPLE_PAY_MERCHANT_CERT", "cert");
+    vi.stubEnv("APPLE_PAY_MERCHANT_KEY", "key");
+    vi.stubEnv("APPLE_PAY_DOMAIN", "jurandir.app.br");
+    ensureTunaMode.mockResolvedValue("TEST");
+    expect((await getWalletWebConfig(est("TUNA"))).applePay).toBeNull();
+    expect((await getWalletWebConfig(est("PAGARME"))).applePay).not.toBeNull();
   });
 });

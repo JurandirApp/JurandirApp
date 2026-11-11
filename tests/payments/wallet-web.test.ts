@@ -174,6 +174,51 @@ describe("Google Pay - modo por gateway", () => {
   });
 });
 
+describe("walletWebConfig - Tuna", () => {
+  const tunaEnv: WalletWebEnv = { ...env, googleGatewayMerchantIds: { TUNA: "tuna_gw" } };
+  const tTest: GatewayModes = { ...test, TUNA: "TEST" };
+  const tProd: GatewayModes = { ...prod, TUNA: "PRODUCTION" };
+  const tunaEst = (slug = "bar-do-ze") => est(false, true, "PAGARME", "TUNA", slug);
+
+  it("TEST → Google TEST, gateway tuna, sem merchantId e sem a allowlist do Google", () => {
+    // est.googlePay já veio da prontidão da Tuna (TUNA_TEST_SLUGS): não reaplica GOOGLE_PAY_TEST_SLUGS.
+    const g = walletWebConfig(tunaEst("outro-bar"), tunaEnv, tTest).googlePay!;
+    expect(g).toEqual({
+      environment: "TEST",
+      merchantName: "Jurandir",
+      gateway: "tuna",
+      gatewayMerchantId: "tuna_gw",
+      allowedCardNetworks: ["VISA", "MASTERCARD"],
+      allowedAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
+    });
+  });
+  it("PRODUCTION com merchantId → Google PRODUCTION", () => {
+    const g = walletWebConfig(tunaEst(), tunaEnv, tProd).googlePay!;
+    expect(g.environment).toBe("PRODUCTION");
+    expect(g.merchantId).toBe("BCR2DN123");
+    expect(g.gateway).toBe("tuna");
+  });
+  it("PRODUCTION sem merchantId → null (nunca cai pra TEST, mesmo na allowlist)", () => {
+    expect(
+      walletWebConfig(tunaEst(), { ...tunaEnv, googleMerchantId: "", googleTestSlugs: ["bar-do-ze"] }, tProd)
+        .googlePay,
+    ).toBeNull();
+  });
+  it("modo da Tuna desconhecido → null", () => {
+    expect(walletWebConfig(tunaEst(), tunaEnv, prod).googlePay).toBeNull();
+  });
+  it("bar sem Google Pay pronto (est.googlePay=false) → null", () => {
+    expect(walletWebConfig(est(false, false, "PAGARME", "TUNA"), tunaEnv, tTest).googlePay).toBeNull();
+  });
+  it("sem gatewayMerchantId da Tuna → null", () => {
+    expect(walletWebConfig(tunaEst(), env, tTest).googlePay).toBeNull();
+  });
+  it("Apple Pay com gateway TUNA → null no site (fora do escopo)", () => {
+    expect(walletWebConfig(est(true, false, "TUNA", "PAGARME"), env, tProd).applePay).toBeNull();
+    expect(walletWebConfig(est(true, false, "PAGBANK", "PAGARME"), env, tProd).applePay).not.toBeNull();
+  });
+});
+
 describe("decodePem", () => {
   const pem = "-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----\n";
   it("base64 do PEM", () => {

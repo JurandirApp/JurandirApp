@@ -8,7 +8,7 @@ export type WalletWebEnv = {
   appleDomain: string;
   googleMerchantId: string;
   /** Já resolvidos pelo modo (TEST/PRODUCTION) de cada gateway. */
-  googleGatewayMerchantIds: { PAGARME?: string; PAGBANK?: string };
+  googleGatewayMerchantIds: { PAGARME?: string; PAGBANK?: string; TUNA?: string };
   /** Slugs (minúsculos) que podem ver o Google Pay em TEST — demais bares só em PRODUCTION. */
   googleTestSlugs: string[];
 };
@@ -16,6 +16,9 @@ export type WalletWebEnv = {
 export type GatewayModes = {
   PAGARME: "TEST" | "PRODUCTION";
   PAGBANK: "TEST" | "PRODUCTION";
+  /** Modo da Tuna (`ensureTunaMode`). Ausente = não deu pra ler → sem Google Pay
+   *  da Tuna (nunca chuta TESTE/PRODUÇÃO). */
+  TUNA?: "TEST" | "PRODUCTION";
 };
 
 export type ApplePayWebConfig = {
@@ -33,7 +36,7 @@ export type GooglePayWebConfig = {
   environment: "TEST" | "PRODUCTION";
   merchantId?: string;
   merchantName: string;
-  gateway: "pagarme" | "pagbank";
+  gateway: "pagarme" | "pagbank" | "tuna";
   gatewayMerchantId: string;
   allowedCardNetworks: string[];
   allowedAuthMethods: string[];
@@ -54,8 +57,14 @@ export function walletWebConfig(
   env: WalletWebEnv,
   modes: GatewayModes,
 ): WalletWebConfig {
+  // Apple Pay no site só nos gateways que decifram o token do NOSSO certificado
+  // (Pagar.me/PagBank). Tuna fica de fora até ela liberar o nosso domínio.
+  const appleGw = est.gateways.applePay;
   const applePay: ApplePayWebConfig | null =
-    est.applePay && env.appleCertReady && !!env.appleDomain
+    est.applePay &&
+    (appleGw === "PAGARME" || appleGw === "PAGBANK") &&
+    env.appleCertReady &&
+    !!env.appleDomain
       ? {
           merchantIdentifier: env.appleMerchantId,
           displayName: env.appleDisplayName,
@@ -69,7 +78,25 @@ export function walletWebConfig(
 
   let googlePay: GooglePayWebConfig | null = null;
   const gw = est.gateways.googlePay;
-  if (est.googlePay && (gw === "PAGARME" || gw === "PAGBANK")) {
+  if (est.googlePay && gw === "TUNA") {
+    // Tuna: `est.googlePay` já passou pela prontidão da Tuna (em TESTE só bares
+    // de TUNA_TEST_SLUGS), então a allowlist do Google não se aplica aqui.
+    // PRODUÇÃO exige o merchantId do Google, como nos outros gateways.
+    const mode = modes.TUNA;
+    const gatewayMerchantId = env.googleGatewayMerchantIds.TUNA;
+    const production = mode === "PRODUCTION";
+    if (mode && gatewayMerchantId && (!production || env.googleMerchantId)) {
+      googlePay = {
+        environment: production ? "PRODUCTION" : "TEST",
+        ...(production ? { merchantId: env.googleMerchantId } : {}),
+        merchantName: "Jurandir",
+        gateway: "tuna",
+        gatewayMerchantId,
+        allowedCardNetworks: ["VISA", "MASTERCARD"],
+        allowedAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
+      };
+    }
+  } else if (est.googlePay && (gw === "PAGARME" || gw === "PAGBANK")) {
     const gatewayMerchantId = env.googleGatewayMerchantIds[gw];
     const production = modes[gw] === "PRODUCTION" && !!env.googleMerchantId;
     // Em TEST o Google devolve token de teste (cobrança falha num gateway real):
