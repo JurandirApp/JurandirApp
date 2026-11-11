@@ -545,16 +545,27 @@ describe("tunaProvider.createCardTokenPayment", () => {
     expect(m.authenticationInformation).toEqual({ code: "sess_1", referenceId: "ref_1", transactionId: "tx_1" });
   });
 
-  it("débito sem 3DS → rejeita e fetch chamado 0 vezes", async () => {
-    const fn = seq([]);
-    const e = (await tunaProvider
-      .createCardTokenPayment!(card({ method: "debit", tuna: { sessionId: "sess_1" } }))
-      .catch((x: unknown) => x)) as TunaError;
-    expect(e).toBeInstanceOf(TunaError);
-    expect(e.status).toBe(422);
-    expect(tunaSafeMessage(e)).toBe("débito Tuna exige autenticação 3DS");
-    expect(e.message).toBe("Tuna 422: débito Tuna exige autenticação 3DS");
-    expect(fn).toHaveBeenCalledTimes(0);
+  it("débito sem 3DS → tipo 2 (débito simples), 1 parcela, sem authenticationInformation", async () => {
+    const fn = seq([initOk()]);
+    const r = await tunaProvider.createCardTokenPayment!(
+      card({ method: "debit", installments: 3, tuna: { sessionId: "sess_1" } }),
+    );
+    expect(r).toMatchObject({ chargeId: "PK1", status: "paid" });
+    const m = bodyOf(fn).paymentData.paymentMethods[0];
+    expect(m.paymentMethodType).toBe("2");
+    expect(m.installments).toBe(1);
+    expect(m).not.toHaveProperty("authenticationInformation");
+    expect(m.cardInfo).toMatchObject({ token: "ct_abc", tokenProvider: "Tuna", tokenSingleUse: 1 });
+  });
+
+  it("débito com 3DS incompleto (sem transactionId) → tipo 2, sem authenticationInformation", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(
+      card({ method: "debit", tuna: { sessionId: "sess_1", threeDs: { referenceId: "ref_1", transactionId: "" } } }),
+    );
+    const m = bodyOf(fn).paymentData.paymentMethods[0];
+    expect(m.paymentMethodType).toBe("2");
+    expect(m).not.toHaveProperty("authenticationInformation");
   });
 
   it("sem sessão Tuna → rejeita sem fetch", async () => {

@@ -349,7 +349,7 @@ Mobile:
 
 Mastercard: `5200000000002235` OK, `5200000000002151` challenge OK. Elo: `6505290000002000` OK, `6505290000002190` challenge OK. Full table in `docs\api_3ds-integration.md`.
 
-**Debit method code ambiguity:** the 3DS guide and Postman use `"8"` (ThreeDS20Debit) for debit, but Tuna's `3DSSamples/NodeApp/index.js` sends `"paymentmethodtype":"2"` with `AuthenticationInformation`. Debit **without** 3DS is not described anywhere. **Confirm with Tuna** which code their flow expects.
+**Debit method code ambiguity:** the 3DS guide and Postman use `"8"` (ThreeDS20Debit) for debit, but Tuna's `3DSSamples/NodeApp/index.js` sends `"paymentmethodtype":"2"` with `AuthenticationInformation`. Debit **without** 3DS is not described anywhere. **[LIVE, homolog 2026-11]** Neither the homolog nor the staging account has 3DS enabled (Generate returns `authenticationInformation: null`), and debit with `"2"` **without** 3DS was approved/declined/refunded correctly. Our code sends `"8"` only when the client sends valid 3DS ids, otherwise `"2"` (always 1 installment).
 
 ---
 

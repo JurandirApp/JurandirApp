@@ -91,8 +91,8 @@ export type CardTokenPaymentInput = {
   /** Id da autenticação 3DS (`3DS_…`) do SDK JS do PagBank — obrigatório no débito PagBank. */
   authenticationId?: string;
   /** Tuna: sessão de tokenização (NewSession), bandeira devolvida pelo
-   *  Token/Generate e, com 3DS, os ids do device data collection. Débito Tuna
-   *  exige `threeDs`. */
+   *  Token/Generate e, com 3DS, os ids do device data collection. Débito sem
+   *  `threeDs` vai como débito simples ("2"); com, débito 3DS ("8"). */
   tuna?: {
     sessionId: string;
     brand?: string;

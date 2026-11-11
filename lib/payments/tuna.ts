@@ -524,14 +524,16 @@ export const tunaProvider: PaymentProvider = {
   },
 
   // Cartão tokenizado pelo app direto na Tuna (o cartão cru nunca chega aqui).
-  // Crédito "1" (com 3DS "7"); débito SEMPRE "8" e exige 3DS.
+  // Crédito "1" (com 3DS "7"); débito "2" (com 3DS "8"), sempre 1 parcela. O
+  // 3DS só vai quando o app/site manda `threeDs` válido — as contas da Tuna
+  // (homolog e staging) não têm 3DS ligado, e o débito "2" sem 3DS foi
+  // aprovado/recusado/estornado certo na homologação.
   async createCardTokenPayment(input: CardTokenPaymentInput): Promise<CardPaymentResult> {
     const { est, reference, total, platformFee, description, cardToken, installments, method,
       customerName, customerDocument, customerPhone, tuna } = input;
     const sessionId = str(tuna?.sessionId);
     const threeDs =
       tuna?.threeDs && str(tuna.threeDs.referenceId) && str(tuna.threeDs.transactionId) ? tuna.threeDs : undefined;
-    if (method === "debit" && !threeDs) throw tunaLocalError(422, "débito Tuna exige autenticação 3DS");
     if (!sessionId) throw tunaLocalError(422, "cartão Tuna exige a sessão de tokenização");
     const item = tunaSplitItem(est, total, platformFee, description);
     const mode = await assertTunaReady(est, "card");
@@ -549,7 +551,7 @@ export const tunaProvider: PaymentProvider = {
       mode,
       tokenSession: sessionId,
       method: {
-        paymentMethodType: method === "debit" ? "8" : threeDs ? "7" : "1",
+        paymentMethodType: method === "debit" ? (threeDs ? "8" : "2") : threeDs ? "7" : "1",
         amount: total,
         installments: method === "debit" ? 1 : Math.max(1, Math.trunc(installments) || 1),
         cardInfo: {
