@@ -14,6 +14,7 @@ import {
   getMyOrdersAction,
   payCardAction,
   payShareAction,
+  payTunaCardAction,
 } from "@/lib/actions/app";
 import type { OrderCreateInput } from "@/lib/validation";
 import { AppContext, type AppValue, type PayMode, type Step } from "./context";
@@ -24,6 +25,7 @@ import { DoneScreen } from "./screens/DoneScreen";
 import { MyOrdersScreen } from "./screens/MyOrdersScreen";
 import { CartDrawer } from "./CartDrawer";
 import { CardPaymentModal } from "./CardPaymentModal";
+import { TunaCardModal } from "./TunaCardModal";
 import { ClientToast } from "./ClientToast";
 
 import type { WalletWebConfig } from "@/lib/payments/wallet-web";
@@ -105,6 +107,12 @@ export function ClientApp({
   const [cardPay, setCardPay] = useState<{
     input: OrderCreateInput;
     amount: number;
+  } | null>(null);
+  // Cartão via Tuna: snapshot do pedido (criado só no envio do formulário).
+  const [tunaPay, setTunaPay] = useState<{
+    input: OrderCreateInput;
+    amount: number;
+    method: "credito" | "debito";
   } | null>(null);
   const [exp, setExp] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -303,6 +311,16 @@ export function ClientApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [est.slug]);
 
+  // Guarda o id do pedido neste navegador ("Meus pedidos" + polling).
+  const rememberOrder = (dbId: string) => {
+    try {
+      const ids: string[] = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+      if (!ids.includes(dbId)) localStorage.setItem(storageKey, JSON.stringify([dbId, ...ids]));
+    } catch {
+      // localStorage unavailable — order is still created server-side.
+    }
+  };
+
   const value = useMemo<AppValue>(() => {
     const toastMsg = (msg: string, ms = 2400) => {
       setToast(msg);
@@ -316,6 +334,33 @@ export function ClientApp({
         const m = menu.find((x) => x.id === c.id);
         return m ? [{ name: m.name, qty: c.qty, unitPrice: m.price }] : [];
       });
+      // Cartão com gateway Tuna → formulário próprio (TunaCardModal); o pedido
+      // só é criado quando o cliente envia o cartão.
+      const tunaMethod =
+        !sharesArg &&
+        ((selPay === "credito" && est.gateways.credit === "TUNA") ||
+          (selPay === "debito" && est.gateways.debit === "TUNA"))
+          ? selPay
+          : null;
+      if (tunaMethod) {
+        if (!items.length) return;
+        const { grand } = fees(cartTotal(cart, menu), est.platformFeePct, est.serviceFeePct);
+        setTunaPay({
+          method: tunaMethod,
+          amount: grand,
+          input: {
+            establishmentId: est.id,
+            locationLabel: loc,
+            posto: beach ? est.posto : undefined,
+            customerName: custName.trim() || undefined,
+            note: note.trim() || undefined,
+            items,
+            // Tuna cobra à vista (1 parcela) no site.
+            payment: { kind: "full", method: appToEnum(tunaMethod), installments: 1 },
+          },
+        });
+        return;
+      }
       const payment = sharesArg
         ? {
             kind: "split" as const,
@@ -692,6 +737,61 @@ export function ClientApp({
                 setStep("done");
               }}
               onClose={() => setCardPay(null)}
+            />
+          )}
+          {tunaPay && (
+            <TunaCardModal
+              amount={tunaPay.amount}
+              method={tunaPay.method}
+              createOrder={async () => {
+                const r = await createOrderAction(tunaPay.input);
+                if (!r.ok || !r.order?.dbId) return null;
+                const order = r.order;
+                rememberOrder(order.dbId!);
+                // Gateway mudou pra um checkout hospedado (ex.: admin trocou a
+                // rota): segue o fluxo antigo, sai da página.
+                if (r.checkoutUrl) {
+                  try {
+                    localStorage.setItem(pendingKey, order.dbId!);
+                  } catch {
+                    /* localStorage unavailable */
+                  }
+                  window.location.href = r.checkoutUrl;
+                  return { redirected: true };
+                }
+                setMyOrders((prev) => [order, ...prev.filter((o) => o.dbId !== order.dbId)]);
+                return { order };
+              }}
+              charge={(orderId, cardToken, cpf, tuna) =>
+                payTunaCardAction(
+                  orderId,
+                  cardToken,
+                  tunaPay.method === "debito" ? "debit" : "credit",
+                  cpf,
+                  tuna,
+                )
+              }
+              onApproved={(order) => {
+                setMyOrders((prev) => [order, ...prev.filter((o) => o.dbId !== order.dbId)]);
+                setLastOrder(order);
+                setCart([]);
+                setSelPay(null);
+                setParc(1);
+                setMode("full");
+                setPeople(2);
+                setPaid([null, null]);
+                setNote("");
+                setTunaPay(null);
+                setStep("done");
+              }}
+              onUncertain={(order) => {
+                // Pendente/incerto: pode ter cobrado → nunca "recusado"; o
+                // polling de "Meus pedidos" confirma.
+                setMyOrders((prev) => [order, ...prev.filter((o) => o.dbId !== order.dbId)]);
+                setTunaPay(null);
+                setStep("myorders");
+              }}
+              onClose={() => setTunaPay(null)}
             />
           )}
           <ClientToast />
