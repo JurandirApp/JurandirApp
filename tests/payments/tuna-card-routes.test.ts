@@ -4,6 +4,7 @@ const m = vi.hoisted(() => ({
   orderFindUnique: vi.fn(),
   getCards: vi.fn(),
   createSession: vi.fn(),
+  chargeFailed: vi.fn(),
   payCard: vi.fn(),
   resolveChargeable: vi.fn(),
   createOrder: vi.fn(),
@@ -14,7 +15,7 @@ vi.mock("@/lib/db/prisma", () => ({ prisma: { order: { findUnique: m.orderFindUn
 vi.mock("@/lib/db/settings", () => ({ getTunaCardsEnabled: m.getCards }));
 vi.mock("@/lib/payments/tuna", async (orig) => {
   const real = await orig<typeof import("@/lib/payments/tuna")>();
-  return { ...real, createTunaSession: m.createSession };
+  return { ...real, createTunaSession: m.createSession, tunaChargeFailed: m.chargeFailed };
 });
 vi.mock("@/lib/db/payments", () => ({
   payOrderWithCardToken: m.payCard,
@@ -58,6 +59,7 @@ beforeEach(() => {
   m.getCards.mockResolvedValue(true);
   m.orderFindUnique.mockResolvedValue(tunaOrder());
   m.createSession.mockResolvedValue(SESSION);
+  m.chargeFailed.mockResolvedValue(false);
   m.resolveChargeable.mockResolvedValue({ kind: "charge", id: "o1" });
   m.getOrdersByIds.mockResolvedValue([{ id: "o1" }]);
   logs = (["log", "warn", "error", "info"] as const).map((k) => vi.spyOn(console, k).mockImplementation(() => {}));
@@ -91,6 +93,30 @@ describe("POST /api/public/tuna/session", () => {
       expect(r.status).toBe(409);
       expect(await r.json()).toEqual({ error: "notChargeable" });
     }
+    expect(m.createSession).not.toHaveBeenCalled();
+  });
+
+  it("retentativa: cobrança anterior RECUSADA na Tuna → abre sessão de novo", async () => {
+    m.orderFindUnique.mockResolvedValue(tunaOrder({}, { gatewayChargeId: "PK1" }));
+    m.chargeFailed.mockResolvedValue(true);
+    const r = await sessionPOST(req("/api/public/tuna/session", { orderId: "o1" }));
+    expect(r.status).toBe(200);
+    expect(m.chargeFailed).toHaveBeenCalledWith("PK1");
+    expect(m.createSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("cobrança anterior paga/pendente/sem resposta → 409; pedido não-Tuna nem consulta a Tuna", async () => {
+    m.orderFindUnique.mockResolvedValue(tunaOrder({}, { gatewayChargeId: "PK1" }));
+    m.chargeFailed.mockResolvedValue(false);
+    expect((await sessionPOST(req("/api/public/tuna/session", { orderId: "o1" }))).status).toBe(409);
+    m.chargeFailed.mockClear();
+    for (const p of [{ method: "PIX", gatewayChargeId: "PK1" }, { provider: "PAGBANK", gatewayChargeId: "PK1" }]) {
+      m.orderFindUnique.mockResolvedValue(tunaOrder({}, p));
+      expect((await sessionPOST(req("/api/public/tuna/session", { orderId: "o1" }))).status).toBe(409);
+    }
+    m.orderFindUnique.mockResolvedValue(tunaOrder({ status: "IN_PRODUCTION" }, { gatewayChargeId: "PK1" }));
+    expect((await sessionPOST(req("/api/public/tuna/session", { orderId: "o1" }))).status).toBe(409);
+    expect(m.chargeFailed).not.toHaveBeenCalled();
     expect(m.createSession).not.toHaveBeenCalled();
   });
 

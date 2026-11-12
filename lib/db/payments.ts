@@ -8,7 +8,7 @@ import {
   checkInfinitePayment,
   parseChargeId,
 } from "@/lib/payments/infinitepay";
-import { TunaError, tunaSafeMessage } from "@/lib/payments/tuna";
+import { TunaError, tunaChargeFailed, tunaSafeMessage } from "@/lib/payments/tuna";
 import { tunaErrorSummary } from "@/lib/payments/tuna-webhook";
 import type {
   CardBillingAddress,
@@ -116,6 +116,37 @@ export async function resolveChargeableOrder(
     return { kind: "settled", status: paid ? "paid" : "pending" };
   }
   return { kind: "charge", id: o!.id };
+}
+
+/** Cartão Tuna no site: pode cobrar (de novo) este pedido? Igual ao
+ *  `resolveChargeableOrder`, mas com a RETENTATIVA no mesmo pedido: se a
+ *  cobrança anterior foi RECUSADA na Tuna (Status pelo paymentKey), libera um
+ *  novo cartão — a Tuna acrescenta o método ao mesmo pagamento, e o provider
+ *  ainda consulta o pedido antes do Init. Pago/pendente/sem resposta da Tuna →
+ *  `settled` (reconcilia; nunca cobra de novo). Pedido que não é de cartão
+ *  Tuna → `notChargeable`. */
+export async function resolveTunaCardCharge(
+  orderId: string,
+): Promise<
+  | { kind: "charge"; id: string }
+  | { kind: "settled"; status: "paid" | "pending" }
+  | { kind: "notfound" }
+  | { kind: "notChargeable" }
+> {
+  const o = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      status: true,
+      payment: { select: { method: true, provider: true, gatewayChargeId: true } },
+    },
+  });
+  if (!o) return { kind: "notfound" };
+  if (o.status !== OrderStatus.AWAITING_PAYMENT) return { kind: "settled", status: "paid" };
+  const p = o.payment;
+  if (!p || p.provider !== "TUNA" || !cardChargeMethod(p.method)) return { kind: "notChargeable" };
+  if (!p.gatewayChargeId || (await tunaChargeFailed(p.gatewayChargeId))) return { kind: "charge", id: o.id };
+  return resolveChargeableOrder(orderId);
 }
 
 export async function reconcileOrder(orderId: string): Promise<void> {

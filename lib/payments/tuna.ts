@@ -637,6 +637,20 @@ export const tunaProvider: PaymentProvider = {
   },
 };
 
+/** A cobrança anterior do pedido (paymentKey) foi RECUSADA na Tuna? Libera a
+ *  retentativa com outro cartão no MESMO pedido (a Tuna acrescenta o novo
+ *  método ao mesmo pagamento). Qualquer erro na consulta → false (falha
+ *  fechado: trata como cobrança viva e não cobra de novo). */
+export async function tunaChargeFailed(paymentKey: string): Promise<boolean> {
+  try {
+    await ensureTunaMode();
+    const r = await tunaPost<unknown>("engine", "/api/Payment/Status", { paymentKey });
+    return mapTunaStatus(str(pickCi(r, "status"))) === "failed";
+  } catch {
+    return false;
+  }
+}
+
 /** Estorno (Payment/Cancel). Total: só o `paymentKey`. Parcial: `cardsDetail`
  *  do método 0; com split, a parte do bar vai em `Splits` (exigido pela Tuna). */
 export async function refundTunaPayment(

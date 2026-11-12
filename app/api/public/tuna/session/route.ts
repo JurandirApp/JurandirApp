@@ -5,6 +5,7 @@ import {
   createTunaSession,
   ensureTunaMode,
   TunaError,
+  tunaChargeFailed,
   tunaSafeMessage,
   tunaTokenUrl,
 } from "@/lib/payments/tuna";
@@ -30,6 +31,9 @@ export async function OPTIONS(): Promise<Response> {
  * servidor) e devolve `{ sessionId, tokenUrl, env }`: o app/site manda o cartão
  * direto pra `<tokenUrl>/api/Token/Generate` e depois cobra em
  * `/api/public/orders/card` com `tuna.sessionId`. O `sessionId` nunca é logado.
+ * Retentativa: pedido Tuna cuja cobrança anterior foi RECUSADA na Tuna (Status
+ * pelo paymentKey) abre sessão de novo — o cliente tenta outro cartão no mesmo
+ * pedido. Cobrança paga/pendente/sem resposta → 409 (não cobra de novo).
  */
 export async function POST(req: Request): Promise<Response> {
   let orderId = "";
@@ -45,13 +49,22 @@ export async function POST(req: Request): Promise<Response> {
     const order = orderId
       ? await prisma.order.findUnique({ where: { id: orderId }, include: { payment: true } })
       : null;
+    // Cobrança anterior conta como "viva" salvo se a Tuna diz que foi recusada
+    // (só consulta pedido de cartão Tuna ainda aguardando pagamento).
+    const chargeId = order?.payment?.gatewayChargeId ?? null;
+    const retryable =
+      !!chargeId &&
+      order?.status === "AWAITING_PAYMENT" &&
+      order.payment?.provider === "TUNA" &&
+      (order.payment.method === "CREDIT" || order.payment.method === "DEBIT") &&
+      (await tunaChargeFailed(chargeId));
     const decision = decideTunaSession(
       order
         ? {
             status: order.status,
             method: order.payment?.method ?? null,
             provider: order.payment?.provider ?? null,
-            hasGatewayCharge: !!order.payment?.gatewayChargeId,
+            hasGatewayCharge: !!chargeId && !retryable,
           }
         : null,
       cardsEnabled,

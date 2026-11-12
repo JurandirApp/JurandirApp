@@ -21,6 +21,7 @@ import {
   tunaTokenUrl,
   ensureTunaMode,
   bustTunaModeCache,
+  tunaChargeFailed,
 } from "@/lib/payments/tuna";
 import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
 import type { Establishment } from "@prisma/client";
@@ -783,6 +784,22 @@ describe("tunaProvider.getChargeStatus", () => {
     expect(await tunaProvider.getChargeStatus(est, "PK1")).toBe("failed");
     expect(fn.mock.calls[0][0]).toBe("https://engine.tunagateway.com/api/Payment/Status");
     expect(bodyOf(fn)).toEqual({ paymentKey: "PK1" });
+  });
+});
+
+describe("tunaChargeFailed", () => {
+  it("só status recusado libera a retentativa; pago/pendente não", async () => {
+    const fn = seq([{ code: 1, status: "4" }, { code: 1, status: "8" }, { code: 1, status: "P" }]);
+    expect(await tunaChargeFailed("PK1")).toBe(true);
+    expect(await tunaChargeFailed("PK1")).toBe(false);
+    expect(await tunaChargeFailed("PK1")).toBe(false);
+    expect(bodyOf(fn)).toEqual({ paymentKey: "PK1" });
+  });
+  it("erro na consulta (code negativo / rede) → false (falha fechado)", async () => {
+    seq([{ code: -102, message: "x" }]);
+    expect(await tunaChargeFailed("PK1")).toBe(false);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    expect(await tunaChargeFailed("PK1")).toBe(false);
   });
 });
 

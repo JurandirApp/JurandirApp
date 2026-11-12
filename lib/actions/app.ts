@@ -7,13 +7,16 @@ import {
   createCardCheckout,
   reconcileOrder,
   payOrderWithCard,
+  payOrderWithCardToken,
   payOrderWithWallet,
   resolveChargeableOrder,
+  resolveTunaCardCharge,
 } from "@/lib/db/payments";
 import { orderCreateSchema, type OrderCreateInput } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
 import type { ClientOrder } from "@/lib/app/helpers";
 import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
+import { isValidCpf, onlyDigits } from "@/lib/app/card-form";
 
 // Public (anonymous QR customer) — no session required.
 export async function createOrderAction(
@@ -124,6 +127,62 @@ export async function chargeWalletAction(
   } catch (e) {
     console.error("[chargeWallet]", e instanceof Error ? e.message : "erro");
     return { ok: false, status: "failed" };
+  }
+}
+
+/** Cartão Tuna no site: cobra o pedido JÁ criado (createOrderAction) com o
+ *  token do Token/Generate (o navegador tokeniza direto na Tuna; número/CVV
+ *  nunca chegam aqui). Recusado → o cliente pode tentar outro cartão no MESMO
+ *  pedido (`resolveTunaCardCharge` só libera se a Tuna recusou a anterior).
+ *  `uncertain`: pode ter cobrado (erro inesperado) — o cliente vai pra "Meus
+ *  pedidos" e o polling confirma; nunca mostrar "recusado". O tipo (crédito/
+ *  débito) vem do pedido; `method` só por simetria com a rota. Nunca loga
+ *  token, sessão ou CPF. */
+export async function payTunaCardAction(
+  orderId: string,
+  cardToken: string,
+  method: "credit" | "debit",
+  cpf: string,
+  tuna: { sessionId: string; brand?: string },
+): Promise<{ ok: boolean; status: ChargeStatus; order?: ClientOrder; detail?: string; uncertain?: boolean }> {
+  const doc = typeof cpf === "string" ? onlyDigits(cpf) : "";
+  if (
+    typeof orderId !== "string" ||
+    !orderId ||
+    typeof cardToken !== "string" ||
+    !cardToken ||
+    (method !== "credit" && method !== "debit") ||
+    !isValidCpf(doc) ||
+    typeof tuna?.sessionId !== "string" ||
+    !tuna.sessionId
+  ) {
+    return { ok: false, status: "failed" };
+  }
+  const brand = typeof tuna.brand === "string" && tuna.brand.trim() ? tuna.brand.trim() : undefined;
+  try {
+    const r = await resolveTunaCardCharge(orderId);
+    if (r.kind !== "charge") {
+      if (r.kind === "settled") {
+        const [row] = await getOrdersByIds([orderId]);
+        return { ok: true, status: r.status, order: row ? toClientOrder(row) : undefined };
+      }
+      return { ok: false, status: "failed" };
+    }
+    const res = await payOrderWithCardToken(orderId, cardToken, 1, method, doc, undefined, undefined, {
+      sessionId: tuna.sessionId,
+      ...(brand ? { brand } : {}),
+    });
+    const [fresh] = await getOrdersByIds([orderId]);
+    return {
+      ok: res.status !== "failed",
+      status: res.status,
+      order: fresh ? toClientOrder(fresh) : undefined,
+      detail: res.statusDetail,
+    };
+  } catch (e) {
+    // Pode ter cobrado (ex.: caiu depois do Init) → incerto, nunca "recusado".
+    console.error("[payTunaCard] resultado incerto", orderId, e instanceof Error ? e.name : "erro");
+    return { ok: false, status: "pending", uncertain: true };
   }
 }
 
