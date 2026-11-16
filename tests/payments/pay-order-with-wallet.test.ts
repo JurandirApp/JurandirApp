@@ -39,6 +39,21 @@ beforeEach(() => {
   });
 });
 
+describe("payOrderWithWallet - antifraude (Device Fingerprint)", () => {
+  it("repassa deviceSessionId e client ao provider; sem eles, nenhuma das chaves", async () => {
+    m.createWalletPayment.mockResolvedValue({ chargeId: "W1", status: "pending" });
+    const client = { origin: "MOBILE" as const, ip: "1.2.3.4" };
+    await payOrderWithWallet("o1", "google_pay", "tok", { deviceSessionId: "0123456789abcdef0123456789abcdef", client });
+    expect(m.createWalletPayment.mock.calls[0][0]).toMatchObject({
+      deviceSessionId: "0123456789abcdef0123456789abcdef",
+      client,
+    });
+    await payOrderWithWallet("o1", "google_pay", "tok");
+    expect(m.createWalletPayment.mock.calls[1][0]).not.toHaveProperty("deviceSessionId");
+    expect(m.createWalletPayment.mock.calls[1][0]).not.toHaveProperty("client");
+  });
+});
+
 describe("payOrderWithWallet - erro do gateway", () => {
   it("4xx do PagBank → recusa definitiva (sem uncertain)", async () => {
     m.createWalletPayment.mockRejectedValue(new PagbankError(400, "cartão recusado"));

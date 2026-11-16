@@ -15,6 +15,7 @@ import type {
   CardBrickData,
   CardPaymentResult,
   CardTokenPaymentInput,
+  PaymentClientInfo,
   ChargeStatus,
 } from "@/lib/payments/types";
 import { enqueuePrintJob } from "./print";
@@ -302,6 +303,7 @@ export async function payOrderWithCardToken(
   billing?: CardBillingAddress,
   authenticationId?: string,
   tuna?: CardTokenPaymentInput["tuna"],
+  client?: PaymentClientInfo,
 ): Promise<{ status: ChargeStatus; statusDetail?: string; challenge?: CardPaymentResult["challenge"] }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -331,6 +333,7 @@ export async function payOrderWithCardToken(
       billing,
       authenticationId,
       ...(tuna ? { tuna } : {}),
+      ...(client ? { client } : {}),
     });
   } catch (e) {
     if (provider.name === "TUNA") {
@@ -365,11 +368,13 @@ export async function payOrderWithCardToken(
 }
 
 /** Cobra o pedido via carteira nativa (Google Pay / Apple Pay) usando o token do
- *  app. Aprovado → confirma e vai pra produção. */
+ *  app. Aprovado → confirma e vai pra produção. `fraud` (opcional): id do Device
+ *  Fingerprint + IP/UA do cliente pro antifraude da Tuna (outros ignoram). */
 export async function payOrderWithWallet(
   orderId: string,
   walletType: "google_pay" | "apple_pay",
   token: string,
+  fraud?: { deviceSessionId?: string; client?: PaymentClientInfo },
 ): Promise<{ status: ChargeStatus; statusDetail?: string; uncertain?: boolean }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -393,6 +398,8 @@ export async function payOrderWithWallet(
       description: `Pedido ${order.code}`,
       walletType,
       token,
+      ...(fraud?.deviceSessionId ? { deviceSessionId: fraud.deviceSessionId } : {}),
+      ...(fraud?.client ? { client: fraud.client } : {}),
     });
   } catch (e) {
     // Tuna: nunca o corpo cru da resposta (pode ter CPF/sessão) — só a mensagem curta.

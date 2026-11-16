@@ -17,6 +17,7 @@ import {
   type TunaContext,
   type TunaEstFields,
 } from "./tuna-readiness";
+import { buildTunaFrontData, type TunaFrontData } from "./tuna-fingerprint";
 
 // Tuna Gateway (7º gateway). Núcleo: modo TEST/PRODUCTION, envs, HTTP, erros e
 // mapeamento de status; depois as cobranças (Pix, cartão com 3DS, carteiras),
@@ -371,11 +372,14 @@ async function tunaInit(o: {
   item: ReturnType<typeof tunaSplitItem>;
   method: Record<string, unknown>;
   tokenSession?: string;
+  /** Antifraude (Device Fingerprint CyberSource + IP/UA). Ausente = não vai. */
+  frontData?: TunaFrontData;
   mode: Mode;
 }): Promise<TunaInitResult> {
   const cb = callbackUrl();
   const body = {
     ...(o.tokenSession ? { tokenSession: o.tokenSession } : {}),
+    ...(o.frontData ? { frontData: o.frontData } : {}),
     partnerUniqueID: o.reference,
     customer: o.customer,
     paymentItems: { items: [o.item] },
@@ -530,7 +534,7 @@ export const tunaProvider: PaymentProvider = {
   // aprovado/recusado/estornado certo na homologação.
   async createCardTokenPayment(input: CardTokenPaymentInput): Promise<CardPaymentResult> {
     const { est, reference, total, platformFee, description, cardToken, installments, method,
-      customerName, customerDocument, customerPhone, tuna } = input;
+      customerName, customerDocument, customerPhone, tuna, client } = input;
     const sessionId = str(tuna?.sessionId);
     const threeDs =
       tuna?.threeDs && str(tuna.threeDs.referenceId) && str(tuna.threeDs.transactionId) ? tuna.threeDs : undefined;
@@ -543,6 +547,7 @@ export const tunaProvider: PaymentProvider = {
       mode,
     );
     const brand = str(tuna?.brand);
+    const frontData = buildTunaFrontData({ deviceSessionId: tuna?.deviceSessionId, client });
     const r = await tunaInit({
       reference,
       total,
@@ -550,6 +555,7 @@ export const tunaProvider: PaymentProvider = {
       item,
       mode,
       tokenSession: sessionId,
+      ...(frontData ? { frontData } : {}),
       method: {
         paymentMethodType: method === "debit" ? (threeDs ? "8" : "2") : threeDs ? "7" : "1",
         amount: total,
@@ -579,12 +585,13 @@ export const tunaProvider: PaymentProvider = {
   // Carteira nativa: Init como crédito "1" com o token da carteira (a Tuna
   // decifra). Também exige uma sessão (NewSession) no Init.
   async createWalletPayment(input: WalletPaymentInput): Promise<CardPaymentResult> {
-    const { est, reference, total, platformFee, description, walletType, token } = input;
+    const { est, reference, total, platformFee, description, walletType, token, deviceSessionId, client } = input;
     const item = tunaSplitItem(est, total, platformFee, description);
     const mode = await assertTunaReady(est, "card"); // antes do NewSession
     const customer = buildTunaCustomer(reference, {}, mode);
     const sessionId = await createTunaSession({ id: customer.id, email: customer.email }, mode);
     const apple = walletType === "apple_pay";
+    const frontData = buildTunaFrontData({ deviceSessionId, client });
     const r = await tunaInit({
       reference,
       total,
@@ -592,6 +599,7 @@ export const tunaProvider: PaymentProvider = {
       item,
       mode,
       tokenSession: sessionId,
+      ...(frontData ? { frontData } : {}),
       method: {
         paymentMethodType: "1",
         amount: total,

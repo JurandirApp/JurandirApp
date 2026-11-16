@@ -1234,3 +1234,81 @@ describe("cobrança usa o modo da checagem de prontidão (não relê no meio)", 
     expect(headersOf(fn)["x-tuna-account"]).toBe("acc_p");
   });
 });
+
+// Device Fingerprint CyberSource (antifraude da Tuna): `frontData` no Init.
+describe("frontData (Device Fingerprint) no Init", () => {
+  const DSID = "0123456789abcdef0123456789abcdef";
+  const client = { origin: "MOBILE" as const, ip: "203.0.113.7", userAgent: "JurandirApp/1.0" };
+  const fullFront = {
+    sessionId: DSID,
+    origin: "MOBILE",
+    ipAddress: "203.0.113.7",
+    userAgent: "JurandirApp/1.0",
+    cookiesAccepted: true,
+  };
+  const wallet = (over: Partial<WalletPaymentInput> = {}): WalletPaymentInput => ({
+    est,
+    reference: "PED-3",
+    total: 20,
+    platformFee: 1.6,
+    description: "Pedido PED-3",
+    walletType: "google_pay",
+    token: '{"signature":"s"}',
+    ...over,
+  });
+
+  it("crédito: frontData com sessão do device, origem, IP, UA e cookiesAccepted", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(card({ tuna: { sessionId: "sess_1", deviceSessionId: DSID }, client }));
+    expect(bodyOf(fn).frontData).toEqual(fullFront);
+  });
+
+  it("débito (com e sem 3DS) também leva o frontData", async () => {
+    for (const t of [{ sessionId: "sess_1", deviceSessionId: DSID }, { sessionId: "sess_1", deviceSessionId: DSID, threeDs }]) {
+      const fn = seq([initOk()]);
+      await tunaProvider.createCardTokenPayment!(card({ method: "debit", tuna: t, client }));
+      expect(bodyOf(fn).frontData).toEqual(fullFront);
+    }
+  });
+
+  it("Google Pay e Apple Pay: frontData no Init (não no NewSession)", async () => {
+    const paymentData = { version: "EC_v1", data: "abc" };
+    for (const w of [
+      wallet({ deviceSessionId: DSID, client }),
+      wallet({ walletType: "apple_pay", token: JSON.stringify({ paymentData }), deviceSessionId: DSID, client }),
+    ]) {
+      const fn = seq([{ sessionId: "sess_w", code: 1 }, initOk()]);
+      await tunaProvider.createWalletPayment!(w);
+      expect(bodyOf(fn, 0)).not.toHaveProperty("frontData");
+      expect(bodyOf(fn, 1).frontData).toEqual(fullFront);
+    }
+  });
+
+  it("deviceSessionId inválido é descartado; IP inválido também; o resto vai", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(
+      card({
+        tuna: { sessionId: "sess_1", deviceSessionId: "curto" },
+        client: { origin: "WEBSITE", ip: "não-é-ip", userAgent: "Mozilla" },
+      }),
+    );
+    expect(bodyOf(fn).frontData).toEqual({ origin: "WEBSITE", userAgent: "Mozilla", cookiesAccepted: true });
+  });
+
+  it("sem fingerprint nem dados do cliente → Init SEM frontData (cartão e carteira)", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(card());
+    expect(bodyOf(fn)).not.toHaveProperty("frontData");
+    const fw = seq([{ sessionId: "sess_w", code: 1 }, initOk()]);
+    await tunaProvider.createWalletPayment!(wallet({ deviceSessionId: "!!" }));
+    expect(bodyOf(fw, 1)).not.toHaveProperty("frontData");
+  });
+
+  it("Pix não leva frontData", async () => {
+    const fn = seq([initOk({ status: "P", methods: [{ pixInfo: { qrCopyPaste: "0002" } }] })]);
+    await tunaProvider.createPixCharge({
+      est, reference: "PED-1", total: 20, platformFee: 1.6, customerDocument: "52998224725", description: "Pedido PED-1",
+    });
+    expect(bodyOf(fn)).not.toHaveProperty("frontData");
+  });
+});

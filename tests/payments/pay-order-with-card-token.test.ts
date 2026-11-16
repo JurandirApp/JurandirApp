@@ -136,6 +136,15 @@ describe("payOrderWithCardToken — Tuna", () => {
     m.createCardTokenPayment.mockResolvedValue({ chargeId: "PK2", status: "pending" });
     await payOrderWithCardToken("o1", CARD, 1, "credit");
     expect(m.createCardTokenPayment.mock.calls[0][0]).not.toHaveProperty("tuna");
+    expect(m.createCardTokenPayment.mock.calls[0][0]).not.toHaveProperty("client");
+  });
+
+  it("repassa o deviceSessionId (no `tuna`) e o `client` (antifraude) ao provider", async () => {
+    m.createCardTokenPayment.mockResolvedValue({ chargeId: "PK3", status: "pending" });
+    const tuna = { sessionId: SESSION, deviceSessionId: "0123456789abcdef0123456789abcdef" };
+    const client = { origin: "MOBILE" as const, ip: "203.0.113.7", userAgent: "UA" };
+    await payOrderWithCardToken("o1", CARD, 1, "credit", CPF, undefined, undefined, tuna, client);
+    expect(m.createCardTokenPayment.mock.calls[0][0]).toMatchObject({ tuna, client });
   });
 });
 
