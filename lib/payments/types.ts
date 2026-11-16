@@ -97,7 +97,20 @@ export type CardTokenPaymentInput = {
     sessionId: string;
     brand?: string;
     threeDs?: { referenceId: string; transactionId: string };
+    /** Id da sessão do Device Fingerprint (CyberSource), SEM o prefixo do
+     *  merchant. Opcional; inválido é descartado. Vai no `frontData.sessionId`. */
+    deviceSessionId?: string;
   };
+  /** Dados do cliente pro antifraude (Tuna `frontData`). Outros gateways ignoram. */
+  client?: PaymentClientInfo;
+};
+
+/** IP/user agent/origem do cliente que fez a cobrança (antifraude). Nunca logar. */
+export type PaymentClientInfo = {
+  ip?: string;
+  userAgent?: string;
+  /** "MOBILE" = app (rotas /api/public/*); "WEBSITE" = site (server actions). */
+  origin?: "WEBSITE" | "MOBILE";
 };
 
 /** billing_address do cartão (formato Pagar.me v5). */
@@ -122,6 +135,10 @@ export type WalletPaymentInput = {
   walletType: "google_pay" | "apple_pay";
   /** Token bruto da carteira (JSON), como o `pay` plugin devolve em tokenizationData.token. */
   token: string;
+  /** Tuna: id da sessão do Device Fingerprint (sem o prefixo do merchant). */
+  deviceSessionId?: string;
+  /** Dados do cliente pro antifraude (Tuna `frontData`). Outros gateways ignoram. */
+  client?: PaymentClientInfo;
 };
 
 export interface PaymentProvider {
