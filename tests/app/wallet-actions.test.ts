@@ -9,7 +9,10 @@ const m = vi.hoisted(() => ({
   createCardCheckout: vi.fn(),
   reconcileOrder: vi.fn(),
   payOrderWithCard: vi.fn(),
+  headers: vi.fn(),
 }));
+
+vi.mock("next/headers", () => ({ headers: m.headers }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/db/orders", () => ({
@@ -36,6 +39,27 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   m.getOrdersByIds.mockResolvedValue([{ id: "o1" }]);
   m.resolveChargeableOrder.mockResolvedValue({ kind: "charge", id: "o1" });
+  m.headers.mockResolvedValue(new Headers());
+});
+
+describe("chargeWalletAction - Device Fingerprint (Tuna)", () => {
+  const DSID = "0123456789abcdef0123456789abcdef";
+  it("deviceSessionId válido + IP/UA do request vão pro payOrderWithWallet (WEBSITE)", async () => {
+    m.payOrderWithWallet.mockResolvedValue({ status: "paid" });
+    m.headers.mockResolvedValue(new Headers({ "x-real-ip": "2001:db8::1", "user-agent": "UA-site" }));
+    await chargeWalletAction("o1", "google_pay", "tok", DSID);
+    expect(m.payOrderWithWallet).toHaveBeenCalledWith("o1", "google_pay", "tok", {
+      deviceSessionId: DSID,
+      client: { origin: "WEBSITE", ip: "2001:db8::1", userAgent: "UA-site" },
+    });
+  });
+  it("deviceSessionId inválido é ignorado; sem contexto de request → sem client", async () => {
+    m.payOrderWithWallet.mockResolvedValue({ status: "paid" });
+    m.headers.mockRejectedValue(new Error("outside request scope"));
+    const r = await chargeWalletAction("o1", "google_pay", "tok", "<script>");
+    expect(r.status).toBe("paid");
+    expect(m.payOrderWithWallet).toHaveBeenCalledWith("o1", "google_pay", "tok", {});
+  });
 });
 
 describe("chargeWalletAction", () => {

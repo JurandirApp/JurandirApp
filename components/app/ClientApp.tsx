@@ -27,6 +27,7 @@ import { CartDrawer } from "./CartDrawer";
 import { CardPaymentModal } from "./CardPaymentModal";
 import { TunaCardModal } from "./TunaCardModal";
 import { ClientToast } from "./ClientToast";
+import { useTunaFingerprint } from "./useTunaFingerprint";
 
 import type { WalletWebConfig } from "@/lib/payments/wallet-web";
 import type { WalletType } from "@/lib/payments/wallet-sdk";
@@ -120,6 +121,21 @@ export function ClientApp({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Single-flight das carteiras: nunca duas cobranças de carteira ao mesmo tempo.
   const walletLock = useRef(false);
+
+  // Device Fingerprint (antifraude da Tuna): começa assim que o checkout abre
+  // num bar com crédito/débito/carteira na Tuna — o tags.js precisa de 5–10 s
+  // rodando antes da cobrança. Ref pra as callbacks memoizadas lerem o atual.
+  const tunaFpActive =
+    step === "checkout" &&
+    (est.gateways.credit === "TUNA" ||
+      est.gateways.debit === "TUNA" ||
+      est.gateways.googlePay === "TUNA" ||
+      est.gateways.applePay === "TUNA");
+  const deviceSessionId = useTunaFingerprint(tunaFpActive);
+  const fpRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    fpRef.current = deviceSessionId;
+  }, [deviceSessionId]);
 
   useEffect(
     () => () => {
@@ -507,7 +523,7 @@ export function ClientApp({
         }
         let c: Awaited<ReturnType<typeof chargeWalletAction>> | "exception";
         try {
-          c = await chargeWalletAction(dbId, walletType, token);
+          c = await chargeWalletAction(dbId, walletType, token, fpRef.current);
         } catch {
           c = "exception";
         }
@@ -769,6 +785,7 @@ export function ClientApp({
                   tunaPay.method === "debito" ? "debit" : "credit",
                   cpf,
                   tuna,
+                  fpRef.current,
                 )
               }
               onApproved={(order) => {

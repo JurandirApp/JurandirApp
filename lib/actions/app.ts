@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import type { PaymentMethod } from "@prisma/client";
 import { createOrder, payShare, getOrdersByIds } from "@/lib/db/orders";
 import {
@@ -17,6 +18,18 @@ import { toClientOrder } from "@/lib/app/adapters";
 import type { ClientOrder } from "@/lib/app/helpers";
 import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { isValidCpf, onlyDigits } from "@/lib/app/card-form";
+import { clientInfoFromHeaders, sanitizeDeviceSessionId } from "@/lib/payments/tuna-fingerprint";
+import type { PaymentClientInfo } from "@/lib/payments/types";
+
+/** IP/UA de quem chamou a action (antifraude da Tuna, origem "WEBSITE"). Sem
+ *  contexto de requisição → undefined; nunca derruba a cobrança. Nunca logar. */
+async function siteClientInfo(): Promise<PaymentClientInfo | undefined> {
+  try {
+    return clientInfoFromHeaders(await headers(), "WEBSITE");
+  } catch {
+    return undefined;
+  }
+}
 
 // Public (anonymous QR customer) — no session required.
 export async function createOrderAction(
@@ -85,11 +98,13 @@ export async function createWalletOrderAction(
 }
 
 /** Carteira no site, passo 2: cobra o pedido já criado com o token da carteira.
- *  Pedido já quitado/pendente não é cobrado de novo. Nunca loga o token. */
+ *  Pedido já quitado/pendente não é cobrado de novo. Nunca loga o token.
+ *  `deviceSessionId` (opcional): Device Fingerprint da Tuna; inválido é ignorado. */
 export async function chargeWalletAction(
   orderId: string,
   walletType: "apple_pay" | "google_pay",
   token: string,
+  deviceSessionId?: string,
 ): Promise<{ ok: boolean; status: ChargeStatus; order?: ClientOrder; detail?: string }> {
   if (
     (walletType !== "apple_pay" && walletType !== "google_pay") ||
@@ -110,7 +125,12 @@ export async function chargeWalletAction(
       }
       return { ok: false, status: "failed" };
     }
-    const res = await payOrderWithWallet(orderId, walletType, token);
+    const dsid = sanitizeDeviceSessionId(deviceSessionId);
+    const client = await siteClientInfo();
+    const res = await payOrderWithWallet(orderId, walletType, token, {
+      ...(dsid ? { deviceSessionId: dsid } : {}),
+      ...(client ? { client } : {}),
+    });
     if (res.uncertain) {
       // Pode ter cobrado: sem pedido na resposta o cliente vai pra "Meus pedidos"
       // (nunca "recusado") e o polling confirma.
@@ -137,13 +157,15 @@ export async function chargeWalletAction(
  *  `uncertain`: pode ter cobrado (erro inesperado) — o cliente vai pra "Meus
  *  pedidos" e o polling confirma; nunca mostrar "recusado". O tipo (crédito/
  *  débito) vem do pedido; `method` só por simetria com a rota. Nunca loga
- *  token, sessão ou CPF. */
+ *  token, sessão ou CPF. `deviceSessionId` (opcional): Device Fingerprint da
+ *  Tuna (CyberSource); inválido é ignorado. */
 export async function payTunaCardAction(
   orderId: string,
   cardToken: string,
   method: "credit" | "debit",
   cpf: string,
   tuna: { sessionId: string; brand?: string },
+  deviceSessionId?: string,
 ): Promise<{ ok: boolean; status: ChargeStatus; order?: ClientOrder; detail?: string; uncertain?: boolean }> {
   const doc = typeof cpf === "string" ? onlyDigits(cpf) : "";
   if (
@@ -168,10 +190,22 @@ export async function payTunaCardAction(
       }
       return { ok: false, status: "failed" };
     }
-    const res = await payOrderWithCardToken(orderId, cardToken, 1, method, doc, undefined, undefined, {
-      sessionId: tuna.sessionId,
-      ...(brand ? { brand } : {}),
-    });
+    const dsid = sanitizeDeviceSessionId(deviceSessionId);
+    const res = await payOrderWithCardToken(
+      orderId,
+      cardToken,
+      1,
+      method,
+      doc,
+      undefined,
+      undefined,
+      {
+        sessionId: tuna.sessionId,
+        ...(brand ? { brand } : {}),
+        ...(dsid ? { deviceSessionId: dsid } : {}),
+      },
+      await siteClientInfo(),
+    );
     const [fresh] = await getOrdersByIds([orderId]);
     return {
       ok: res.status !== "failed",

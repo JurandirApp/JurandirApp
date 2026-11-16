@@ -4,7 +4,10 @@ const m = vi.hoisted(() => ({
   getOrdersByIds: vi.fn(),
   payOrderWithCardToken: vi.fn(),
   resolveTunaCardCharge: vi.fn(),
+  headers: vi.fn(),
 }));
+
+vi.mock("next/headers", () => ({ headers: m.headers }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/db/orders", () => ({ createOrder: vi.fn(), getOrdersByIds: m.getOrdersByIds, payShare: vi.fn() }));
@@ -31,6 +34,7 @@ beforeEach(() => {
   errLog = vi.spyOn(console, "error").mockImplementation(() => {});
   m.getOrdersByIds.mockResolvedValue([{ id: "o1" }]);
   m.resolveTunaCardCharge.mockResolvedValue({ kind: "charge", id: "o1" });
+  m.headers.mockResolvedValue(new Headers());
 });
 
 describe("payTunaCardAction", () => {
@@ -38,10 +42,47 @@ describe("payTunaCardAction", () => {
     m.payOrderWithCardToken.mockResolvedValue({ status: "paid" });
     const r = await payTunaCardAction("o1", TOKEN, "debit", CPF, { sessionId: SESSION, brand: "Visa" });
     expect(r).toEqual({ ok: true, status: "paid", order: { dbId: "o1" }, detail: undefined });
-    expect(m.payOrderWithCardToken).toHaveBeenCalledWith("o1", TOKEN, 1, "debit", "52998224725", undefined, undefined, {
-      sessionId: SESSION,
-      brand: "Visa",
-    });
+    expect(m.payOrderWithCardToken).toHaveBeenCalledWith(
+      "o1",
+      TOKEN,
+      1,
+      "debit",
+      "52998224725",
+      undefined,
+      undefined,
+      { sessionId: SESSION, brand: "Visa" },
+      { origin: "WEBSITE" },
+    );
+  });
+
+  it("fingerprint: deviceSessionId válido vai no `tuna`; IP/UA do request, origem WEBSITE", async () => {
+    m.payOrderWithCardToken.mockResolvedValue({ status: "paid" });
+    m.headers.mockResolvedValue(
+      new Headers({ "x-forwarded-for": "203.0.113.7, 10.0.0.1", "user-agent": "Mozilla/5.0 Teste" }),
+    );
+    const DSID = "0123456789abcdef0123456789abcdef";
+    await payTunaCardAction("o1", TOKEN, "credit", CPF, { sessionId: SESSION }, DSID);
+    const args = m.payOrderWithCardToken.mock.calls[0];
+    expect(args[7]).toEqual({ sessionId: SESSION, deviceSessionId: DSID });
+    expect(args[8]).toEqual({ origin: "WEBSITE", ip: "203.0.113.7", userAgent: "Mozilla/5.0 Teste" });
+  });
+
+  it("fingerprint: deviceSessionId inválido é descartado (cobra igual)", async () => {
+    m.payOrderWithCardToken.mockResolvedValue({ status: "paid" });
+    for (const bad of ["curto", "tem espaço 1234567890", "x".repeat(65), 123 as never]) {
+      m.payOrderWithCardToken.mockClear();
+      const r = await payTunaCardAction("o1", TOKEN, "credit", CPF, { sessionId: SESSION }, bad);
+      expect(r.status).toBe("paid");
+      expect(m.payOrderWithCardToken.mock.calls[0][7]).toEqual({ sessionId: SESSION });
+    }
+  });
+
+  it("fora de um request (headers() lança) → cobra sem dados do cliente", async () => {
+    m.payOrderWithCardToken.mockResolvedValue({ status: "paid" });
+    m.headers.mockRejectedValue(new Error("outside request scope"));
+    const r = await payTunaCardAction("o1", TOKEN, "credit", CPF, { sessionId: SESSION });
+    expect(r.status).toBe("paid");
+    expect(m.payOrderWithCardToken.mock.calls[0][8]).toBeUndefined();
   });
 
   it("recusa → failed com o pedido (cliente tenta outro cartão no mesmo pedido)", async () => {
