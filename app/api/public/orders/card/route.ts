@@ -3,6 +3,7 @@ import { payOrderWithCardToken, resolveChargeableOrder } from "@/lib/db/payments
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
 import { TunaError, tunaSafeMessage } from "@/lib/payments/tuna";
+import { clientInfoFromHeaders, sanitizeDeviceSessionId } from "@/lib/payments/tuna-fingerprint";
 import type { CardTokenPaymentInput } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,8 @@ export async function OPTIONS(): Promise<Response> {
 }
 
 /** Campos opcionais da Tuna. Só vale com `sessionId` string não-vazia; `brand`
- *  só string; `threeDs` só com `referenceId` E `transactionId` não-vazios. */
+ *  só string; `threeDs` só com `referenceId` E `transactionId` não-vazios;
+ *  `deviceSessionId` (Device Fingerprint) só no formato aceito — senão some. */
 function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
   if (!raw || typeof raw !== "object") return undefined;
   const t = raw as Record<string, unknown>;
@@ -29,9 +31,11 @@ function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
   const d = (t.threeDs && typeof t.threeDs === "object" ? t.threeDs : {}) as Record<string, unknown>;
   const referenceId = s(d.referenceId);
   const transactionId = s(d.transactionId);
+  const deviceSessionId = sanitizeDeviceSessionId(t.deviceSessionId);
   return {
     sessionId,
     ...(brand ? { brand } : {}),
+    ...(deviceSessionId ? { deviceSessionId } : {}),
     ...(referenceId && transactionId ? { threeDs: { referenceId, transactionId } } : {}),
   };
 }
@@ -40,7 +44,8 @@ function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
  * POST /api/public/orders/card
  * Body: { order: <orderCreateInput com payment.method=CREDIT|DEBIT>,
  *         cardToken: string, installments?: number, method?: "credit"|"debit",
- *         tuna?: { sessionId, brand?, threeDs?: { referenceId, transactionId } } }
+ *         tuna?: { sessionId, brand?, threeDs?: { referenceId, transactionId },
+ *                  deviceSessionId? } }
  * Cria o pedido e cobra o cartão via `card_token` (tokenização Pagar.me v5 — o
  * app tokeniza com a chave pública; o cartão cru NUNCA chega aqui).
  * Tuna: o token vem do Token/Generate (sessão de `/api/public/tuna/session`) e a
@@ -131,6 +136,8 @@ export async function POST(req: Request): Promise<Response> {
       billing,
       authenticationId,
       tuna,
+      // Antifraude (Tuna frontData): IP/UA do app. Outros gateways ignoram.
+      clientInfoFromHeaders(req.headers, "MOBILE"),
     );
     const [fresh] = await getOrdersByIds([targetId]);
     return Response.json(

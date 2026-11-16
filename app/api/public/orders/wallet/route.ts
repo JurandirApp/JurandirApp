@@ -2,6 +2,7 @@ import { createOrder, getOrdersByIds } from "@/lib/db/orders";
 import { payOrderWithWallet, resolveChargeableOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
+import { clientInfoFromHeaders, sanitizeDeviceSessionId } from "@/lib/payments/tuna-fingerprint";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +18,16 @@ export async function OPTIONS(): Promise<Response> {
 
 /**
  * POST /api/public/orders/wallet
- * Body: { order: <orderCreateInput>, walletType: "google_pay"|"apple_pay", token: <string> }
+ * Body: { order: <orderCreateInput> | orderId, walletType: "google_pay"|"apple_pay",
+ *         token: <string>, deviceSessionId?: <string> }
+ * `deviceSessionId` (Device Fingerprint CyberSource, Tuna): opcional; fora do
+ * formato aceito é ignorado — nunca derruba a cobrança.
  * Cria o pedido (cartão) e cobra na hora com o token da carteira, pelo gateway
  * configurado pra ela (`gatewayApplePay` / `gatewayGooglePay` — independe do
  * crédito). Aprovado → pedido volta "em produção".
  */
 export async function POST(req: Request): Promise<Response> {
-  let body: { order?: unknown; orderId?: unknown; walletType?: unknown; token?: unknown };
+  let body: { order?: unknown; orderId?: unknown; walletType?: unknown; token?: unknown; deviceSessionId?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -63,7 +67,11 @@ export async function POST(req: Request): Promise<Response> {
       targetId = created.id;
     }
 
-    const pay = await payOrderWithWallet(targetId, walletType, token);
+    const deviceSessionId = sanitizeDeviceSessionId(body.deviceSessionId);
+    const pay = await payOrderWithWallet(targetId, walletType, token, {
+      ...(deviceSessionId ? { deviceSessionId } : {}),
+      client: clientInfoFromHeaders(req.headers, "MOBILE"),
+    });
     const [fresh] = await getOrdersByIds([targetId]);
     return Response.json(
       {
