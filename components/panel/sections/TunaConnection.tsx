@@ -256,6 +256,42 @@ function toInput(f: TunaForm): TunaMerchantFormInput {
   };
 }
 
+// Rascunho do cadastro: fechar o modal (ou recarregar a página) não perde o que
+// foi digitado. sessionStorage (some ao fechar a aba) — tem CPF/conta bancária,
+// então nada de localStorage. Limpo quando o cadastro é aceito.
+const DRAFT_KEY = "jurandir:tunaMerchantDraft";
+
+function loadDraft(): TunaForm {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return EMPTY;
+    const saved = JSON.parse(raw) as Partial<Record<keyof TunaForm, unknown>>;
+    const out = { ...EMPTY } as Record<string, unknown>;
+    for (const k of Object.keys(EMPTY)) {
+      if (typeof saved[k as keyof TunaForm] === "string") out[k] = saved[k as keyof TunaForm];
+    }
+    return out as TunaForm;
+  } catch {
+    return EMPTY;
+  }
+}
+
+function saveDraft(f: TunaForm) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(f));
+  } catch {
+    /* sem storage (aba privada etc.): segue sem rascunho */
+  }
+}
+
+function clearDraft() {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* idem */
+  }
+}
+
 function TunaModal({
   onClose,
   onDone,
@@ -266,7 +302,8 @@ function TunaModal({
   toast: (msg: string) => void;
 }) {
   const t = useTranslations("panel.config");
-  const [form, setForm] = useState<TunaForm>(EMPTY);
+  const [form, setForm] = useState<TunaForm>(loadDraft);
+  useEffect(() => saveDraft(form), [form]);
   const [invalid, setInvalid] = useState<Set<Field>>(new Set());
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -333,6 +370,7 @@ function TunaModal({
     const r = await onDone(toInput(form));
     setSaving(false);
     if (r.ok) {
+      clearDraft();
       toast(t("tunaRegistered"));
       onClose();
     } else if (r.error === "tryLater") {

@@ -79,8 +79,10 @@ export async function registerEstablishmentInTuna(
     });
     return { ok: true };
   } catch (e) {
-    // Só o resumo (status/code) + o id do bar: nunca o corpo (documento, conta).
-    console.warn("[tuna/register] falha", JSON.stringify({ establishmentId, error: tunaErrorSummary(e) }));
+    // Resumo (status/code) + o id do bar + a mensagem curta da Tuna com qualquer
+    // sequência de 4+ dígitos mascarada (pode citar documento/conta). Nunca o corpo.
+    const tunaMsg = tunaClientMessage(e).replace(/\d[\d.\-/ ]{2,}\d/g, "<n>").slice(0, 160);
+    console.warn("[tuna/register] falha", JSON.stringify({ establishmentId, error: tunaErrorSummary(e), tunaMsg }));
     if (isDefiniteGatewayFailure(e)) {
       // Recusa definitiva: libera nova tentativa.
       await prisma.establishment
