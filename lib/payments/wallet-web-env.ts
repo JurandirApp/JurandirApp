@@ -30,6 +30,14 @@ const envValue = (name: string): string | undefined =>
 const envByMode = (name: string, mode: "TEST" | "PRODUCTION"): string | undefined =>
   mode === "TEST" ? (envValue(`${name}_TEST`) ?? envValue(name)) : envValue(name);
 
+/** `gatewayMerchantId` do Google Pay da Tuna no modo dado (env
+ *  `TUNA_GOOGLE_GATEWAY_MERCHANT_ID` / `_TEST`, senão o default do tuna.js).
+ *  O app busca isto do servidor (GET /api/public/tuna/wallet-config) pra trocar
+ *  o id sem precisar de versão nova. */
+export function tunaGoogleGatewayMerchantId(mode: "TEST" | "PRODUCTION"): string {
+  return envByMode(TUNA_GATEWAY_MERCHANT_ENV, mode) ?? TUNA_GATEWAY_MERCHANT_DEFAULT;
+}
+
 export function readWalletWebEnv(modes: GatewayModes = DEFAULT_MODES): WalletWebEnv {
   const e = process.env;
   const pagarme = envByMode(GATEWAY_MERCHANT_ENV.PAGARME, modes.PAGARME);
