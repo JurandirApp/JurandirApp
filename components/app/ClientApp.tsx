@@ -15,6 +15,7 @@ import {
   payCardAction,
   payShareAction,
   payTunaCardAction,
+  tunaCardStatusAction,
 } from "@/lib/actions/app";
 import type { OrderCreateInput } from "@/lib/validation";
 import { AppContext, type AppValue, type PayMode, type Step } from "./context";
@@ -788,6 +789,7 @@ export function ClientApp({
                   fpRef.current,
                 )
               }
+              checkStatus={(orderId) => tunaCardStatusAction(orderId)}
               onApproved={(order) => {
                 setMyOrders((prev) => [order, ...prev.filter((o) => o.dbId !== order.dbId)]);
                 setLastOrder(order);

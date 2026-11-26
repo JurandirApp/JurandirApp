@@ -58,3 +58,34 @@ describe("generateTunaCardToken", () => {
     }
   });
 });
+
+describe("generateTunaCardToken com 3DS", () => {
+  const AUTH = {
+    accessToken: "jwt",
+    deviceDataCollectionUrl: "https://centinelapi.cardinalcommerce.com/V1/Cruise/Collect",
+    referenceId: "r1",
+    transactionId: "t1",
+    token: "z",
+  };
+  it("manda authenticationInformation.code e devolve os dados do DDC", async () => {
+    const f = vi.fn().mockResolvedValue(res({ code: 1, token: "ct_1", brand: "Master", authenticationInformation: AUTH }));
+    const r = await generateTunaCardToken("https://t", "s1", CARD, f, { authCode: "j3ds_0123456789abcdef01234567" });
+    expect(r).toEqual({
+      ok: true,
+      token: "ct_1",
+      brand: "Master",
+      auth: { accessToken: "jwt", deviceDataCollectionUrl: AUTH.deviceDataCollectionUrl, referenceId: "r1", transactionId: "t1" },
+    });
+    expect(JSON.parse(f.mock.calls[0][1].body).authenticationInformation).toEqual({ code: "j3ds_0123456789abcdef01234567" });
+  });
+  it("sem authCode não pede nem devolve 3DS; resposta sem auth → sem auth", async () => {
+    const f = vi.fn().mockResolvedValue(res({ code: 1, token: "ct_1", authenticationInformation: AUTH }));
+    expect(await generateTunaCardToken("https://t", "s1", CARD, f)).toEqual({ ok: true, token: "ct_1" });
+    expect(JSON.parse(f.mock.calls[0][1].body)).not.toHaveProperty("authenticationInformation");
+    const g = vi.fn().mockResolvedValue(res({ code: 1, token: "ct_1", authenticationInformation: null }));
+    expect(await generateTunaCardToken("https://t", "s1", CARD, g, { authCode: "j3ds_0123456789abcdef01234567" })).toEqual({
+      ok: true,
+      token: "ct_1",
+    });
+  });
+});

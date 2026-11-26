@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type InputHTMLAttributes } from "react";
+import { useEffect, useRef, useState, type InputHTMLAttributes } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { money } from "@/lib/panel/helpers";
@@ -15,11 +15,25 @@ import {
   parseExpiry,
   type CardField,
 } from "@/lib/app/card-form";
-import { generateTunaCardToken, requestTunaSession } from "@/lib/payments/tuna-browser";
+import {
+  collectTunaBrowserInfo,
+  generateTunaCardToken,
+  requestTunaSession,
+  runTunaDeviceDataCollection,
+} from "@/lib/payments/tuna-browser";
+import {
+  challengeSizeFromPaRequest,
+  generateTuna3dsCode,
+  type ChallengeSize,
+  type TunaBrowserInfo,
+} from "@/lib/payments/tuna-3ds";
 
 /** Teto da cobrança no servidor (Tuna: consulta + Init, até 20s cada). Passou
  *  disso → desfecho INCERTO ("Meus pedidos"), nunca "recusado". */
 const CHARGE_TIMEOUT_MS = 90_000;
+/** Desafio 3DS: consulta o desfecho a cada 3s, por até 5 min. */
+const CHALLENGE_POLL_MS = 3_000;
+const CHALLENGE_MAX_MS = 5 * 60_000;
 
 export type TunaChargeResult = {
   ok: boolean;
@@ -27,7 +41,18 @@ export type TunaChargeResult = {
   order?: ClientOrder;
   detail?: string;
   uncertain?: boolean;
+  /** Desafio 3DS do banco (débito): iframe com form POST `JWT` = token. */
+  challenge?: { url: string; token: string; paRequest?: string };
 };
+
+export type TunaChargeExtras = {
+  sessionId: string;
+  brand?: string;
+  threeDs?: { code: string; referenceId: string; transactionId: string };
+  browser?: TunaBrowserInfo;
+};
+
+type Challenge = { orderId: string; order: ClientOrder; url: string; token: string; size: ChallengeSize };
 
 const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
   new Promise<T>((resolve, reject) => {
@@ -53,6 +78,7 @@ export function TunaCardModal({
   method,
   createOrder,
   charge,
+  checkStatus,
   onApproved,
   onUncertain,
   onClose,
@@ -62,12 +88,9 @@ export function TunaCardModal({
   /** Cria o pedido (e guarda o id no navegador). `redirected`: o pedido caiu
    *  num checkout hospedado e a página já está saindo. null = falhou. */
   createOrder: () => Promise<{ order: ClientOrder } | { redirected: true } | null>;
-  charge: (
-    orderId: string,
-    cardToken: string,
-    cpf: string,
-    tuna: { sessionId: string; brand?: string },
-  ) => Promise<TunaChargeResult>;
+  charge: (orderId: string, cardToken: string, cpf: string, tuna: TunaChargeExtras) => Promise<TunaChargeResult>;
+  /** Depois do desafio 3DS: desfecho da cobrança (só consulta, nunca cobra). */
+  checkStatus: (orderId: string) => Promise<{ status: ChargeStatus; order?: ClientOrder }>;
   onApproved: (order: ClientOrder) => void;
   /** Pendente ou incerto (pode ter cobrado) → "Meus pedidos"; o polling confirma. */
   onUncertain: (order: ClientOrder) => void;
@@ -84,6 +107,7 @@ export function TunaCardModal({
   const [busy, setBusy] = useState(false);
   const [approved, setApproved] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [challenge, setChallenge] = useState<Challenge | null>(null);
 
   // Single-flight: um envio por vez (duplo toque não cria 2 pedidos nem cobra 2x).
   const lock = useRef(false);
@@ -92,11 +116,92 @@ export function TunaCardModal({
   // Já mandou cobrança neste pedido (sessão negada depois disso = cobrança viva).
   const chargedRef = useRef(false);
 
+  // Callbacks do pai mais recentes (o polling do desafio não reinicia a cada render).
+  const cbRef = useRef({ checkStatus, onApproved, onUncertain });
+  useEffect(() => {
+    cbRef.current = { checkStatus, onApproved, onUncertain };
+  });
+
+  const declined = () => {
+    // Recusa: fica aqui; outro cartão vai no MESMO pedido.
+    setNumber("");
+    setCvv("");
+    setSubmitted(false);
+    setErrorMsg(t("tunaDeclined"));
+  };
+  const approve = (order: ClientOrder) => {
+    setApproved(true);
+    // pequena pausa pro cliente ver a confirmação antes de trocar de tela.
+    window.setTimeout(() => cbRef.current.onApproved(order), 1300);
+  };
+
+  // Desafio 3DS aberto: consulta o desfecho até pago/recusado (ou 5 min →
+  // "Meus pedidos", onde o polling segue).
+  useEffect(() => {
+    if (!challenge) return;
+    let stopped = false;
+    let inFlight = false;
+    const started = Date.now();
+    const tick = async () => {
+      if (stopped || inFlight) return;
+      inFlight = true;
+      try {
+        const r = await cbRef.current.checkStatus(challenge.orderId);
+        if (stopped) return;
+        if (r.status === "paid") {
+          stopped = true;
+          setChallenge(null);
+          approve(r.order ?? challenge.order);
+        } else if (r.status === "failed") {
+          stopped = true;
+          setChallenge(null);
+          declined();
+        } else if (Date.now() - started > CHALLENGE_MAX_MS) {
+          stopped = true;
+          setChallenge(null);
+          cbRef.current.onUncertain(challenge.order);
+        }
+      } catch {
+        /* transitório — o próximo tique tenta de novo */
+      } finally {
+        inFlight = false;
+      }
+    };
+    const id = window.setInterval(() => void tick(), CHALLENGE_POLL_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challenge]);
+
+  /** Cliente fechou o desafio: consulta uma última vez. Pago → aprovado;
+   *  recusado → tenta outro cartão; senão a cobrança pode seguir viva no banco
+   *  → "Meus pedidos" (nunca cobra de novo por cima). */
+  const cancelChallenge = async () => {
+    const c = challenge;
+    if (!c || lock.current) return;
+    lock.current = true;
+    setChallenge(null);
+    setBusy(true);
+    try {
+      const r = await cbRef.current.checkStatus(c.orderId);
+      if (r.status === "paid") approve(r.order ?? c.order);
+      else if (r.status === "failed") declined();
+      else onUncertain(c.order);
+    } catch {
+      onUncertain(c.order);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  };
+
   const errors = cardFormErrors({ number, holder, expiry, cvv, cpf });
   const showErr = (f: CardField) => submitted && !!errors[f];
 
   const submit = async () => {
-    if (lock.current || approved) return;
+    if (lock.current || approved || challenge) return;
     setSubmitted(true);
     if (Object.keys(errors).length) return;
     const exp = parseExpiry(expiry);
@@ -138,17 +243,33 @@ export function TunaCardModal({
         return;
       }
 
-      const tk = await generateTunaCardToken(s.tokenUrl, s.sessionId, {
-        cardNumber: onlyDigits(number),
-        cardHolderName: holder.trim(),
-        expirationMonth: exp.month,
-        expirationYear: exp.year,
-        cvv: onlyDigits(cvv),
-      });
+      // Débito: 3DS. O código vai no Generate e o MESMO vai na cobrança.
+      const authCode = method === "debito" ? generateTuna3dsCode() : undefined;
+      const tk = await generateTunaCardToken(
+        s.tokenUrl,
+        s.sessionId,
+        {
+          cardNumber: onlyDigits(number),
+          cardHolderName: holder.trim(),
+          expirationMonth: exp.month,
+          expirationYear: exp.year,
+          cvv: onlyDigits(cvv),
+        },
+        undefined,
+        authCode ? { authCode } : {},
+      );
       if (!tk.ok) {
         // Nada cobrado: os dados do cartão não passaram na Tuna (ou rede).
         setErrorMsg(tk.reason === "invalid" ? t("tunaErrCard") : t("cardError"));
         return;
+      }
+
+      // Device data collection (best-effort, ≤ 12s): sem ele o desafio
+      // continua funcionando.
+      let threeDs: TunaChargeExtras["threeDs"];
+      if (authCode && tk.auth) {
+        await runTunaDeviceDataCollection(tk.auth);
+        threeDs = { code: authCode, referenceId: tk.auth.referenceId, transactionId: tk.auth.transactionId };
       }
 
       chargedRef.current = true;
@@ -158,6 +279,8 @@ export function TunaCardModal({
           charge(orderId, tk.token, onlyDigits(cpf), {
             sessionId: s.sessionId,
             ...(tk.brand ? { brand: tk.brand } : {}),
+            ...(threeDs ? { threeDs } : {}),
+            browser: collectTunaBrowserInfo(),
           }),
           CHARGE_TIMEOUT_MS,
         );
@@ -167,20 +290,25 @@ export function TunaCardModal({
       }
       const fresh = res.order ?? order;
       if (res.status === "paid") {
-        setApproved(true);
-        // pequena pausa pro cliente ver a confirmação antes de trocar de tela.
-        window.setTimeout(() => onApproved(fresh), 1300);
+        approve(fresh);
+        return;
+      }
+      // Banco pediu autenticação: abre o desafio e acompanha o desfecho.
+      if (res.status === "pending" && res.challenge && !res.uncertain) {
+        setChallenge({
+          orderId,
+          order: fresh,
+          url: res.challenge.url,
+          token: res.challenge.token,
+          size: challengeSizeFromPaRequest(res.challenge.paRequest),
+        });
         return;
       }
       if (res.uncertain || res.status === "pending") {
         onUncertain(fresh);
         return;
       }
-      // Recusa: fica aqui; outro cartão vai no MESMO pedido.
-      setNumber("");
-      setCvv("");
-      setSubmitted(false);
-      setErrorMsg(t("tunaDeclined"));
+      declined();
     } catch {
       // Erro inesperado: se já mandou cobrança, pode ter cobrado → "Meus pedidos".
       if (chargedRef.current && orderRef.current) onUncertain(orderRef.current);
@@ -192,7 +320,7 @@ export function TunaCardModal({
   };
 
   const close = () => {
-    if (!busy && !approved) onClose();
+    if (!busy && !approved && !challenge) onClose();
   };
 
   const field = (
@@ -206,7 +334,7 @@ export function TunaCardModal({
       <input
         id={`tuna-${id}`}
         {...input}
-        disabled={busy || approved}
+        disabled={busy || approved || !!challenge}
         aria-invalid={showErr(id)}
         className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-ink ${
           showErr(id) ? "border-[#e11d48]" : "border-[#e2e8f0]"
@@ -227,6 +355,17 @@ export function TunaCardModal({
         className="relative max-h-[90vh] w-full max-w-[448px] overflow-y-auto rounded-t-[24px] bg-white p-5 md:rounded-[24px]"
         onClick={(e) => e.stopPropagation()}
       >
+        {challenge && (
+          <TunaChallengeFrame
+            url={challenge.url}
+            token={challenge.token}
+            size={challenge.size}
+            title={t("tuna3dsTitle")}
+            hint={t("tuna3dsHint")}
+            cancelLabel={t("tuna3dsCancel")}
+            onCancel={() => void cancelChallenge()}
+          />
+        )}
         {(busy || approved) && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-[24px] bg-white/95 md:rounded-[24px]">
             {approved ? (
@@ -354,6 +493,84 @@ export function TunaCardModal({
             {t("tunaSecure")}
           </p>
         </form>
+      </div>
+    </div>
+  );
+}
+
+/** Desafio 3DS do banco: iframe com form POST (`JWT` = token) pra `url`,
+ *  no tamanho pedido pelo `challengeWindowSize` (limitado à tela). O resultado
+ *  vai direto do banco pra Tuna; quem decide o desfecho é o polling. */
+function TunaChallengeFrame({
+  url,
+  token,
+  size,
+  title,
+  hint,
+  cancelLabel,
+  onCancel,
+}: {
+  url: string;
+  token: string;
+  size: ChallengeSize;
+  title: string;
+  hint: string;
+  cancelLabel: string;
+  onCancel: () => void;
+}) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [frameName] = useState(() => `tuna-3ds-${Date.now()}`);
+  // Um POST por desafio (o StrictMode do dev roda o efeito 2x).
+  const postedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (postedRef.current === token) return;
+    postedRef.current = token;
+    formRef.current?.submit();
+  }, [url, token]);
+  const full = size.width === "100%";
+  const px = (v: number | "100%") => (v === "100%" ? "100%" : `${v}px`);
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-3">
+      <div
+        className={`flex max-h-full w-full flex-col overflow-hidden rounded-[24px] bg-white ${
+          full ? "h-full max-w-full" : "max-w-fit"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-4">
+          <div className="min-w-0">
+            <h2 className="m-0 font-display text-base font-extrabold uppercase tracking-[-0.01em]">{title}</h2>
+            <p className="m-0 text-xs text-ink/60">{hint}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label={cancelLabel}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent text-ink/50"
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+        <iframe
+          name={frameName}
+          title={title}
+          className="block max-w-full border-0"
+          style={{
+            width: px(size.width),
+            height: full ? "100%" : px(size.height),
+            maxHeight: "calc(100vh - 140px)",
+            flex: full ? "1 1 auto" : undefined,
+          }}
+        />
+        <form ref={formRef} method="POST" action={url} target={frameName} className="hidden">
+          <input type="hidden" name="JWT" value={token} readOnly />
+        </form>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="mx-4 my-3 rounded-full border border-[#e2e8f0] bg-white py-2.5 text-sm font-semibold text-ink/70"
+        >
+          {cancelLabel}
+        </button>
       </div>
     </div>
   );
