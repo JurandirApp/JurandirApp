@@ -18,6 +18,7 @@ import {
   type TunaEstFields,
 } from "./tuna-readiness";
 import { buildTunaFrontData, type TunaFrontData } from "./tuna-fingerprint";
+import { deriveTunaDeviceCustomer, type TunaDeviceCustomer } from "./tuna-cards";
 
 // Tuna Gateway (7º gateway). Núcleo: modo TEST/PRODUCTION, envs, HTTP, erros e
 // mapeamento de status; depois as cobranças (Pix, cartão com 3DS, carteiras),
@@ -493,6 +494,18 @@ export function tunaStatusDates(now: Date = new Date()): string[] {
   return [...new Set(days)];
 }
 
+/** Customer do aparelho pela chave (cartões salvos). Chave ausente/inválida →
+ *  null (fluxo de sempre). Sem o segredo do HMAC → recusa DEFINITIVA (424),
+ *  antes de qualquer chamada: o token salvo é de um customer que não dá pra
+ *  derivar. */
+function tunaDeviceCustomerOrThrow(deviceKey: unknown): TunaDeviceCustomer | null {
+  try {
+    return deriveTunaDeviceCustomer(deviceKey);
+  } catch {
+    throw tunaLocalError(424, "segredo dos cartões salvos ausente; nada cobrado");
+  }
+}
+
 export const tunaProvider: PaymentProvider = {
   name: "TUNA",
   async createPixCharge(input: PixChargeInput): Promise<PixCharge> {
@@ -541,11 +554,16 @@ export const tunaProvider: PaymentProvider = {
     if (!sessionId) throw tunaLocalError(422, "cartão Tuna exige a sessão de tokenização");
     const item = tunaSplitItem(est, total, platformFee, description);
     const mode = await assertTunaReady(est, "card");
-    const customer = buildTunaCustomer(
+    const orderCustomer = buildTunaCustomer(
       reference,
       { name: customerName, document: customerDocument, phone: customerPhone },
       mode,
     );
+    // Cartão salvo (ou cartão novo salvo agora): o token é do customer DO
+    // APARELHO — o Init vai com o id/e-mail dele (nome/documento continuam os do
+    // pedido, pro antifraude) e com token persistente (`tokenSingleUse: 0`).
+    const device = tunaDeviceCustomerOrThrow(tuna?.deviceKey);
+    const customer = device ? { ...orderCustomer, id: device.id, email: device.email } : orderCustomer;
     const brand = str(tuna?.brand);
     const frontData = buildTunaFrontData({ deviceSessionId: tuna?.deviceSessionId, client });
     const r = await tunaInit({
@@ -564,7 +582,7 @@ export const tunaProvider: PaymentProvider = {
           token: cardToken,
           tokenProvider: "Tuna",
           ...(brand ? { brandName: brand } : {}),
-          tokenSingleUse: 1,
+          tokenSingleUse: device ? 0 : 1,
           saveCard: false,
           ...(customer.document ? { billingInfo: docOf(customer) } : {}),
         },
