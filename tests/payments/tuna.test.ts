@@ -570,6 +570,45 @@ describe("tunaProvider.createCardTokenPayment", () => {
     expect(m).not.toHaveProperty("authenticationInformation");
   });
 
+  it("débito 3DS com code do cliente → tipo 8 e authenticationInformation.code === threeDs.code", async () => {
+    const fn = seq([initOk()]);
+    const longSession = "s".repeat(112);
+    await tunaProvider.createCardTokenPayment!(
+      card({
+        method: "debit",
+        tuna: { sessionId: longSession, threeDs: { code: "j3ds_0123456789abcdef01234567", ...threeDs } },
+      }),
+    );
+    const m = bodyOf(fn).paymentData.paymentMethods[0];
+    expect(m.paymentMethodType).toBe("8");
+    expect(m.authenticationInformation).toEqual({
+      code: "j3ds_0123456789abcdef01234567",
+      referenceId: "ref_1",
+      transactionId: "tx_1",
+    });
+    expect(m.authenticationInformation).not.toHaveProperty("accessToken");
+  });
+
+  it("3DS sem code e sessão > 50 caracteres → sem 3DS (nunca manda code > 50)", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(
+      card({ method: "debit", tuna: { sessionId: "s".repeat(112), threeDs } }),
+    );
+    const m = bodyOf(fn).paymentData.paymentMethods[0];
+    expect(m.paymentMethodType).toBe("2");
+    expect(m).not.toHaveProperty("authenticationInformation");
+  });
+
+  it("3DS com code inválido e sessão curta → compat: code = sessão", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(
+      card({ method: "debit", tuna: { sessionId: "sess_1", threeDs: { code: "bad code!", ...threeDs } } }),
+    );
+    const m = bodyOf(fn).paymentData.paymentMethods[0];
+    expect(m.paymentMethodType).toBe("8");
+    expect(m.authenticationInformation.code).toBe("sess_1");
+  });
+
   it("sem sessão Tuna → rejeita sem fetch", async () => {
     const fn = seq([]);
     await expect(tunaProvider.createCardTokenPayment!(card({ tuna: undefined }))).rejects.toBeInstanceOf(TunaError);
@@ -1359,6 +1398,42 @@ describe("frontData (Device Fingerprint) no Init", () => {
       await tunaProvider.createCardTokenPayment!(card({ method: "debit", tuna: t, client }));
       expect(bodyOf(fn).frontData).toEqual(fullFront);
     }
+  });
+
+  it("browser + Accept vão no frontData como strings (Java/JS em Y/N); lixo some", async () => {
+    const fn = seq([initOk()]);
+    await tunaProvider.createCardTokenPayment!(
+      card({
+        method: "debit",
+        tuna: {
+          sessionId: "sess_1",
+          deviceSessionId: DSID,
+          browser: {
+            acceptLanguage: "pt-BR",
+            colorDepth: 24,
+            screenHeight: 864,
+            screenWidth: 1536,
+            timeDifference: 180,
+            javaEnabled: false,
+            javaScriptEnabled: true,
+            // @ts-expect-error campo desconhecido é descartado
+            extra: "x",
+          },
+        },
+        client: { ...client, acceptHeader: "text/html,*/*" },
+      }),
+    );
+    expect(bodyOf(fn).frontData).toEqual({
+      ...fullFront,
+      acceptHeader: "text/html,*/*",
+      acceptLanguage: "pt-BR",
+      colorDepth: "24",
+      screenHeight: "864",
+      screenWidth: "1536",
+      timeDifference: "180",
+      javaEnabled: "N",
+      javaScriptEnabled: "Y",
+    });
   });
 
   it("Google Pay e Apple Pay: frontData no Init (não no NewSession)", async () => {

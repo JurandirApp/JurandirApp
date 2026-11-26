@@ -5,6 +5,7 @@ import { toClientOrder } from "@/lib/app/adapters";
 import { TunaError, tunaSafeMessage } from "@/lib/payments/tuna";
 import { clientInfoFromHeaders, sanitizeDeviceSessionId } from "@/lib/payments/tuna-fingerprint";
 import { sanitizeDeviceKey } from "@/lib/payments/tuna-cards";
+import { parseTunaThreeDs, sanitizeTunaBrowserInfo } from "@/lib/payments/tuna-3ds";
 import type { CardTokenPaymentInput } from "@/lib/payments/types";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +21,11 @@ export async function OPTIONS(): Promise<Response> {
 }
 
 /** Campos opcionais da Tuna. Só vale com `sessionId` string não-vazia; `brand`
- *  só string; `threeDs` só com `referenceId` E `transactionId` não-vazios;
- *  `deviceSessionId` (Device Fingerprint) e `deviceKey` (chave do aparelho,
- *  cartões salvos) só no formato aceito — senão somem. */
+ *  só string; `threeDs` só com `referenceId` E `transactionId` não-vazios
+ *  (`code` só no formato `[A-Za-z0-9_-]{8,50}`, senão some); `browser` (dados
+ *  do navegador pro 3DS) campo a campo; `deviceSessionId` (Device
+ *  Fingerprint) e `deviceKey` (chave do aparelho, cartões salvos) só no formato
+ *  aceito — senão somem. */
 function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
   if (!raw || typeof raw !== "object") return undefined;
   const t = raw as Record<string, unknown>;
@@ -30,9 +33,8 @@ function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
   const sessionId = s(t.sessionId);
   if (!sessionId) return undefined;
   const brand = s(t.brand);
-  const d = (t.threeDs && typeof t.threeDs === "object" ? t.threeDs : {}) as Record<string, unknown>;
-  const referenceId = s(d.referenceId);
-  const transactionId = s(d.transactionId);
+  const threeDs = parseTunaThreeDs(t.threeDs);
+  const browser = sanitizeTunaBrowserInfo(t.browser);
   const deviceSessionId = sanitizeDeviceSessionId(t.deviceSessionId);
   const deviceKey = sanitizeDeviceKey(t.deviceKey);
   return {
@@ -40,7 +42,8 @@ function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
     ...(brand ? { brand } : {}),
     ...(deviceSessionId ? { deviceSessionId } : {}),
     ...(deviceKey ? { deviceKey } : {}),
-    ...(referenceId && transactionId ? { threeDs: { referenceId, transactionId } } : {}),
+    ...(threeDs ? { threeDs } : {}),
+    ...(browser ? { browser } : {}),
   };
 }
 
@@ -48,7 +51,9 @@ function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
  * POST /api/public/orders/card
  * Body: { order: <orderCreateInput com payment.method=CREDIT|DEBIT>,
  *         cardToken: string, installments?: number, method?: "credit"|"debit",
- *         tuna?: { sessionId, brand?, threeDs?: { referenceId, transactionId },
+ *         tuna?: { sessionId, brand?, threeDs?: { code, referenceId, transactionId },
+ *                  browser?: { acceptLanguage?, colorDepth?, screenHeight?,
+ *                    screenWidth?, timeDifference?, javaEnabled?, javaScriptEnabled? },
  *                  deviceSessionId?, deviceKey? } }
  * Cria o pedido e cobra o cartão via `card_token` (tokenização Pagar.me v5 — o
  * app tokeniza com a chave pública; o cartão cru NUNCA chega aqui).
@@ -57,6 +62,9 @@ function parseTuna(raw: unknown): CardTokenPaymentInput["tuna"] {
  * publicado não manda nem lê. Cartão salvo / cartão novo a salvar: `tuna.sessionId`
  * é a sessão do aparelho (`/api/public/tuna/cards/session`) e vai `tuna.deviceKey`
  * — o Init usa o customer do aparelho e token persistente.
+ * 3DS (débito): `threeDs.code` é o código mandado no Token/Generate (ou
+ * Token/Bind) em `authenticationInformation.code`; `browser` + o header
+ * `Accept` vão no `frontData`.
  */
 export async function POST(req: Request): Promise<Response> {
   let body: {

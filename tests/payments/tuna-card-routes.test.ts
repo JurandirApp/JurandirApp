@@ -192,6 +192,33 @@ describe("POST /api/public/orders/card — campos da Tuna", () => {
     expect(m.payCard.mock.calls[0][7]).toEqual({ sessionId: SESSION });
   });
 
+  it("3DS novo: code válido + browser saneado são repassados; code inválido some", async () => {
+    m.payCard.mockResolvedValue({ status: "pending" });
+    const code = "j3ds_0123456789abcdef01234567";
+    await cardPOST(
+      req("/api/public/orders/card", {
+        ...base,
+        tuna: {
+          sessionId: SESSION,
+          threeDs: { code, referenceId: "r1", transactionId: "t1" },
+          browser: { acceptLanguage: "pt-BR", colorDepth: 24, screenWidth: "1536", javaEnabled: "N", javaScriptEnabled: true },
+        },
+      }),
+    );
+    await cardPOST(
+      req("/api/public/orders/card", {
+        ...base,
+        tuna: { sessionId: SESSION, threeDs: { code: "x".repeat(51), referenceId: "r1", transactionId: "t1" }, browser: { colorDepth: -1 } },
+      }),
+    );
+    expect(m.payCard.mock.calls[0][7]).toEqual({
+      sessionId: SESSION,
+      threeDs: { code, referenceId: "r1", transactionId: "t1" },
+      browser: { acceptLanguage: "pt-BR", colorDepth: 24, javaScriptEnabled: true },
+    });
+    expect(m.payCard.mock.calls[1][7]).toEqual({ sessionId: SESSION, threeDs: { referenceId: "r1", transactionId: "t1" } });
+  });
+
   it("deviceKey válida é repassada; inválida some", async () => {
     m.payCard.mockResolvedValue({ status: "paid" });
     const key = "Ab_-".repeat(11);

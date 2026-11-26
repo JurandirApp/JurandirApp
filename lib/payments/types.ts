@@ -1,4 +1,5 @@
 import type { Establishment } from "@prisma/client";
+import type { TunaBrowserInfo } from "./tuna-3ds";
 
 export type ChargeStatus = "pending" | "paid" | "failed";
 
@@ -91,12 +92,15 @@ export type CardTokenPaymentInput = {
   /** Id da autenticação 3DS (`3DS_…`) do SDK JS do PagBank — obrigatório no débito PagBank. */
   authenticationId?: string;
   /** Tuna: sessão de tokenização (NewSession), bandeira devolvida pelo
-   *  Token/Generate e, com 3DS, os ids do device data collection. Débito sem
-   *  `threeDs` vai como débito simples ("2"); com, débito 3DS ("8"). */
+   *  Token/Generate e, com 3DS, o código de autenticação + os ids do device
+   *  data collection. Débito sem `threeDs` vai como débito simples ("2"); com,
+   *  débito 3DS ("8"). `code` é o MESMO mandado no Generate/Bind (≤ 50). */
   tuna?: {
     sessionId: string;
     brand?: string;
-    threeDs?: { referenceId: string; transactionId: string };
+    threeDs?: { code?: string; referenceId: string; transactionId: string };
+    /** Dados do navegador (3DS/antifraude) → `frontData`. Já validados. */
+    browser?: TunaBrowserInfo;
     /** Id da sessão do Device Fingerprint (CyberSource), SEM o prefixo do
      *  merchant. Opcional; inválido é descartado. Vai no `frontData.sessionId`. */
     deviceSessionId?: string;
@@ -116,6 +120,8 @@ export type PaymentClientInfo = {
   userAgent?: string;
   /** "MOBILE" = app (rotas /api/public/*); "WEBSITE" = site (server actions). */
   origin?: "WEBSITE" | "MOBILE";
+  /** Header `Accept` da requisição (3DS/antifraude). */
+  acceptHeader?: string;
 };
 
 /** billing_address do cartão (formato Pagar.me v5). */

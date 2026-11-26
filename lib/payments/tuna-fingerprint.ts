@@ -1,4 +1,5 @@
 import type { PaymentClientInfo } from "./types";
+import { sanitizeTunaBrowserInfo } from "./tuna-3ds";
 
 // Device Fingerprint do CyberSource (antifraude Decision Manager da Tuna).
 // O app/site carrega o `tags.js` do ThreatMetrix com
@@ -76,11 +77,27 @@ export function clientUserAgentFromHeaders(h: Headers): string | undefined {
   return ua || undefined;
 }
 
-/** IP + user agent + origem a partir dos headers da requisição. */
+const ACCEPT_MAX = 256;
+const ACCEPT_RE = /^[ -~]+$/;
+
+/** Header `Accept` (ASCII imprimível, aparado, no máx. 256) ou undefined. */
+function cleanAccept(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const s = v.trim().slice(0, ACCEPT_MAX).trim();
+  return s && ACCEPT_RE.test(s) ? s : undefined;
+}
+
+/** IP + user agent + Accept + origem a partir dos headers da requisição. */
 export function clientInfoFromHeaders(h: Headers, origin: "WEBSITE" | "MOBILE"): PaymentClientInfo {
   const ip = clientIpFromHeaders(h);
   const userAgent = clientUserAgentFromHeaders(h);
-  return { origin, ...(ip ? { ip } : {}), ...(userAgent ? { userAgent } : {}) };
+  const acceptHeader = cleanAccept(h.get("accept"));
+  return {
+    origin,
+    ...(ip ? { ip } : {}),
+    ...(userAgent ? { userAgent } : {}),
+    ...(acceptHeader ? { acceptHeader } : {}),
+  };
 }
 
 /** `frontData` do Payment/Init (camelCase exato, conferido no staging da Tuna). */
@@ -89,28 +106,56 @@ export type TunaFrontData = {
   origin?: "WEBSITE" | "MOBILE";
   ipAddress?: string;
   userAgent?: string;
+  /** Campos do navegador recomendados pela doc do 3DS — a Tuna usa strings
+   *  (números como texto; Java/JS como "Y"/"N"). */
+  acceptHeader?: string;
+  acceptLanguage?: string;
+  colorDepth?: string;
+  screenHeight?: string;
+  screenWidth?: string;
+  timeDifference?: string;
+  javaEnabled?: "Y" | "N";
+  javaScriptEnabled?: "Y" | "N";
   cookiesAccepted: true;
 };
 
-/** Monta o `frontData`; revalida tudo (id da sessão, IP, UA) e devolve
- *  undefined quando não sobra nada útil (sem sessão, IP nem UA) — aí o Init vai
+const yn = (v: boolean | undefined): "Y" | "N" | undefined => (v === undefined ? undefined : v ? "Y" : "N");
+
+/** Monta o `frontData`; revalida tudo (id da sessão, IP, UA, Accept, dados
+ *  do navegador) e devolve undefined quando não sobra nada útil — aí o Init vai
  *  sem `frontData`. */
 export function buildTunaFrontData(o: {
   deviceSessionId?: unknown;
   client?: PaymentClientInfo;
+  /** `tuna.browser` (3DS); revalidado aqui. */
+  browser?: unknown;
 }): TunaFrontData | undefined {
   const sessionId = sanitizeDeviceSessionId(o.deviceSessionId);
   const ip = typeof o.client?.ip === "string" ? o.client.ip.trim() : "";
   const ipAddress = ip && isLikelyIp(ip) ? ip : undefined;
   const ua = typeof o.client?.userAgent === "string" ? o.client.userAgent.trim().slice(0, UA_MAX).trim() : "";
   const userAgent = ua || undefined;
-  if (!sessionId && !ipAddress && !userAgent) return undefined;
+  const acceptHeader = cleanAccept(o.client?.acceptHeader);
+  const b = sanitizeTunaBrowserInfo(o.browser);
+  if (!sessionId && !ipAddress && !userAgent && !acceptHeader && !b) return undefined;
   const origin = o.client?.origin === "WEBSITE" || o.client?.origin === "MOBILE" ? o.client.origin : undefined;
+  const num = (k: "colorDepth" | "screenHeight" | "screenWidth" | "timeDifference") =>
+    b?.[k] !== undefined ? { [k]: String(b[k]) } : {};
+  const java = yn(b?.javaEnabled);
+  const js = yn(b?.javaScriptEnabled);
   return {
     ...(sessionId ? { sessionId } : {}),
     ...(origin ? { origin } : {}),
     ...(ipAddress ? { ipAddress } : {}),
     ...(userAgent ? { userAgent } : {}),
+    ...(acceptHeader ? { acceptHeader } : {}),
+    ...(b?.acceptLanguage ? { acceptLanguage: b.acceptLanguage } : {}),
+    ...num("colorDepth"),
+    ...num("screenHeight"),
+    ...num("screenWidth"),
+    ...num("timeDifference"),
+    ...(java ? { javaEnabled: java } : {}),
+    ...(js ? { javaScriptEnabled: js } : {}),
     cookiesAccepted: true,
   };
 }

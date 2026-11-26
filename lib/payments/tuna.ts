@@ -19,6 +19,7 @@ import {
 } from "./tuna-readiness";
 import { buildTunaFrontData, type TunaFrontData } from "./tuna-fingerprint";
 import { deriveTunaDeviceCustomer, type TunaDeviceCustomer } from "./tuna-cards";
+import { tunaAuthenticationInformation } from "./tuna-3ds";
 
 // Tuna Gateway (7º gateway). Núcleo: modo TEST/PRODUCTION, envs, HTTP, erros e
 // mapeamento de status; depois as cobranças (Pix, cartão com 3DS, carteiras),
@@ -542,15 +543,14 @@ export const tunaProvider: PaymentProvider = {
 
   // Cartão tokenizado pelo app direto na Tuna (o cartão cru nunca chega aqui).
   // Crédito "1" (com 3DS "7"); débito "2" (com 3DS "8"), sempre 1 parcela. O
-  // 3DS só vai quando o app/site manda `threeDs` válido — as contas da Tuna
-  // (homolog e staging) não têm 3DS ligado, e o débito "2" sem 3DS foi
-  // aprovado/recusado/estornado certo na homologação.
+  // 3DS só vai quando o app/site manda `threeDs` válido (ver
+  // `tunaAuthenticationInformation`: o `code` é o do Generate/Bind, ≤ 50). Em
+  // PRODUÇÃO todo débito passa por 3DS ("8"); a homologação não tem 3DS e o
+  // débito "2" foi aprovado/recusado/estornado certo lá.
   async createCardTokenPayment(input: CardTokenPaymentInput): Promise<CardPaymentResult> {
     const { est, reference, total, platformFee, description, cardToken, installments, method,
       customerName, customerDocument, customerPhone, tuna, client } = input;
     const sessionId = str(tuna?.sessionId);
-    const threeDs =
-      tuna?.threeDs && str(tuna.threeDs.referenceId) && str(tuna.threeDs.transactionId) ? tuna.threeDs : undefined;
     if (!sessionId) throw tunaLocalError(422, "cartão Tuna exige a sessão de tokenização");
     const item = tunaSplitItem(est, total, platformFee, description);
     const mode = await assertTunaReady(est, "card");
@@ -565,7 +565,8 @@ export const tunaProvider: PaymentProvider = {
     const device = tunaDeviceCustomerOrThrow(tuna?.deviceKey);
     const customer = device ? { ...orderCustomer, id: device.id, email: device.email } : orderCustomer;
     const brand = str(tuna?.brand);
-    const frontData = buildTunaFrontData({ deviceSessionId: tuna?.deviceSessionId, client });
+    const frontData = buildTunaFrontData({ deviceSessionId: tuna?.deviceSessionId, client, browser: tuna?.browser });
+    const auth = tunaAuthenticationInformation(tuna?.threeDs, sessionId);
     const r = await tunaInit({
       reference,
       total,
@@ -575,7 +576,7 @@ export const tunaProvider: PaymentProvider = {
       tokenSession: sessionId,
       ...(frontData ? { frontData } : {}),
       method: {
-        paymentMethodType: method === "debit" ? (threeDs ? "8" : "2") : threeDs ? "7" : "1",
+        paymentMethodType: method === "debit" ? (auth ? "8" : "2") : auth ? "7" : "1",
         amount: total,
         installments: method === "debit" ? 1 : Math.max(1, Math.trunc(installments) || 1),
         cardInfo: {
@@ -586,15 +587,7 @@ export const tunaProvider: PaymentProvider = {
           saveCard: false,
           ...(customer.document ? { billingInfo: docOf(customer) } : {}),
         },
-        ...(threeDs
-          ? {
-              authenticationInformation: {
-                code: sessionId,
-                referenceId: threeDs.referenceId,
-                transactionId: threeDs.transactionId,
-              },
-            }
-          : {}),
+        ...(auth ? { authenticationInformation: auth } : {}),
       },
     });
     return cardResult(r);
