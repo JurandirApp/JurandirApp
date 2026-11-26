@@ -1,3 +1,4 @@
+import { PUBLIC_READ_CACHE } from "@/lib/app/public-cache";
 import { toAppEstablishment, toAppMenuItem } from "@/lib/app/adapters";
 import { getEstablishmentBySlug } from "@/lib/db/establishments";
 import { getPopularItemNames, listMenu } from "@/lib/db/menu";
@@ -48,6 +49,6 @@ export async function GET(
       spots: spots.map((s) => s.label),
       popularNames,
     },
-    { headers: CORS },
+    { headers: { ...CORS, ...PUBLIC_READ_CACHE } },
   );
 }

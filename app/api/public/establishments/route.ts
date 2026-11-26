@@ -1,3 +1,4 @@
+import { PUBLIC_READ_CACHE } from "@/lib/app/public-cache";
 import { listEstablishments } from "@/lib/db/establishments";
 import { toAppPayments } from "@/lib/app/adapters";
 import { tunaPublicReadiness } from "@/lib/payments/tuna-public";
@@ -44,5 +45,5 @@ export async function GET(): Promise<Response> {
     ...toAppPayments({ ...e, tuna: tunaOf(e) }),
   }));
 
-  return Response.json({ establishments }, { headers: CORS });
+  return Response.json({ establishments }, { headers: { ...CORS, ...PUBLIC_READ_CACHE } });
 }
