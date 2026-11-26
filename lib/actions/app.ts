@@ -19,7 +19,8 @@ import type { ClientOrder } from "@/lib/app/helpers";
 import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { isValidCpf, onlyDigits } from "@/lib/app/card-form";
 import { clientInfoFromHeaders, sanitizeDeviceSessionId } from "@/lib/payments/tuna-fingerprint";
-import type { PaymentClientInfo } from "@/lib/payments/types";
+import type { CardPaymentResult, PaymentClientInfo } from "@/lib/payments/types";
+import { parseTunaThreeDs, sanitizeTunaBrowserInfo } from "@/lib/payments/tuna-3ds";
 
 /** IP/UA de quem chamou a action (antifraude da Tuna, origem "WEBSITE"). Sem
  *  contexto de requisição → undefined; nunca derruba a cobrança. Nunca logar. */
@@ -158,15 +159,31 @@ export async function chargeWalletAction(
  *  pedidos" e o polling confirma; nunca mostrar "recusado". O tipo (crédito/
  *  débito) vem do pedido; `method` só por simetria com a rota. Nunca loga
  *  token, sessão ou CPF. `deviceSessionId` (opcional): Device Fingerprint da
- *  Tuna (CyberSource); inválido é ignorado. */
+ *  Tuna (CyberSource); inválido é ignorado.
+ *  3DS (débito): `tuna.threeDs` = { code (o mesmo do Token/Generate),
+ *  referenceId, transactionId } e `tuna.browser` (dados do navegador), ambos
+ *  revalidados aqui; a resposta pode trazer `challenge` (desafio do banco) — o
+ *  site mostra o iframe e acompanha por `tunaCardStatusAction`. */
 export async function payTunaCardAction(
   orderId: string,
   cardToken: string,
   method: "credit" | "debit",
   cpf: string,
-  tuna: { sessionId: string; brand?: string },
+  tuna: {
+    sessionId: string;
+    brand?: string;
+    threeDs?: { code?: string; referenceId: string; transactionId: string };
+    browser?: unknown;
+  },
   deviceSessionId?: string,
-): Promise<{ ok: boolean; status: ChargeStatus; order?: ClientOrder; detail?: string; uncertain?: boolean }> {
+): Promise<{
+  ok: boolean;
+  status: ChargeStatus;
+  order?: ClientOrder;
+  detail?: string;
+  uncertain?: boolean;
+  challenge?: CardPaymentResult["challenge"];
+}> {
   const doc = typeof cpf === "string" ? onlyDigits(cpf) : "";
   if (
     typeof orderId !== "string" ||
@@ -191,6 +208,8 @@ export async function payTunaCardAction(
       return { ok: false, status: "failed" };
     }
     const dsid = sanitizeDeviceSessionId(deviceSessionId);
+    const threeDs = parseTunaThreeDs(tuna.threeDs);
+    const browser = sanitizeTunaBrowserInfo(tuna.browser);
     const res = await payOrderWithCardToken(
       orderId,
       cardToken,
@@ -203,6 +222,8 @@ export async function payTunaCardAction(
         sessionId: tuna.sessionId,
         ...(brand ? { brand } : {}),
         ...(dsid ? { deviceSessionId: dsid } : {}),
+        ...(threeDs ? { threeDs } : {}),
+        ...(browser ? { browser } : {}),
       },
       await siteClientInfo(),
     );
@@ -212,11 +233,35 @@ export async function payTunaCardAction(
       status: res.status,
       order: fresh ? toClientOrder(fresh) : undefined,
       detail: res.statusDetail,
+      ...(res.challenge ? { challenge: res.challenge } : {}),
     };
   } catch (e) {
     // Pode ter cobrado (ex.: caiu depois do Init) → incerto, nunca "recusado".
     console.error("[payTunaCard] resultado incerto", orderId, e instanceof Error ? e.name : "erro");
     return { ok: false, status: "pending", uncertain: true };
+  }
+}
+
+/** Cartão Tuna no site, depois do desafio 3DS: como está a cobrança do pedido?
+ *  Reconcilia (pago → confirma e vai pra produção) e consulta a Tuna:
+ *  `paid`; `failed` = a Tuna recusou/autenticação falhou (o mesmo pedido aceita
+ *  outro cartão); `pending` = segue aguardando (ou não deu pra saber — falha
+ *  fechado, nunca "recusado"). Só leitura no gateway: nunca cobra. */
+export async function tunaCardStatusAction(
+  orderId: string,
+): Promise<{ status: ChargeStatus; order?: ClientOrder }> {
+  if (typeof orderId !== "string" || !orderId) return { status: "pending" };
+  try {
+    const r = await resolveTunaCardCharge(orderId);
+    if (r.kind === "charge") return { status: "failed" };
+    if (r.kind === "settled" && r.status === "paid") {
+      const [row] = await getOrdersByIds([orderId]);
+      return { status: "paid", order: row ? toClientOrder(row) : undefined };
+    }
+    return { status: "pending" };
+  } catch (e) {
+    console.error("[tunaCardStatus]", orderId, e instanceof Error ? e.name : "erro");
+    return { status: "pending" };
   }
 }
 

@@ -22,7 +22,7 @@ vi.mock("@/lib/db/payments", () => ({
 }));
 vi.mock("@/lib/app/adapters", () => ({ toClientOrder: (o: { id: string }) => ({ dbId: o.id }) }));
 
-import { payTunaCardAction } from "@/lib/actions/app";
+import { payTunaCardAction, tunaCardStatusAction } from "@/lib/actions/app";
 
 const CPF = "529.982.247-25";
 const TOKEN = "ct_TOKEN_SEGREDO";
@@ -135,5 +135,52 @@ describe("payTunaCardAction", () => {
     expect(logged).not.toContain(TOKEN);
     expect(logged).not.toContain(SESSION);
     expect(logged).not.toContain("52998224725");
+  });
+
+  it("3DS: repassa threeDs/browser saneados + Accept do request e devolve o desafio", async () => {
+    const challenge = { url: "https://acs.example", token: "jwt", paRequest: "pa" };
+    m.payOrderWithCardToken.mockResolvedValue({ status: "pending", challenge });
+    m.headers.mockResolvedValue(new Headers({ accept: "text/html" }));
+    const code = "j3ds_0123456789abcdef01234567";
+    const r = await payTunaCardAction("o1", TOKEN, "debit", CPF, {
+      sessionId: SESSION,
+      threeDs: { code, referenceId: "r1", transactionId: "t1" },
+      browser: { colorDepth: 24, screenWidth: -5, javaScriptEnabled: true },
+    });
+    expect(r).toMatchObject({ ok: true, status: "pending", challenge });
+    const args = m.payOrderWithCardToken.mock.calls[0];
+    expect(args[7]).toEqual({
+      sessionId: SESSION,
+      threeDs: { code, referenceId: "r1", transactionId: "t1" },
+      browser: { colorDepth: 24, javaScriptEnabled: true },
+    });
+    expect(args[8]).toEqual({ origin: "WEBSITE", acceptHeader: "text/html" });
+  });
+
+  it("3DS incompleto é descartado", async () => {
+    m.payOrderWithCardToken.mockResolvedValue({ status: "paid" });
+    await payTunaCardAction("o1", TOKEN, "debit", CPF, {
+      sessionId: SESSION,
+      threeDs: { code: "j3ds_0123456789abcdef01234567", referenceId: "r1", transactionId: "" },
+    });
+    expect(m.payOrderWithCardToken.mock.calls[0][7]).toEqual({ sessionId: SESSION });
+  });
+});
+
+describe("tunaCardStatusAction", () => {
+  it("pago → paid com o pedido; recusado → failed; pendente → pending", async () => {
+    m.resolveTunaCardCharge.mockResolvedValueOnce({ kind: "settled", status: "paid" });
+    expect(await tunaCardStatusAction("o1")).toEqual({ status: "paid", order: { dbId: "o1" } });
+    m.resolveTunaCardCharge.mockResolvedValueOnce({ kind: "charge", id: "o1" });
+    expect(await tunaCardStatusAction("o1")).toEqual({ status: "failed" });
+    m.resolveTunaCardCharge.mockResolvedValueOnce({ kind: "settled", status: "pending" });
+    expect(await tunaCardStatusAction("o1")).toEqual({ status: "pending" });
+    expect(m.payOrderWithCardToken).not.toHaveBeenCalled();
+  });
+
+  it("erro/entrada inválida → pending (nunca 'recusado')", async () => {
+    m.resolveTunaCardCharge.mockRejectedValueOnce(new Error("db"));
+    expect(await tunaCardStatusAction("o1")).toEqual({ status: "pending" });
+    expect(await tunaCardStatusAction("")).toEqual({ status: "pending" });
   });
 });
