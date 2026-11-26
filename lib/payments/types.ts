@@ -139,6 +139,9 @@ export type WalletPaymentInput = {
   deviceSessionId?: string;
   /** Dados do cliente pro antifraude (Tuna `frontData`). Outros gateways ignoram. */
   client?: PaymentClientInfo;
+  /** Função do cartão escolhida na carteira (vem do método do pedido). Só a
+   *  Tuna usa (débito "2"); os outros gateways cobram carteira sempre como crédito. */
+  funding?: "credit" | "debit";
 };
 
 export interface PaymentProvider {

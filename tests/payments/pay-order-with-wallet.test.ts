@@ -54,6 +54,20 @@ describe("payOrderWithWallet - antifraude (Device Fingerprint)", () => {
   });
 });
 
+describe("payOrderWithWallet - crédito/débito na carteira", () => {
+  it("pedido DEBIT → funding debit; pedido CREDIT (ou sem método) → credit", async () => {
+    m.createWalletPayment.mockResolvedValue({ chargeId: "W1", status: "pending" });
+    m.findUnique.mockResolvedValueOnce({
+      id: "o1", code: "ABC123", status: "AWAITING_PAYMENT", total: 50, platformFee: 4,
+      establishment: { id: "e1" }, payment: { id: "p1", method: "DEBIT" },
+    });
+    await payOrderWithWallet("o1", "google_pay", "tok");
+    expect(m.createWalletPayment.mock.calls[0][0]).toMatchObject({ funding: "debit" });
+    await payOrderWithWallet("o1", "google_pay", "tok");
+    expect(m.createWalletPayment.mock.calls[1][0]).toMatchObject({ funding: "credit" });
+  });
+});
+
 describe("payOrderWithWallet - erro do gateway", () => {
   it("4xx do PagBank → recusa definitiva (sem uncertain)", async () => {
     m.createWalletPayment.mockRejectedValue(new PagbankError(400, "cartão recusado"));

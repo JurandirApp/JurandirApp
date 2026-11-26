@@ -601,7 +601,9 @@ export const tunaProvider: PaymentProvider = {
       tokenSession: sessionId,
       ...(frontData ? { frontData } : {}),
       method: {
-        paymentMethodType: "1",
+        // Carteira autenticada (criptograma do aparelho): débito "2" passa sem
+        // 3DS na Tuna; o resto (e o padrão) é crédito "1".
+        paymentMethodType: input.funding === "debit" ? "2" : "1",
         amount: total,
         installments: 1,
         cardInfo: {

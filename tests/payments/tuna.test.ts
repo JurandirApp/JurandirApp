@@ -658,6 +658,15 @@ describe("tunaProvider.createWalletPayment", () => {
     expect(m.cardInfo).toMatchObject({ tokenProvider: "GooglePay", token: '{"signature":"s","protocolVersion":"ECv2"}' });
   });
 
+  it("carteira no DÉBITO → Init tipo 2 (crédito continua tipo 1)", async () => {
+    const fn = seq([{ sessionId: "sess_w", code: 1 }, initOk()]);
+    await tunaProvider.createWalletPayment!(wallet({ funding: "debit" }));
+    expect(bodyOf(fn, 1).paymentData.paymentMethods[0].paymentMethodType).toBe("2");
+    const fn2 = seq([{ sessionId: "sess_w2", code: 1 }, initOk()]);
+    await tunaProvider.createWalletPayment!(wallet({ reference: "PED-4", funding: "credit" }));
+    expect(bodyOf(fn2, 1).paymentData.paymentMethods[0].paymentMethodType).toBe("1");
+  });
+
   it("Apple Pay: extrai o paymentData do token embrulhado", async () => {
     const paymentData = { version: "EC_v1", data: "abc", signature: "sig", header: { transactionId: "t" } };
     const fn = seq([{ sessionId: "sess_w", code: 1 }, initOk()]);

@@ -398,6 +398,8 @@ export async function payOrderWithWallet(
       description: `Pedido ${order.code}`,
       walletType,
       token,
+      // Pedido de carteira criado como DEBIT = cliente escolheu débito na carteira.
+      funding: order.payment.method === "DEBIT" ? "debit" : "credit",
       ...(fraud?.deviceSessionId ? { deviceSessionId: fraud.deviceSessionId } : {}),
       ...(fraud?.client ? { client: fraud.client } : {}),
     });
