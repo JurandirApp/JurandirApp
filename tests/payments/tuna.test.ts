@@ -24,6 +24,7 @@ import {
   tunaChargeFailed,
 } from "@/lib/payments/tuna";
 import { isDefiniteGatewayFailure } from "@/lib/payments/gateway-errors";
+import { deriveTunaDeviceCustomer } from "@/lib/payments/tuna-cards";
 import type { Establishment } from "@prisma/client";
 import type { CardTokenPaymentInput, PixChargeInput, WalletPaymentInput } from "@/lib/payments/types";
 
@@ -586,6 +587,86 @@ describe("tunaProvider.createCardTokenPayment", () => {
     const e = (await tunaProvider.createCardTokenPayment!(card()).catch((x: unknown) => x)) as TunaError;
     expect(e.status).toBe(503);
     expect(isDefiniteGatewayFailure(e)).toBe(false);
+  });
+
+  describe("cartão salvo (deviceKey)", () => {
+    const KEY = "d".repeat(43);
+    const SECRETS = ["TUNA_CARD_KEY_SECRET", "AUTH_SECRET"] as const;
+    let saved: Record<string, string | undefined> = {};
+    beforeEach(() => {
+      saved = Object.fromEntries(SECRETS.map((k) => [k, process.env[k]]));
+      process.env.TUNA_CARD_KEY_SECRET = "segredo";
+    });
+    afterEach(() => {
+      for (const k of SECRETS) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    });
+
+    it("chave válida → customer do aparelho (id/e-mail) com nome/documento do pedido + tokenSingleUse 0", async () => {
+      const dev = deriveTunaDeviceCustomer(KEY)!;
+      const fn = seq([initOk()]);
+      const r = await tunaProvider.createCardTokenPayment!(
+        card({ tuna: { sessionId: "sess_dev", brand: "Master", deviceKey: KEY } }),
+      );
+      expect(r).toMatchObject({ chargeId: "PK1", status: "paid" });
+      const b = bodyOf(fn);
+      expect(b.tokenSession).toBe("sess_dev");
+      expect(b.partnerUniqueID).toBe("PED-2");
+      expect(b.customer).toEqual({
+        id: dev.id,
+        email: dev.email,
+        name: "Joao Silva",
+        document: "52998224725",
+        documentType: "CPF",
+      });
+      expect(b.paymentData.paymentMethods[0].cardInfo).toEqual({
+        token: "ct_abc",
+        tokenProvider: "Tuna",
+        brandName: "Master",
+        tokenSingleUse: 0,
+        saveCard: false,
+        billingInfo: { document: "52998224725", documentType: "CPF" },
+      });
+      expect(JSON.stringify(b)).not.toContain(KEY);
+    });
+
+    it("débito com chave segue o mesmo caminho (tipo 2/8) com tokenSingleUse 0", async () => {
+      const fn = seq([initOk()]);
+      await tunaProvider.createCardTokenPayment!(
+        card({ method: "debit", tuna: { sessionId: "sess_dev", deviceKey: KEY, threeDs } }),
+      );
+      const pm = bodyOf(fn).paymentData.paymentMethods[0];
+      expect(pm.paymentMethodType).toBe("8");
+      expect(pm.cardInfo.tokenSingleUse).toBe(0);
+      expect(bodyOf(fn).customer.id).toMatch(/^jdev_[0-9a-f]{40}$/);
+    });
+
+    it("sem chave (ou chave inválida) → customer do pedido e tokenSingleUse 1, como antes", async () => {
+      for (const deviceKey of [undefined, "curta"]) {
+        const fn = seq([initOk()]);
+        await tunaProvider.createCardTokenPayment!(card({ tuna: { sessionId: "sess_1", brand: "Visa", deviceKey } }));
+        const b = bodyOf(fn);
+        expect(b.customer.id).toBe("PED-2");
+        expect(b.customer.email).toBe("pedido-ped-2@jurandir.app.br");
+        expect(b.paymentData.paymentMethods[0].cardInfo.tokenSingleUse).toBe(1);
+      }
+    });
+
+    it("chave válida sem segredo → recusa definitiva (424) sem chamar a Tuna", async () => {
+      delete process.env.TUNA_CARD_KEY_SECRET;
+      delete process.env.AUTH_SECRET;
+      const fn = seq([]);
+      const e = (await tunaProvider
+        .createCardTokenPayment!(card({ tuna: { sessionId: "sess_dev", deviceKey: KEY } }))
+        .catch((x: unknown) => x)) as TunaError;
+      expect(e).toBeInstanceOf(TunaError);
+      expect(e.status).toBe(424);
+      expect(isDefiniteGatewayFailure(e)).toBe(true);
+      expect(fn).toHaveBeenCalledTimes(0);
+      expect(fn.lookup).toHaveBeenCalledTimes(0);
+    });
   });
 
   it("documento com 14 dígitos → billingInfo CNPJ", async () => {

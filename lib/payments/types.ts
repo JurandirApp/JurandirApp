@@ -100,6 +100,11 @@ export type CardTokenPaymentInput = {
     /** Id da sessão do Device Fingerprint (CyberSource), SEM o prefixo do
      *  merchant. Opcional; inválido é descartado. Vai no `frontData.sessionId`. */
     deviceSessionId?: string;
+    /** Chave secreta do aparelho (cartão salvo / cartão novo a salvar). Com ela
+     *  o Init vai no customer DO APARELHO (id/e-mail derivados por HMAC) e com
+     *  `tokenSingleUse: 0`; `sessionId` é então a sessão do aparelho
+     *  (`/api/public/tuna/cards/session`). Inválida é descartada. Nunca logar. */
+    deviceKey?: string;
   };
   /** Dados do cliente pro antifraude (Tuna `frontData`). Outros gateways ignoram. */
   client?: PaymentClientInfo;

@@ -192,6 +192,16 @@ describe("POST /api/public/orders/card — campos da Tuna", () => {
     expect(m.payCard.mock.calls[0][7]).toEqual({ sessionId: SESSION });
   });
 
+  it("deviceKey válida é repassada; inválida some", async () => {
+    m.payCard.mockResolvedValue({ status: "paid" });
+    const key = "Ab_-".repeat(11);
+    await cardPOST(req("/api/public/orders/card", { ...base, tuna: { sessionId: SESSION, deviceKey: ` ${key} ` } }));
+    await cardPOST(req("/api/public/orders/card", { ...base, tuna: { sessionId: SESSION, deviceKey: "curta" } }));
+    expect(m.payCard.mock.calls[0][7]).toEqual({ sessionId: SESSION, deviceKey: key });
+    expect(m.payCard.mock.calls[1][7]).toEqual({ sessionId: SESSION });
+    expect(allLogged()).not.toContain(key);
+  });
+
   it("sessionId vazio ou `tuna` não-objeto → não repassa nada", async () => {
     m.payCard.mockResolvedValue({ status: "failed" });
     await cardPOST(req("/api/public/orders/card", { ...base, tuna: { sessionId: "  " } }));
