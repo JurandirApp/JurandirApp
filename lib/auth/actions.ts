@@ -27,6 +27,10 @@ export async function login(
     // Error is a message key — LoginScreen translates it (see messages `auth`).
     return { ok: false, error: "invalidCredentials" };
   }
+  // Garçom trabalha pelo APP (login próprio em /api/public/login). O site não
+  // tem tela de garçom: criar a sessão aqui mandava pro /painel, que só aceita
+  // estabelecimento e devolvia pro /login → laço infinito de redirecionamento.
+  if (user.role === "WAITER") return { ok: false, error: "waiterUseApp" };
 
   await createSession(
     {

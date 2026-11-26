@@ -171,7 +171,8 @@
     "sendError": "Não foi possível enviar. Tente de novo."
   },
   "auth": {
-    "invalidCredentials": "E-mail ou senha incorretos. Confira e tente de novo."
+    "invalidCredentials": "E-mail ou senha incorretos. Confira e tente de novo.",
+    "waiterUseApp": "Conta de garçom: entre pelo app do Jurandir. O site é só para o estabelecimento e a administração."
   },
   "login": {
     "metaTitle": "Entrar",

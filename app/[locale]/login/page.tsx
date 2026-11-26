@@ -27,6 +27,8 @@ export default async function LoginPage({
   const { locale } = await params;
   setRequestLocale(locale);
   const session = await getSession();
-  if (session) redirect({ href: destForRole(session.role), locale });
+  // Sessão de garçom (criada antes desta correção) não redireciona: o /painel
+  // não aceita garçom e o vai-e-volta virava laço. Mostra o login normalmente.
+  if (session && session.role !== "WAITER") redirect({ href: destForRole(session.role), locale });
   return <LoginScreen />;
 }

@@ -171,7 +171,8 @@
     "sendError": "Could not send. Please try again."
   },
   "auth": {
-    "invalidCredentials": "Incorrect email or password. Check and try again."
+    "invalidCredentials": "Incorrect email or password. Check and try again.",
+    "waiterUseApp": "Waiter account: please sign in through the Jurandir app. The website is only for establishments and administration."
   },
   "login": {
     "metaTitle": "Sign in",
