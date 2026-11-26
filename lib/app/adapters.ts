@@ -135,7 +135,7 @@ const STATUS: Record<string, ClientOrder["status"]> = {
 type DbOrder = {
   id: string; number: number; code: string; status: string; customerName: string | null; note: string | null;
   customerPhone: string | null;
-  establishment?: { waiterModuleEnabled: boolean } | null;
+  establishment?: { waiterModuleEnabled: boolean; slug?: string } | null;
   createdAt: Date; subtotal: unknown; platformFee: unknown; serviceFee: unknown;
   items: {
     qty: number; name: string; unitPrice: unknown; options?: unknown;
@@ -170,6 +170,8 @@ export function toClientOrder(o: DbOrder): ClientOrder {
     code4: o.establishment?.waiterModuleEnabled
       ? deliveryCode(o.customerPhone, String(o.number).slice(-4).padStart(4, "0"))
       : undefined,
+    // Slug do bar: o app usa pra remontar o carrinho e retomar o pagamento.
+    ...(o.establishment?.slug ? { estSlug: o.establishment.slug } : {}),
     ts: o.createdAt.getTime(),
     items: o.items.map((i) => ({
       name: i.name, qty: i.qty, price: num(i.unitPrice), options: optionLabels(i.options),

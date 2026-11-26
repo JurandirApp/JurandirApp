@@ -228,7 +228,7 @@ export function getOrdersByIds(ids: string[]) {
       items: true,
       payment: true,
       splitShares: { orderBy: { personIndex: "asc" } },
-      establishment: { select: { waiterModuleEnabled: true } },
+      establishment: { select: { waiterModuleEnabled: true, slug: true } },
     },
   });
 }

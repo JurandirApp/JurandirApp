@@ -88,6 +88,13 @@ describe("toClientOrder", () => {
     } as never);
     expect(o.code4).toBe("0012"); // últimos 4 de `number`, zero-padded
   });
+  it("estSlug: slug do bar quando vem do banco (retomar pagamento); ausente sem ele", () => {
+    const pay = { payment: { method: "CREDIT", installments: 1 }, splitShares: [] };
+    const com = toClientOrder({ ...base, ...pay, establishment: { waiterModuleEnabled: true, slug: "leo-teste" } } as never);
+    expect(com.estSlug).toBe("leo-teste");
+    const sem = toClientOrder({ ...base, ...pay } as never);
+    expect(sem).not.toHaveProperty("estSlug");
+  });
   it("code4 fica indefinido quando o Módulo do Garçom está desligado", () => {
     const o = toClientOrder({
       ...base, establishment: { waiterModuleEnabled: false },

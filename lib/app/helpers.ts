@@ -27,6 +27,8 @@ export type ClientOrder = {
   /** Código de 4 dígitos pro garçom confirmar a entrega (últimos 4 do telefone
    *  do cliente, ou os últimos 4 do número do pedido quando não há telefone). */
   code4?: string;
+  /** Slug do bar do pedido (retomar pagamento no app). */
+  estSlug?: string;
   /** epoch ms (client clock at checkout) */
   ts: number;
   items: {
