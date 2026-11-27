@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Link } from "@/i18n/navigation";
 import { useLeadModal } from "./lead-modal";
+import { SocialLinks } from "./SocialLinks";
 
 export function Footer() {
   const t = useTranslations("footer");
@@ -44,6 +45,9 @@ export function Footer() {
             {t("accessPanel")}
           </Link>
         </p>
+
+        {/* Redes sociais (só as configuradas via NEXT_PUBLIC_SOCIAL_*). */}
+        <SocialLinks className="mt-8" />
 
         <div className="mt-14 border-t border-white/10 pt-8 text-left text-sm text-white/60">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
