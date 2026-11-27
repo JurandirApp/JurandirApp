@@ -29,7 +29,7 @@ export function QrScreen() {
           "radial-gradient(120% 42% at 50% 100%,rgba(255,194,75,.18),#fff 70%)",
       }}
     >
-      <div className="animate-rise-in overflow-hidden rounded-b-28 bg-white">
+      <div className="animate-rise-in overflow-hidden rounded-b-28 bg-white lg:rounded-t-28">
         {/* Cover */}
         <div className="relative h-[210px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}

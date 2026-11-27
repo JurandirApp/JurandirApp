@@ -1146,6 +1146,7 @@
     "whatsapp": "WhatsApp",
     "website": "Website",
     "cartItems": "{count, plural, one {# item} other {# items}}",
+    "cartEmpty": "Your cart is empty. Add items from the menu.",
     "yourOrder": "Your order",
     "close": "Close",
     "total": "Total",

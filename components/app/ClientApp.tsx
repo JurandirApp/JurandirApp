@@ -768,7 +768,14 @@ export function ClientApp({
   return (
     <AppContext.Provider value={value}>
       <div className="flex min-h-screen justify-center bg-page">
-        <div className="relative w-full max-w-[448px] bg-page">
+        {/* Celular: coluna de 448px. Desktop (lg+): o cardápio abre em largura
+            confortável (grade + carrinho lateral); as demais telas (formulários)
+            ficam numa coluna central um pouco mais larga. */}
+        <div
+          className={`relative w-full max-w-[448px] bg-page ${
+            step === "menu" ? "lg:max-w-[1280px] lg:px-8" : "lg:max-w-[560px] lg:pt-6"
+          }`}
+        >
           {step === "qr" && <QrScreen />}
           {step === "menu" && <MenuScreen />}
           {step === "checkout" && <CheckoutScreen />}

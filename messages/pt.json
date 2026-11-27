@@ -1146,6 +1146,7 @@
     "whatsapp": "WhatsApp",
     "website": "Website",
     "cartItems": "{count, plural, one {# item} other {# itens}}",
+    "cartEmpty": "Seu carrinho está vazio. Adicione itens do cardápio.",
     "yourOrder": "Seu pedido",
     "close": "Fechar",
     "total": "Total",
