@@ -130,7 +130,7 @@ export function WalletButtons({
       buttonType: "pay",
       buttonColor: "black",
       buttonSizeMode: "fill",
-      buttonLocale: locale === "en" ? "en" : "pt",
+      buttonLocale: locale === "en" || locale === "es" ? locale : "pt",
       onClick,
     });
     el.replaceChildren(btn);
@@ -221,7 +221,7 @@ export function WalletButtons({
         {showApple && (
           <button
             type="button"
-            lang={locale === "en" ? "en" : "pt-BR"}
+            lang={locale === "en" ? "en" : locale === "es" ? "es" : "pt-BR"}
             aria-label="Apple Pay"
             className="jur-apple-pay-btn"
             disabled={inactive}

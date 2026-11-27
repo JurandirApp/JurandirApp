@@ -256,6 +256,123 @@ const EN: Guide = {
   footer: "Stuck somewhere? Take a photo of the screen and send it to me.",
 };
 
+const ES: Guide = {
+  openLabel: "Ver tutorial de instalación",
+  title: "Cómo conectar la impresora",
+  subtitle: "Hazlo en orden, sin prisa. Si te atoras, revisa “¿Algo salió mal?” al final.",
+  closeLabel: "Cerrar",
+  stepsLabel: "Paso",
+  steps: [
+    {
+      title: "Encender la impresora",
+      items: [
+        "Coloca el **rollo de papel** y cierra la tapa.",
+        "Conecta el **cable de corriente** y presiona el **botón de encendido**.",
+        "Conecta el **cable USB** de la impresora a un puerto USB de la computadora.",
+      ],
+      callouts: [{ kind: "ok", text: "Funcionó si la luz de la impresora se enciende." }],
+    },
+    {
+      title: "Dejar que Windows reconozca la impresora",
+      items: [
+        "Espera unos segundos — Windows suele instalarla solo.",
+        "Si vino un CD, una memoria USB o el sitio del fabricante con su programa (el “driver”), instálalo.",
+        "Haz clic en **Inicio** y escribe `impresoras`. Abre **Impresoras y escáneres**.",
+        "Busca la impresora y haz clic en **Imprimir página de prueba**. ¿Salió papel? Está lista.",
+      ],
+      callouts: [
+        {
+          kind: "warn",
+          text: "**Anota el nombre EXACTO** de la impresora, tal como aparece en la lista (ej.: `POS-80`). Lo vamos a usar enseguida — cópialo tal cual.",
+        },
+      ],
+    },
+    {
+      title: "Registrar la impresora en el panel",
+      items: [
+        "Aquí en el panel, entra en **Config. → Integración con impresora**.",
+        "Haz clic en **Agregar impresora** y completa: **Nombre** (ej.: Cocina), **Conexión** = USB (Windows), **Nombre de la impresora en Windows** (el que anotaste), las **Categorías** que imprime, y marca una como **predeterminada**. Guarda.",
+        "Deja activado el interruptor de **Impresión automática**.",
+      ],
+      callouts: [{ kind: "tip", text: "¿Tienes Barra y Cocina? Repite “Agregar impresora” para cada una." }],
+    },
+    {
+      title: "Descargar el programa de la impresora",
+      items: [
+        "En **Config. → Impresoras**, haz clic en el botón **Descargar agente de impresión**.",
+        "Se descargará el archivo `jurandir-impressora.zip` (queda en la carpeta **Descargas**).",
+      ],
+      callouts: [
+        {
+          kind: "tip",
+          text: "Descárgalo **directo en la computadora del bar**. El programa ya trae la contraseña adentro — no tienes que escribir nada.",
+        },
+      ],
+    },
+    {
+      title: "Instalar el programa (doble clic)",
+      items: [
+        "En la carpeta **Descargas**, haz clic con el **botón derecho** en el zip → **Extraer todo** → **Extraer**.",
+        "Abre la carpeta que apareció y haz **doble clic** en `Instalar.bat`.",
+        "Aparecerá **“Pronto! A impressora já está funcionando”** (listo, la impresora ya funciona). Puedes cerrar la ventana.",
+      ],
+      callouts: [
+        { kind: "warn", text: "**Extrae primero** — no hagas doble clic en el archivo dentro del zip." },
+        {
+          kind: "tip",
+          text: "Si aparece **“Windows protegió su PC”**: haz clic en **Más información** → **Ejecutar de todas formas**. Puedes confiar, es nuestro programa.",
+        },
+        {
+          kind: "ok",
+          text: "`Instalar.bat` deja **todo automático**: arranca junto con Windows y corre **en segundo plano** (sin ventana). No tienes que volver a tocarlo.",
+        },
+      ],
+    },
+    {
+      title: "Probar",
+      items: [
+        "Vuelve al panel → **Config. → Impresoras**.",
+        "En la impresora que registraste, haz clic en el **ícono de impresora** (el botón de prueba).",
+        "Debe **salir una hoja de prueba** en la impresora.",
+      ],
+      callouts: [
+        {
+          kind: "ok",
+          text: "¿Salió papel? **¡Está funcionando!** A partir de ahora, cada pedido pagado sale solo en la impresora correcta.",
+        },
+      ],
+    },
+  ],
+  optional: {
+    title: "Bueno saber (los otros archivos del zip)",
+    items: [
+      "`Iniciar.bat` — solo para **probar en el momento**, con la ventana abierta (no lo deja automático).",
+      "`Desinstalar.bat` — **quita** el inicio automático y detiene el agente, si algún día lo necesitas.",
+    ],
+    callouts: [],
+  },
+  optionalTag: "Extra",
+  troubleTitle: "¿Algo salió mal?",
+  troubleHint: "Mira lo que apareció en la ventanita negra y búscalo aquí abajo.",
+  troubles: [
+    {
+      q: "“Impressora nao encontrada”",
+      a: "El nombre en el panel es distinto al nombre en Windows. Revisa el nombre exacto (Paso 2) y corrígelo en el registro del panel (Paso 3).",
+    },
+    { q: "“Token invalido (401)”", a: "Descarga el programa otra vez con el botón del panel (Paso 4) y usa la carpeta nueva." },
+    { q: "“sem conexao com a nuvem”", a: "La computadora no tiene internet. Revisa el Wi-Fi o el cable de red." },
+    {
+      q: "No sale nada y no aparece ningún error",
+      a: "Revisa que la “Impresión automática” esté activada en el panel y que la ventanita negra esté abierta. Si se cerró, solo abre Iniciar.bat de nuevo.",
+    },
+    {
+      q: "Sale papel con símbolos raros",
+      a: "Puede que la impresora no sea térmica de 80 mm, o hay que cambiar su driver a “Generic / Text Only” en Windows. Si pasa, avísanos.",
+    },
+  ],
+  footer: "¿Te atoraste en alguna parte? Toma una foto de la pantalla y envíanosla.",
+};
+
 /** Renderiza texto com **negrito** e `código` inline. */
 function Rich({ text }: { text: string }): ReactNode {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
@@ -340,7 +457,7 @@ function StepBlock({ n, step, tag }: { n: string; step: Step; tag?: string }) {
 /** Botão + modal com o tutorial de instalação da impressora (nativo do painel). */
 export function PrinterSetupGuide() {
   const locale = useLocale();
-  const g = locale === "en" ? EN : PT;
+  const g = locale === "en" ? EN : locale === "es" ? ES : PT;
   const [open, setOpen] = useState(false);
 
   useEffect(() => {

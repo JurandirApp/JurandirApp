@@ -140,12 +140,12 @@ export function scaleFromOrders(
   });
 }
 
-/** Last 12 months as { value: "YYYY-MM", label: "Julho de 2026" / "July 2026" }. */
+/** Last 12 months as { value: "YYYY-MM", label: "Julho de 2026" / "July 2026" / "Julio de 2026" }. */
 export function monthOptions(
   now: number,
   locale = "pt",
 ): { value: string; label: string }[] {
-  const intl = locale === "en" ? "en-US" : "pt-BR";
+  const intl = locale === "en" ? "en-US" : locale === "es" ? "es-419" : "pt-BR";
   return Array.from({ length: 12 }, (_, i) => {
     const dd = new Date(now);
     dd.setDate(1);

@@ -74,12 +74,17 @@ type DbEst = DbEstPayments & {
 };
 
 /** `openNow` + `nextOpenLabel` (só quando fechado) — campos públicos do bar. */
-export function toOpenFields(weeklyHours: unknown, now = new Date()): Pick<AppEstablishment, "openNow" | "nextOpenLabel"> {
-  const s = openStatus(weeklyHours, now);
+export function toOpenFields(
+  weeklyHours: unknown,
+  now = new Date(),
+  locale: string = "pt",
+): Pick<AppEstablishment, "openNow" | "nextOpenLabel"> {
+  const s = openStatus(weeklyHours, now, undefined, locale);
   return { openNow: s.openNow, ...(s.nextOpenLabel ? { nextOpenLabel: s.nextOpenLabel } : {}) };
 }
 
-export function toAppEstablishment(e: DbEst, now = new Date()): AppEstablishment {
+/** `locale` só afeta rótulos gerados no servidor (ex.: `nextOpenLabel`); padrão pt. */
+export function toAppEstablishment(e: DbEst, now = new Date(), locale: string = "pt"): AppEstablishment {
   return {
     id: e.id,
     slug: e.slug,
@@ -97,7 +102,7 @@ export function toAppEstablishment(e: DbEst, now = new Date()): AppEstablishment
     instagram: { url: e.instagram ? `https://instagram.com/${e.instagram.replace(/^@/, "")}` : "#", handle: e.instagram ?? "" },
     phone: { tel: (e.phone ?? "").replace(/\D/g, ""), display: e.phone ?? "" },
     website: { url: e.website ? (e.website.startsWith("http") ? e.website : `https://${e.website}`) : "#" },
-    ...toOpenFields(e.weeklyHours, now),
+    ...toOpenFields(e.weeklyHours, now, locale),
   };
 }
 

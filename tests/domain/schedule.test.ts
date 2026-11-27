@@ -171,6 +171,19 @@ describe("openStatus (fuso America/Sao_Paulo)", () => {
     expect(openStatus(week(), at("2026-11-29T02:30:00Z")).nextOpenLabel).toBe("Abre sexta às 18:00");
   });
 
+  it("rótulo em en/es (?lang=), padrão pt", () => {
+    const fri17 = at("2026-11-27T20:00:00Z");
+    const thu20 = at("2026-11-26T23:00:00Z");
+    const sat2330 = at("2026-11-29T02:30:00Z");
+    expect(openStatus(week(), fri17, undefined, "en").nextOpenLabel).toBe("Opens today at 18:00");
+    expect(openStatus(week(), thu20, undefined, "en").nextOpenLabel).toBe("Opens tomorrow at 18:00");
+    expect(openStatus(week(), sat2330, undefined, "en").nextOpenLabel).toBe("Opens on Friday at 18:00");
+    expect(openStatus(week(), fri17, undefined, "es").nextOpenLabel).toBe("Abre hoy a las 18:00");
+    expect(openStatus(week(), thu20, undefined, "es").nextOpenLabel).toBe("Abre mañana a las 18:00");
+    expect(openStatus(week(), sat2330, undefined, "es").nextOpenLabel).toBe("Abre el viernes a las 18:00");
+    expect(openStatus(week(), fri17, undefined, "fr").nextOpenLabel).toBe("Abre hoje às 18:00");
+  });
+
   it("localDayMinutes converte pro fuso", () => {
     expect(localDayMinutes(at("2026-11-28T02:15:00Z"))).toEqual({ day: 5, mins: 23 * 60 + 15 });
   });

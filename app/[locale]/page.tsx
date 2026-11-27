@@ -27,7 +27,7 @@ export async function generateMetadata({
     description: t("description"),
     openGraph: {
       type: "website",
-      locale: locale === "en" ? "en_US" : "pt_BR",
+      locale: locale === "en" ? "en_US" : locale === "es" ? "es_LA" : "pt_BR",
       siteName: "Jurandir",
       title: t("ogTitle"),
       description: t("ogDescription"),

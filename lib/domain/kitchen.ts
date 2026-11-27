@@ -19,9 +19,11 @@ import {
   EST_TIMEZONE,
   hasAnyWindow,
   isOpenAtParts,
+  labelLocale,
   localDayMinutes,
   normalizeWeekly,
   toMin,
+  WEEKDAY_NAMES,
   type WeekSchedule,
 } from "./schedule";
 
@@ -91,24 +93,22 @@ export function kitchenNextOpen(cfg: KitchenConfig | null | undefined, now: Date
   return null;
 }
 
-const WEEKDAYS: Record<"pt" | "en", string[]> = {
-  pt: ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"],
-  en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-};
-
-/** Texto da próxima abertura: "Cozinha abre hoje às 18:00" / "Kitchen opens today at 18:00". */
+/** Texto da próxima abertura: "Cozinha abre hoje às 18:00" / "Kitchen opens today
+ *  at 18:00" / "La cocina abre hoy a las 18:00". */
 export function formatKitchenNextOpen(next: KitchenNextOpen | null, locale: string = "pt"): string | undefined {
   if (!next) return undefined;
-  const en = locale === "en";
-  const when =
-    next.dayOffset === 0
-      ? en ? "today" : "hoje"
-      : next.dayOffset === 1
-        ? en ? "tomorrow" : "amanhã"
-        : en
-          ? `on ${WEEKDAYS.en[next.weekday]}`
-          : `${WEEKDAYS.pt[next.weekday]}`;
-  return en ? `Kitchen opens ${when} at ${next.time}` : `Cozinha abre ${when} às ${next.time}`;
+  const l = labelLocale(locale);
+  const wd = WEEKDAY_NAMES[l][next.weekday];
+  if (l === "en") {
+    const when = next.dayOffset === 0 ? "today" : next.dayOffset === 1 ? "tomorrow" : `on ${wd}`;
+    return `Kitchen opens ${when} at ${next.time}`;
+  }
+  if (l === "es") {
+    const when = next.dayOffset === 0 ? "hoy" : next.dayOffset === 1 ? "mañana" : `el ${wd}`;
+    return `La cocina abre ${when} a las ${next.time}`;
+  }
+  const when = next.dayOffset === 0 ? "hoje" : next.dayOffset === 1 ? "amanhã" : wd;
+  return `Cozinha abre ${when} às ${next.time}`;
 }
 
 /** Atalho: rótulo da próxima abertura agora (undefined se aberta/sem config). */

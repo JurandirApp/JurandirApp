@@ -213,7 +213,35 @@ export function localDayMinutes(date: Date, timeZone = EST_TIMEZONE): { day: num
   return { day, mins: hour * 60 + minute };
 }
 
-const PT_WEEKDAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+/** Idiomas dos rótulos gerados no servidor (próxima abertura etc.). */
+export type LabelLocale = "pt" | "en" | "es";
+
+/** Normaliza qualquer locale/`?lang=` pra um idioma de rótulo (padrão pt). */
+export function labelLocale(l: string | null | undefined): LabelLocale {
+  return l === "en" || l === "es" ? l : "pt";
+}
+
+/** Dias da semana (índice 0 = domingo) por idioma. */
+export const WEEKDAY_NAMES: Record<LabelLocale, string[]> = {
+  pt: ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"],
+  en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+  es: ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"],
+};
+
+/** "Abre hoje às 18:00" / "Opens today at 18:00" / "Abre hoy a las 18:00". */
+function formatNextOpen(locale: LabelLocale, dayOffset: number, weekday: number, time: string): string {
+  const wd = WEEKDAY_NAMES[locale][weekday];
+  if (locale === "en") {
+    const when = dayOffset === 0 ? "today" : dayOffset === 1 ? "tomorrow" : `on ${wd}`;
+    return `Opens ${when} at ${time}`;
+  }
+  if (locale === "es") {
+    const when = dayOffset === 0 ? "hoy" : dayOffset === 1 ? "mañana" : `el ${wd}`;
+    return `Abre ${when} a las ${time}`;
+  }
+  const when = dayOffset === 0 ? "hoje" : dayOffset === 1 ? "amanhã" : wd;
+  return `Abre ${when} às ${time}`;
+}
 
 export type OpenStatus = {
   /** O bar tem horário configurado (alguma janela na semana)? */
@@ -229,7 +257,12 @@ export type OpenStatus = {
  * Aberto agora + próxima abertura, no fuso do estabelecimento. Puro (o `now`
  * entra por parâmetro). Aceita o JSON cru do banco (`weeklyHours`).
  */
-export function openStatus(rawWeekly: unknown, now: Date, timeZone = EST_TIMEZONE): OpenStatus {
+export function openStatus(
+  rawWeekly: unknown,
+  now: Date,
+  timeZone = EST_TIMEZONE,
+  locale: string = "pt",
+): OpenStatus {
   const week = normalizeWeekly(rawWeekly);
   if (!hasAnyWindow(week)) return { configured: false, openNow: true };
   const { day, mins } = localDayMinutes(now, timeZone);
@@ -244,8 +277,8 @@ export function openStatus(rawWeekly: unknown, now: Date, timeZone = EST_TIMEZON
       .filter((x) => offset > 0 || x.o > mins)
       .sort((a, b) => a.o - b.o);
     if (opens.length) {
-      const when = offset === 0 ? "hoje" : offset === 1 ? "amanhã" : PT_WEEKDAYS[d];
-      return { configured: true, openNow: false, nextOpenLabel: `Abre ${when} às ${opens[0].w.o}` };
+      const nextOpenLabel = formatNextOpen(labelLocale(locale), offset, d, opens[0].w.o);
+      return { configured: true, openNow: false, nextOpenLabel };
     }
   }
   return { configured: true, openNow: false };

@@ -40,10 +40,11 @@ export default async function ClientAppPage({
   if (!dbEst) notFound();
   const tunaOf = await tunaPublicReadiness([dbEst]);
   const kitchen = kitchenConfigOf(dbEst);
+  // Página dinâmica (por request): o relógio é o da requisição.
+  const now = new Date();
   const appEst = {
-    ...toAppEstablishment({ ...dbEst, tuna: tunaOf(dbEst) }),
-    // Página dinâmica (por request): o relógio é o da requisição.
-    ...kitchenPublicFields(kitchen, new Date(), locale),
+    ...toAppEstablishment({ ...dbEst, tuna: tunaOf(dbEst) }, now, locale),
+    ...kitchenPublicFields(kitchen, now, locale),
   };
   const [dbMenu, dbSpots, popularNames, wallets] = await Promise.all([
     listMenu(dbEst.id),

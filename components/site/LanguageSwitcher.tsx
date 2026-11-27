@@ -7,7 +7,7 @@ import { routing } from "@/i18n/routing";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
-/** Barra fixa no topo-direito: botão "Acessar Painel" + toggle de idioma PT | EN. */
+/** Barra fixa no topo-direito: botão "Acessar Painel" + toggle de idioma PT | EN | ES. */
 export function LanguageSwitcher() {
   const locale = useLocale();
   const pathname = usePathname();
@@ -33,7 +33,7 @@ export function LanguageSwitcher() {
         <span className="hidden sm:inline">{t("accessPanel")}</span>
       </Link>
 
-      {/* Toggle de idioma PT | EN. */}
+      {/* Toggle de idioma PT | EN | ES. */}
       <div
         role="group"
         aria-label={t("label")}

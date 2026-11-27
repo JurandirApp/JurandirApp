@@ -7,7 +7,7 @@ import { routing } from "@/i18n/routing";
 import { cn } from "@/lib/utils";
 
 /**
- * Seletor de idioma (Português / English) pra telas de perfil/configuração.
+ * Seletor de idioma (Português / English / Español) pra telas de perfil/configuração.
  * Troca o locale do mesmo jeito do LanguageSwitcher (router do next-intl), mas
  * PRESERVA a query string (ex.: `?local=Mesa 2` do QR). A preferência fica no
  * cookie NEXT_LOCALE (persistente — ver `i18n/routing.ts`).
@@ -18,7 +18,7 @@ export function LocalePicker({
   onBeforeSwitch,
 }: {
   className?: string;
-  /** Versão curta (PT | EN) pra cabeçalhos. */
+  /** Versão curta (PT | EN | ES) pra cabeçalhos. */
   compact?: boolean;
   /** Chamado logo antes de trocar (ex.: lembrar a tela atual). */
   onBeforeSwitch?: (target: string) => void;
@@ -61,7 +61,7 @@ export function LocalePicker({
             locale === l ? "bg-ink text-sand" : "bg-transparent text-ink/55",
           )}
         >
-          {compact ? t(l) : t(l === "pt" ? "ptName" : "enName")}
+          {compact ? t(l) : t(`${l}Name`)}
         </button>
       ))}
     </div>

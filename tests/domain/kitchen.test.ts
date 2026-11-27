@@ -70,6 +70,9 @@ describe("kitchenNextOpenLabel", () => {
     expect(kitchenNextOpenLabel(cfg, sp("2026-11-29T10:00:00"))).toBe("Cozinha abre sexta às 18:00");
     expect(kitchenNextOpenLabel(cfg, sp("2026-11-29T10:00:00"), "en")).toBe("Kitchen opens on Friday at 18:00");
     expect(kitchenNextOpenLabel(cfg, sp("2026-11-27T10:00:00"), "en")).toBe("Kitchen opens today at 18:00");
+    expect(kitchenNextOpenLabel(cfg, sp("2026-11-27T10:00:00"), "es")).toBe("La cocina abre hoy a las 18:00");
+    expect(kitchenNextOpenLabel(cfg, sp("2026-11-27T23:30:00"), "es")).toBe("La cocina abre mañana a las 12:00");
+    expect(kitchenNextOpenLabel(cfg, sp("2026-11-29T10:00:00"), "es")).toBe("La cocina abre el viernes a las 18:00");
   });
 });
 

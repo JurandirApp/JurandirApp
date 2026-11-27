@@ -9,8 +9,10 @@
     "label": "Idioma",
     "pt": "PT",
     "en": "EN",
+    "es": "ES",
     "ptName": "Português",
     "enName": "English",
+    "esName": "Español",
     "hint": "Escolha o idioma do site. Fica salvo neste navegador.",
     "accessPanel": "Acessar Painel"
   },
