@@ -104,6 +104,9 @@ export interface PanelValue {
   qrLabel: string;
   setQrLabel: (v: string) => void;
   addQr: () => void;
+  /** Cadastro em lote: grava os rótulos e troca a lista pelos pontos do bar.
+   *  null = falhou (o toast já avisou). */
+  addQrBatch: (labels: string[]) => Promise<{ created: number; skipped: number } | null>;
   openZoom: (q: Qr) => void;
   askDeleteQr: (q: Qr) => void;
 

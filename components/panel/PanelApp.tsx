@@ -15,6 +15,7 @@ import type { MonthlyStatLite } from "@/lib/admin/scale";
 import { padId } from "@/lib/panel/helpers";
 import {
   addQrSpotAction,
+  addQrSpotsBatchAction,
   changePasswordAction,
   setWaiterModuleAction,
   checkPixReadyAction,
@@ -440,6 +441,15 @@ export function PanelApp({
           else toast(t("toasts.qrError"));
         });
         setQrLabel("");
+      },
+      addQrBatch: async (labels) => {
+        const r = await addQrSpotsBatchAction(labels);
+        if (!r.ok || !r.qrs) {
+          toast(t("toasts.qrError"));
+          return null;
+        }
+        setQrs(r.qrs);
+        return { created: r.created ?? 0, skipped: r.skipped ?? 0 };
       },
       openZoom: (q) => setQrZoom(q),
       askDeleteQr: (q) => setDelQr(q),

@@ -14,7 +14,8 @@ import { upsertWaiter, deleteWaiter } from "@/lib/db/waiters";
 import { listPendingCalls, handleCall } from "@/lib/db/help";
 import { upsertMenuItem, deleteMenuItem, bulkAdjustPrices } from "@/lib/db/menu";
 import type { ItemChange } from "@/lib/pricing/bulk-adjust";
-import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
+import { createQrSpot, createQrSpotsBatch, deleteQrSpot } from "@/lib/db/qr";
+import { validateBatchLabels } from "@/lib/domain/qr-batch";
 import { setWaiterModuleEnabled } from "@/lib/db/establishments";
 import { needsReconcile } from "@/lib/app/split";
 import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
@@ -593,6 +594,29 @@ export async function addQrSpotAction(
   const spot = await createQrSpot(s.establishmentId!, parsed.data.label);
   revalidatePath("/painel");
   return { ok: true, qr: { id: spot.id, label: spot.label } };
+}
+
+/** Cadastro de mesas/guarda-sóis em lote (máx. 200). O bar vem SEMPRE da
+ *  sessão; repetidos/já cadastrados são pulados e contados em `skipped`.
+ *  Devolve todos os pontos do bar pra lista do painel. */
+export async function addQrSpotsBatchAction(labels: string[]): Promise<{
+  ok: boolean;
+  error?: string;
+  created?: number;
+  skipped?: number;
+  qrs?: { id: string; label: string }[];
+}> {
+  const s = await requireEst();
+  const valid = validateBatchLabels(labels);
+  if (!valid) return { ok: false, error: "invalid" };
+  const r = await createQrSpotsBatch(s.establishmentId!, valid);
+  if (r.created > 0) revalidatePath("/painel");
+  return {
+    ok: true,
+    created: r.created,
+    skipped: r.skipped,
+    qrs: r.spots.map((q) => ({ id: q.id, label: q.label })),
+  };
 }
 
 export async function deleteQrSpotAction(dbId: string): Promise<void> {
