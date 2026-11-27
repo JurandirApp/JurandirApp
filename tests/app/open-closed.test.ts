@@ -11,7 +11,6 @@ vi.mock("@/lib/db/print", () => ({ enqueuePrintJob: vi.fn() }));
 
 import { toOpenFields } from "@/lib/app/adapters";
 import { createOrder, isClosedError } from "@/lib/db/orders";
-import { POST } from "@/app/api/public/orders/route";
 
 // 2026-11-27 (sexta) 20:00Z = 17:00 em SP.
 const NOW = new Date("2026-11-27T20:00:00Z");
@@ -43,18 +42,12 @@ describe("criação de pedido com bar fechado", () => {
     vi.clearAllMocks();
   });
 
-  it("createOrder lança OrderError 'closed' quando há horário e está fechado", async () => {
+  it("bar fechado NÃO bloqueia mais: createOrder segue pra criação", async () => {
     m.estFind.mockResolvedValue({ id: "e1", weeklyHours: FRI_18, platformFeePct: 8, serviceFeePct: 0 });
+    m.orderFind.mockRejectedValue(new Error("passou do guard"));
     const err = await createOrder(body as never).catch((e) => e);
-    expect(isClosedError(err)).toBe(true);
-    vi.useRealTimers();
-  });
-
-  it("POST /api/public/orders → 409 { error: 'closed' }", async () => {
-    m.estFind.mockResolvedValue({ id: "e1", weeklyHours: FRI_18, platformFeePct: 8, serviceFeePct: 0 });
-    const res = await POST(new Request("http://x/api/public/orders", { method: "POST", body: JSON.stringify(body) }));
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ error: "closed" });
+    expect(isClosedError(err)).toBe(false);
+    expect((err as Error).message).toBe("passou do guard");
     vi.useRealTimers();
   });
 

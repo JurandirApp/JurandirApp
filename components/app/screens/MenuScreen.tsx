@@ -31,8 +31,13 @@ export function MenuScreen() {
     myOrders,
     kitchenOpen,
     kitchenLabel,
+    kitchenClosesIn,
     preview,
   } = useApp();
+  // Bar fechado: o cardápio fica "apagado" (ainda dá pra pedir, com confirmação
+  // no checkout) — junto do aviso forte abaixo da capa, não tem como confundir.
+  const barClosed = !est.openNow;
+  const dimStyle = barClosed ? { opacity: 0.5, filter: "grayscale(0.7)" } : undefined;
   const t = useTranslations("app");
   // Platform taxonomy is translated via the shared panel maps (state still keys
   // off the canonical PT names); item names/descriptions stay PT (tenant data).
@@ -208,7 +213,7 @@ export function MenuScreen() {
 
         {/* Carousels (only when not searching, and only the ones with items) */}
         {!searching && (popular.length > 0 || promos.length > 0) && (
-          <div className="pt-4">
+          <div className="pt-4" style={dimStyle}>
             {popular.length > 0 && (
               <>
                 <h2 className="m-0 mb-2 px-4 font-display text-lg font-extrabold lg:px-0">
@@ -358,8 +363,25 @@ export function MenuScreen() {
           </div>
         )}
 
+        {/* Cozinha fechando (≤ 30 min) — aviso de última chamada */}
+        {kitchenOpen && hasKitchenItems && kitchenClosesIn != null && kitchenClosesIn <= 30 && (
+          <div
+            role="status"
+            className="mx-4 mb-3 mt-1 flex items-start gap-2 rounded-2xl border border-[#fde68a] bg-[#fffbeb] px-3.5 py-2.5 text-[13px] text-[#92400e] lg:mx-0"
+          >
+            <Icon name="timer" size={18} className="mt-px flex-shrink-0" />
+            <span>
+              <b className="font-bold">{t("kitchenClosingSoon", { min: kitchenClosesIn })}</b>
+              <span className="block text-xs text-[#b45309]">{t("kitchenClosingSoonSub")}</span>
+            </span>
+          </div>
+        )}
+
         {/* Item list */}
-        <div className="flex flex-col gap-4 px-4 pt-1 lg:grid lg:grid-cols-2 lg:gap-5 lg:px-0 xl:grid-cols-3">
+        <div
+          className="flex flex-col gap-4 px-4 pt-1 lg:grid lg:grid-cols-2 lg:gap-5 lg:px-0 xl:grid-cols-3"
+          style={dimStyle}
+        >
           {list.map((m) => (
             <ItemCard
               key={m.id}

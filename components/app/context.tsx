@@ -34,6 +34,8 @@ export interface AppValue {
   kitchenOpen: boolean;
   /** "Cozinha abre hoje às 18:00" quando fechada. */
   kitchenLabel?: string;
+  /** Minutos até a cozinha fechar (null quando não fecha em breve). */
+  kitchenClosesIn: number | null;
 
   // Navigation
   step: Step;

@@ -9,6 +9,7 @@ import { PIX_EXPIRES_MIN } from "@/lib/domain/pricing";
 import { appToEnum } from "@/lib/app/adapters";
 import { splitPayment } from "@/lib/app/split";
 import {
+  kitchenClosesAt,
   kitchenNextOpenLabel,
   kitchenOpenNow,
   type KitchenConfig,
@@ -159,12 +160,16 @@ export function ClientApp({
   // por horas. O servidor revalida na criação do pedido (erro kitchenClosed).
   const [kitchenOpen, setKitchenOpen] = useState(est.kitchenOpenNow ?? true);
   const [kitchenLabel, setKitchenLabel] = useState(est.kitchenNextOpenLabel);
+  // Minutos até a cozinha fechar (null = não fecha em breve / sem config).
+  const [kitchenClosesIn, setKitchenClosesIn] = useState<number | null>(null);
   useEffect(() => {
     if (!kitchen) return;
     const tick = () => {
       const now = new Date();
       setKitchenOpen(kitchenOpenNow(kitchen, now));
       setKitchenLabel(kitchenNextOpenLabel(kitchen, now, locale));
+      const closes = kitchenClosesAt(kitchen, now);
+      setKitchenClosesIn(closes ? Math.max(1, Math.ceil((closes.getTime() - now.getTime()) / 60_000)) : null);
     };
     tick();
     const id = setInterval(tick, 60_000);
@@ -408,6 +413,20 @@ export function ClientApp({
       // localStorage unavailable — order is still created server-side.
     }
   };
+
+  // Quem já pediu neste bar recebe o aviso "cozinha finalizando" ao cruzar 30 e
+  // 10 min (uma vez cada, enquanto a página estiver aberta).
+  const kitchenWarned = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    if (kitchenClosesIn == null || myOrders.length === 0) return;
+    const mark = [10, 30].find((m) => kitchenClosesIn <= m && !kitchenWarned.current.has(m));
+    if (mark == null) return;
+    // Cruzou o de 10 → não repete o de 30 depois.
+    for (const m of [10, 30]) if (m >= mark) kitchenWarned.current.add(m);
+    setToast(t("kitchenClosingSoon", { min: kitchenClosesIn }));
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 6000);
+  }, [kitchenClosesIn, myOrders.length, t]);
 
   const value = useMemo<AppValue>(() => {
     const toastMsg = (msg: string, ms = 2400) => {
@@ -687,6 +706,7 @@ export function ClientApp({
       menu,
       kitchenOpen,
       kitchenLabel,
+      kitchenClosesIn,
 
       step,
       goQr: () => setStep("qr"),
@@ -799,7 +819,7 @@ export function ClientApp({
   }, [
     est, wallets, beach, loc, spotFromQr, spots, popularNames, menu, step, cart, cartOpen, cat, sub, query, custName, note,
     mode, selPay, parc, people, paid, paying, myOrders, lastOrder, exp, toast,
-    storageKey, pendingKey, t, kitchenOpen, kitchenLabel, preview,
+    storageKey, pendingKey, t, kitchenOpen, kitchenLabel, kitchenClosesIn, preview,
   ]);
 
   return (

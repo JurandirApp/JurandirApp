@@ -146,8 +146,36 @@ export function kitchenPublicFields(
   cfg: KitchenConfig,
   now: Date,
   locale: string = "pt",
-): { kitchenOpenNow: boolean; kitchenNextOpenLabel?: string } {
+): { kitchenOpenNow: boolean; kitchenNextOpenLabel?: string; kitchenClosesAt?: string } {
   const open = kitchenOpenNow(cfg, now);
-  const label = open ? undefined : kitchenNextOpenLabel(cfg, now, locale);
+  if (open) {
+    // Fim do expediente da cozinha (ISO) — o app agenda o aviso de 30/10 min.
+    const closes = kitchenClosesAt(cfg, now);
+    return closes ? { kitchenOpenNow: true, kitchenClosesAt: closes.toISOString() } : { kitchenOpenNow: true };
+  }
+  const label = kitchenNextOpenLabel(cfg, now, locale);
   return label ? { kitchenOpenNow: open, kitchenNextOpenLabel: label } : { kitchenOpenNow: open };
+}
+
+/**
+ * Quando a cozinha (aberta agora) fecha? Avança minuto a minuto no relógio de
+ * Brasília até o primeiro minuto fechado (lacunas de 1 min — ex.: 23:59→00:00 —
+ * contam como contínuas). `null` = sem config, já fechada ou não fecha nas
+ * próximas 24h (cozinha 24h).
+ */
+export function kitchenClosesAt(cfg: KitchenConfig | null | undefined, now: Date): Date | null {
+  if (!kitchenConfigured(cfg) || !kitchenOpenNow(cfg, now)) return null;
+  const { day, mins } = spClock(now);
+  const openAt = (step: number) => {
+    const t = mins + step;
+    return isOpenAtParts(cfg!.hours, (day + Math.floor(t / 1440)) % 7, t % 1440);
+  };
+  for (let step = 1; step <= 1440; step++) {
+    if (openAt(step)) continue;
+    if (openAt(step + 1)) continue; // lacuna de 1 minuto (23:59 → 00:00)
+    const base = new Date(now);
+    base.setSeconds(0, 0);
+    return new Date(base.getTime() + step * 60_000);
+  }
+  return null;
 }

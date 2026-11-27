@@ -9,7 +9,7 @@ import { cartTotal, fees, shares as splitShares } from "@/lib/app/helpers";
 import { useApp } from "../context";
 import { WalletButtons } from "../WalletButtons";
 import { SpotModal } from "../SpotModal";
-import { ClosedNotice } from "../ClosedNotice";
+import { ClosedConfirmModal, ClosedNotice } from "../ClosedNotice";
 import { WALLET_TOAST_MS } from "@/lib/app/wallet-outcome";
 
 export function CheckoutScreen() {
@@ -29,8 +29,16 @@ export function CheckoutScreen() {
   const total = cartTotal(cart, menu);
   const { fee, grand } = fees(total, est.platformFeePct, est.serviceFeePct);
   const full = mode === "full";
-  // Bar fechado agora: o pedido fica bloqueado (o servidor também recusa).
+  // Bar fechado agora: o pedido é permitido, mas o cliente confirma antes
+  // ("O estabelecimento está fechado, realmente gostaria de continuar?").
   const closed = !est.openNow;
+  const [closedAck, setClosedAck] = useState(false);
+  const [closedAsk, setClosedAsk] = useState<null | (() => void)>(null);
+  /** Roda `fn` direto, ou primeiro pede a confirmação de bar fechado. */
+  const guardClosed = (fn: () => void) => {
+    if (closed && !closedAck) setClosedAsk(() => fn);
+    else fn();
+  };
 
   const lines = cart
     .map((c) => ({ c, m: menu.find((x) => x.id === c.id)! }))
@@ -72,11 +80,6 @@ export function CheckoutScreen() {
         );
   }
 
-  if (closed) {
-    payLabel = t("closedPay");
-    payBg = "#cbd5e1";
-    onPay = null;
-  }
   // Modo visualização: o botão fica desativado (o seletor de mesa continua
   // acessível pelo cabeçalho do resumo).
   if (preview) {
@@ -272,8 +275,14 @@ export function CheckoutScreen() {
           {!preview && (
           <WalletButtons
             config={wallets}
-            disabled={paying || closed}
+            disabled={paying}
             prepare={() => {
+              // Bar fechado: a carteira só abre depois da confirmação (o cliente
+              // toca de novo — a folha da carteira precisa do toque do usuário).
+              if (closed && !closedAck) {
+                setClosedAsk(() => () => toastMsg(t("closedWalletRetry")));
+                return null;
+              }
               // Sem lugar ainda → pede antes (o cliente toca na carteira de novo).
               if (!loc) {
                 setSpotOpen(true);
@@ -393,12 +402,15 @@ export function CheckoutScreen() {
           type="button"
           onClick={() => {
             if (!onPay) return;
-            if (!loc) {
-              setPayAfterSpot(true);
-              setSpotOpen(true);
-              return;
-            }
-            onPay();
+            const pay = onPay;
+            guardClosed(() => {
+              if (!loc) {
+                setPayAfterSpot(true);
+                setSpotOpen(true);
+                return;
+              }
+              pay();
+            });
           }}
           disabled={!onPay}
           className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold text-white"
@@ -410,6 +422,17 @@ export function CheckoutScreen() {
           {payLabel}
         </button>
       </div>
+      {closedAsk && (
+        <ClosedConfirmModal
+          onCancel={() => setClosedAsk(null)}
+          onConfirm={() => {
+            const next = closedAsk;
+            setClosedAck(true);
+            setClosedAsk(null);
+            next();
+          }}
+        />
+      )}
       {spotOpen && (
         <SpotModal
           onClose={() => {
