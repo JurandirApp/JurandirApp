@@ -1,4 +1,4 @@
-import { createOrder, getOrdersByIds, cancelPendingOrder } from "@/lib/db/orders";
+import { createOrder, getOrdersByIds, cancelPendingOrder, OrderError } from "@/lib/db/orders";
 import { reconcileOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
@@ -40,7 +40,11 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const created = await createOrder(parsed.data);
     return Response.json({ order: toClientOrder(created) }, { status: 201, headers: CORS });
-  } catch {
+  } catch (e) {
+    // Bar fechado agora → 409 { error: "closed" } (o app mostra o aviso).
+    if (e instanceof OrderError && e.code === "closed") {
+      return Response.json({ error: "closed" }, { status: 409, headers: CORS });
+    }
     return Response.json({ error: "failed" }, { status: 500, headers: CORS });
   }
 }

@@ -76,10 +76,15 @@ export function normalizeWeekly(raw: unknown): WeekSchedule {
   return out;
 }
 
-/** O estabelecimento está aberto no instante dado? Trata virada de madrugada. */
+/** O estabelecimento está aberto no instante dado? Trata virada de madrugada.
+ *  Usa o fuso LOCAL do `Date` (navegador); no servidor use `openStatus`. */
 export function isOpenAt(week: WeekSchedule, date: Date): boolean {
-  const day = date.getDay();
-  const mins = date.getHours() * 60 + date.getMinutes();
+  return isOpenAtLocal(week, date.getDay(), date.getHours() * 60 + date.getMinutes());
+}
+
+/** Mesmo que `isOpenAt`, a partir do dia da semana (0 = dom) e dos minutos
+ *  desde 00:00 já no fuso do estabelecimento. */
+export function isOpenAtLocal(week: WeekSchedule, day: number, mins: number): boolean {
 
   for (const w of week[day] ?? []) {
     const o = toMin(w.o);
@@ -182,4 +187,66 @@ export function deriveDayStartHour(week: WeekSchedule): number {
 /** Algum dia tem pelo menos uma janela? (semana "preenchida"). */
 export function hasAnyWindow(week: WeekSchedule): boolean {
   return week.some((d) => d.length > 0);
+}
+
+/** Fuso dos estabelecimentos (todos no Brasil, horário de Brasília). */
+export const EST_TIMEZONE = "America/Sao_Paulo";
+
+const WEEKDAY_IDX: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+/** Dia da semana (0 = dom) e minutos desde 00:00 de `date` no fuso `timeZone`
+ *  — independe do fuso do servidor (a Vercel roda em UTC). */
+export function localDayMinutes(date: Date, timeZone = EST_TIMEZONE): { day: number; mins: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const day = WEEKDAY_IDX[get("weekday")] ?? 0;
+  const hour = Number(get("hour")) % 24;
+  const minute = Number(get("minute"));
+  return { day, mins: hour * 60 + minute };
+}
+
+const PT_WEEKDAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+export type OpenStatus = {
+  /** O bar tem horário configurado (alguma janela na semana)? */
+  configured: boolean;
+  /** Aberto agora. Sem horário configurado → sempre true (nunca bloqueia). */
+  openNow: boolean;
+  /** Só quando fechado: "Abre hoje às 18:00" / "Abre amanhã às 18:00" /
+   *  "Abre sexta às 18:00". */
+  nextOpenLabel?: string;
+};
+
+/**
+ * Aberto agora + próxima abertura, no fuso do estabelecimento. Puro (o `now`
+ * entra por parâmetro). Aceita o JSON cru do banco (`weeklyHours`).
+ */
+export function openStatus(rawWeekly: unknown, now: Date, timeZone = EST_TIMEZONE): OpenStatus {
+  const week = normalizeWeekly(rawWeekly);
+  if (!hasAnyWindow(week)) return { configured: false, openNow: true };
+  const { day, mins } = localDayMinutes(now, timeZone);
+  if (isOpenAtLocal(week, day, mins)) return { configured: true, openNow: true };
+
+  // Próxima janela que abre: hoje (depois de agora) ou nos próximos 7 dias.
+  for (let offset = 0; offset <= 7; offset++) {
+    const d = (day + offset) % 7;
+    const opens = (week[d] ?? [])
+      .map((w) => ({ w, o: toMin(w.o) }))
+      .filter((x): x is { w: TimeWindow; o: number } => x.o != null)
+      .filter((x) => offset > 0 || x.o > mins)
+      .sort((a, b) => a.o - b.o);
+    if (opens.length) {
+      const when = offset === 0 ? "hoje" : offset === 1 ? "amanhã" : PT_WEEKDAYS[d];
+      return { configured: true, openNow: false, nextOpenLabel: `Abre ${when} às ${opens[0].w.o}` };
+    }
+  }
+  return { configured: true, openNow: false };
 }

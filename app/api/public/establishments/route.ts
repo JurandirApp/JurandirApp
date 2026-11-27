@@ -1,6 +1,6 @@
 import { PUBLIC_READ_CACHE } from "@/lib/app/public-cache";
 import { listEstablishments } from "@/lib/db/establishments";
-import { toAppPayments } from "@/lib/app/adapters";
+import { toAppPayments, toOpenFields } from "@/lib/app/adapters";
 import { tunaPublicReadiness } from "@/lib/payments/tuna-public";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ export async function GET(): Promise<Response> {
   const ests = (await listEstablishments()).filter((e) => e.status === "ACTIVE");
   // Prontidão da Tuna: modo + chave dos cartões lidos uma vez pra lista toda.
   const tunaOf = await tunaPublicReadiness(ests);
+  const now = new Date();
   const establishments = ests.map((e) => ({
     id: e.id,
     slug: e.slug,
@@ -33,6 +34,9 @@ export async function GET(): Promise<Response> {
     orders: e.rankingOrders,
     rating: e.rating == null ? null : Number(e.rating),
     open: e.status === "ACTIVE",
+    // Aberto AGORA pelo horário semanal (fuso de SP); sem horário → true.
+    // `nextOpenLabel` só vem quando fechado ("Abre hoje às 18:00").
+    ...toOpenFields(e.weeklyHours, now),
     // Taxas reais do bar (o checkout do app usa pra mostrar o total certo).
     platformFeePct: e.platformFeePct,
     serviceFeePct: e.serviceFeePct,

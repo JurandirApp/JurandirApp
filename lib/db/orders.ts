@@ -11,6 +11,20 @@ import { orderCreateSchema, type OrderCreateInput } from "../validation";
 import { getProvider, resolveGateway, type PixCharge } from "@/lib/payments";
 import { enqueuePrintJob } from "./print";
 import { allSharesCharged } from "@/lib/app/split";
+import { openStatus } from "@/lib/domain/schedule";
+
+/** Erro de negócio na criação do pedido, com código estável pra API/app.
+ *  `closed` = bar fechado agora (só quando ele TEM horário configurado). */
+export class OrderError extends Error {
+  constructor(public code: "closed") {
+    super(code);
+    this.name = "OrderError";
+  }
+}
+
+export function isClosedError(e: unknown): boolean {
+  return e instanceof OrderError && e.code === "closed";
+}
 
 const ORDER_INCLUDE = { items: true, payment: true, splitShares: true } as const;
 
@@ -27,6 +41,9 @@ export async function createOrder(input: OrderCreateInput) {
   const data = orderCreateSchema.parse(input);
   const est = await prisma.establishment.findUnique({ where: { id: data.establishmentId } });
   if (!est) throw new Error("establishment not found");
+  // Bar fechado (pelo horário semanal, fuso de SP) não recebe pedido. Sem
+  // horário configurado nunca bloqueia.
+  if (!openStatus(est.weeklyHours, new Date()).openNow) throw new OrderError("closed");
 
   const subtotal = data.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
   const { platformFee, serviceFee, total } = computeTotals(

@@ -7,6 +7,7 @@ import { money } from "@/lib/panel/helpers";
 import { CATS, CAT_ICON } from "@/lib/data/app";
 import { cartCount, cartTotal } from "@/lib/app/helpers";
 import { useApp } from "../context";
+import { ClosedNotice } from "../ClosedNotice";
 
 export function MenuScreen() {
   const {
@@ -99,6 +100,13 @@ export function MenuScreen() {
           )}
         </div>
       </div>
+
+      {/* Bar fechado agora → aviso logo abaixo da capa. */}
+      {!est.openNow && (
+        <div className="px-4 pt-3">
+          <ClosedNotice variant="menu" />
+        </div>
+      )}
 
       {/* Tabs + finder */}
       <div className="px-4 pt-3">

@@ -1,4 +1,4 @@
-import { createOrder, getOrdersByIds } from "@/lib/db/orders";
+import { createOrder, getOrdersByIds, isClosedError } from "@/lib/db/orders";
 import { payOrderWithWallet, resolveChargeableOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
@@ -83,6 +83,10 @@ export async function POST(req: Request): Promise<Response> {
       { headers: CORS },
     );
   } catch (e) {
+    // Bar fechado agora (horário configurado) → 409 { error: "closed" }.
+    if (isClosedError(e)) {
+      return Response.json({ ok: false, status: "failed", error: "closed" }, { status: 409, headers: CORS });
+    }
     // Loga o motivo real (ex.: PagarmeError com o campo inválido do token) pra
     // diagnosticar a cobrança de carteira sem vazar detalhe do gateway pro app.
     const detail = e instanceof Error ? e.message : String(e);

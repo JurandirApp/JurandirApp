@@ -407,7 +407,7 @@ export function ClientApp({
         });
         setPaying(false);
         if (!r.ok || !r.order) {
-          toastMsg(t("orderError"));
+          toastMsg(r.error === "closed" ? t("closedError") : t("orderError"));
           return;
         }
         const order = r.order;

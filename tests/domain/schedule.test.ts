@@ -5,6 +5,8 @@ import {
   formatWeekly,
   deriveDayStartHour,
   isOvernight,
+  openStatus,
+  localDayMinutes,
   type WeekSchedule,
 } from "@/lib/domain/schedule";
 
@@ -126,5 +128,50 @@ describe("deriveDayStartHour", () => {
     const week = emptyWeek();
     week[6] = [{ o: "20:00", c: "04:30" }];
     expect(deriveDayStartHour(week)).toBe(5);
+  });
+});
+
+describe("openStatus (fuso America/Sao_Paulo)", () => {
+  // 2026-11-27 é sexta. SP = UTC-3 → 20:00Z = 17:00 em SP.
+  const at = (iso: string) => new Date(iso);
+  const week = (): WeekSchedule => {
+    const w = emptyWeek();
+    w[5] = [{ o: "18:00", c: "02:00" }]; // sex 18h → sáb 2h
+    w[6] = [{ o: "12:00", c: "15:00" }, { o: "18:00", c: "23:00" }]; // sáb
+    return w;
+  };
+
+  it("sem horário configurado → aberto (nunca bloqueia)", () => {
+    expect(openStatus(null, at("2026-11-27T20:00:00Z"))).toEqual({ configured: false, openNow: true });
+    expect(openStatus(emptyWeek(), at("2026-11-27T20:00:00Z")).openNow).toBe(true);
+  });
+
+  it("fechado antes de abrir hoje → 'Abre hoje às 18:00'", () => {
+    const r = openStatus(week(), at("2026-11-27T20:00:00Z")); // sex 17:00 SP
+    expect(r).toEqual({ configured: true, openNow: false, nextOpenLabel: "Abre hoje às 18:00" });
+  });
+
+  it("usa o fuso de SP, não o do servidor", () => {
+    // 21:30Z = 18:30 SP (aberto); em UTC seria 21:30 de sexta, também aberto,
+    // mas 23:00Z de quinta = 20:00 SP de quinta (fechado).
+    expect(openStatus(week(), at("2026-11-27T21:30:00Z")).openNow).toBe(true);
+    expect(openStatus(week(), at("2026-11-26T23:00:00Z")).openNow).toBe(false);
+  });
+
+  it("madrugada de sábado ainda aberto pela janela de sexta", () => {
+    expect(openStatus(week(), at("2026-11-28T04:30:00Z")).openNow).toBe(true); // sáb 01:30 SP
+  });
+
+  it("entre turnos → próxima janela do mesmo dia; depois do último → amanhã/dia da semana", () => {
+    expect(openStatus(week(), at("2026-11-28T19:00:00Z")).nextOpenLabel).toBe("Abre hoje às 18:00"); // sáb 16h
+    expect(openStatus(week(), at("2026-11-27T13:00:00Z")).nextOpenLabel).toBe("Abre hoje às 18:00"); // sex 10h
+    // quinta 20h SP → abre amanhã (sexta) às 18:00
+    expect(openStatus(week(), at("2026-11-26T23:00:00Z")).nextOpenLabel).toBe("Abre amanhã às 18:00");
+    // sáb 23:30 SP → próxima é sexta que vem
+    expect(openStatus(week(), at("2026-11-29T02:30:00Z")).nextOpenLabel).toBe("Abre sexta às 18:00");
+  });
+
+  it("localDayMinutes converte pro fuso", () => {
+    expect(localDayMinutes(at("2026-11-28T02:15:00Z"))).toEqual({ day: 5, mins: 23 * 60 + 15 });
   });
 });

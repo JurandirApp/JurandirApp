@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { createOrder, getOrdersByIds } from "@/lib/db/orders";
+import { createOrder, getOrdersByIds, isClosedError } from "@/lib/db/orders";
 import {
   createCardCheckout,
   reconcileOrder,
@@ -51,8 +51,9 @@ export async function createOrderAction(
       checkoutUrl = (await createCardCheckout(created.id)) ?? undefined;
     }
     return { ok: true, order: toClientOrder(created), checkoutUrl };
-  } catch {
-    return { ok: false, error: "failed" };
+  } catch (e) {
+    // "closed" = bar fechado agora (o site mostra o aviso).
+    return { ok: false, error: isClosedError(e) ? "closed" : "failed" };
   }
 }
 
@@ -92,8 +93,8 @@ export async function createWalletOrderAction(
     // Carteira é sempre crédito à vista.
     const created = await createOrder({ ...parsed.data, payment: { ...pay, installments: 1 } });
     return { ok: true, order: toClientOrder(created) };
-  } catch {
-    return { ok: false, error: "failed" };
+  } catch (e) {
+    return { ok: false, error: isClosedError(e) ? "closed" : "failed" };
   }
 }
 

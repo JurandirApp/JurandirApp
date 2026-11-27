@@ -9,6 +9,7 @@ import { cartTotal, fees, shares as splitShares } from "@/lib/app/helpers";
 import { useApp } from "../context";
 import { WalletButtons } from "../WalletButtons";
 import { SpotModal } from "../SpotModal";
+import { ClosedNotice } from "../ClosedNotice";
 import { WALLET_TOAST_MS } from "@/lib/app/wallet-outcome";
 
 export function CheckoutScreen() {
@@ -28,6 +29,8 @@ export function CheckoutScreen() {
   const total = cartTotal(cart, menu);
   const { fee, grand } = fees(total, est.platformFeePct, est.serviceFeePct);
   const full = mode === "full";
+  // Bar fechado agora: o pedido fica bloqueado (o servidor também recusa).
+  const closed = !est.openNow;
 
   const lines = cart
     .map((c) => ({ c, m: menu.find((x) => x.id === c.id)! }))
@@ -69,6 +72,12 @@ export function CheckoutScreen() {
         );
   }
 
+  if (closed) {
+    payLabel = t("closedPay");
+    payBg = "#cbd5e1";
+    onPay = null;
+  }
+
   return (
     <div className="animate-rise-in px-5 pb-28 pt-5">
       <button
@@ -82,6 +91,12 @@ export function CheckoutScreen() {
       <h1 className="m-0 mb-4 font-display text-2xl font-extrabold uppercase tracking-[-0.02em]">
         {t("confirmOrder")}
       </h1>
+
+      {closed && (
+        <div className="mb-4">
+          <ClosedNotice variant="checkout" />
+        </div>
+      )}
 
       {/* Order summary */}
       <div
@@ -248,7 +263,7 @@ export function CheckoutScreen() {
           {/* Apple Pay / Google Pay (somente crédito) — só no pagamento inteiro. */}
           <WalletButtons
             config={wallets}
-            disabled={paying}
+            disabled={paying || closed}
             prepare={() => {
               // Sem lugar ainda → pede antes (o cliente toca na carteira de novo).
               if (!loc) {

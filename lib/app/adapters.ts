@@ -1,6 +1,7 @@
 import type { PaymentMethod } from "@prisma/client";
 import { isPixExpired, round2 } from "@/lib/domain/pricing";
 import { deliveryCode } from "@/lib/domain/delivery";
+import { openStatus } from "@/lib/domain/schedule";
 import { optionLabels } from "@/lib/print/escpos";
 import type { AppEstablishment, PayId } from "@/lib/data/app";
 import { canCharge } from "@/lib/payments/capabilities";
@@ -68,8 +69,17 @@ type DbEst = DbEstPayments & {
   address: string | null; hours: string | null; posto: string | null;
   platformFeePct: number; serviceFeePct: number;
   whatsapp: string | null; instagram: string | null; phone: string | null; website: string | null;
+  /** Horário semanal cru do banco (`Establishment.weeklyHours`). */
+  weeklyHours?: unknown;
 };
-export function toAppEstablishment(e: DbEst): AppEstablishment {
+
+/** `openNow` + `nextOpenLabel` (só quando fechado) — campos públicos do bar. */
+export function toOpenFields(weeklyHours: unknown, now = new Date()): Pick<AppEstablishment, "openNow" | "nextOpenLabel"> {
+  const s = openStatus(weeklyHours, now);
+  return { openNow: s.openNow, ...(s.nextOpenLabel ? { nextOpenLabel: s.nextOpenLabel } : {}) };
+}
+
+export function toAppEstablishment(e: DbEst, now = new Date()): AppEstablishment {
   return {
     id: e.id,
     slug: e.slug,
@@ -87,6 +97,7 @@ export function toAppEstablishment(e: DbEst): AppEstablishment {
     instagram: { url: e.instagram ? `https://instagram.com/${e.instagram.replace(/^@/, "")}` : "#", handle: e.instagram ?? "" },
     phone: { tel: (e.phone ?? "").replace(/\D/g, ""), display: e.phone ?? "" },
     website: { url: e.website ? (e.website.startsWith("http") ? e.website : `https://${e.website}`) : "#" },
+    ...toOpenFields(e.weeklyHours, now),
   };
 }
 

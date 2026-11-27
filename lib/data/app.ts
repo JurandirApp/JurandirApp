@@ -76,6 +76,10 @@ export type AppEstablishment = {
   instagram: { url: string; handle: string };
   phone: { tel: string; display: string };
   website: { url: string };
+  /** Aberto agora (fuso de SP, pelo `weeklyHours`). Sem horário → true. */
+  openNow: boolean;
+  /** Só quando fechado: "Abre hoje às 18:00" / "Abre amanhã às 18:00". */
+  nextOpenLabel?: string;
 };
 
 export const APP_EST: AppEstablishment = {
@@ -91,6 +95,7 @@ export const APP_EST: AppEstablishment = {
   platformFeePct: 8,
   serviceFeePct: 10,
   posto: "Posto 3",
+  openNow: true,
   walletPay: false,
   applePay: false,
   googlePay: false,
