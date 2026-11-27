@@ -173,14 +173,19 @@ export function ClientApp({
   // Troca de idioma recarrega a página no outro locale: volta pra tela em que o
   // cliente estava (cardápio / meus pedidos). O carrinho já fica no localStorage.
   useEffect(() => {
+    let saved: string | null = null;
     try {
       const k = `jur_locale_step_${est.slug}`;
-      const saved = sessionStorage.getItem(k);
+      saved = sessionStorage.getItem(k);
       sessionStorage.removeItem(k);
-      if (saved === "menu" || saved === "myorders") setStep(saved);
     } catch {
       /* sessionStorage indisponível */
     }
+    if (saved !== "menu" && saved !== "myorders") return;
+    const target: Step = saved;
+    // Fora do corpo do efeito (sessionStorage só existe no cliente, após hidratar).
+    const id = setTimeout(() => setStep(target), 0);
+    return () => clearTimeout(id);
   }, [est.slug]);
 
   // Load "my orders" (ids persisted in this browser) from the DB on mount. Se
