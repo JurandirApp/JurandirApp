@@ -3,10 +3,11 @@
 import { useLocale, useTranslations } from "next-intl";
 import { logout } from "@/lib/auth/actions";
 import { Icon } from "@/components/ui/Icon";
+import { Link } from "@/i18n/navigation";
 import { usePanel, TABS } from "./context";
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { tab, setTab, orders, restName, waiterModule } = usePanel();
+  const { tab, setTab, orders, restName, waiterModule, slug } = usePanel();
   const t = useTranslations("panel.sidebar");
   const locale = useLocale();
   const activeCount = orders.filter((o) => o.st !== "entregue" && !o.expired).length;
@@ -73,6 +74,17 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       </nav>
 
       <div className="mt-auto flex flex-col gap-0.5 border-t border-sand/15 pt-4">
+        {/* Modo cliente: abre a página pública do bar numa nova aba (sem logout). */}
+        <Link
+          href={`/${slug}`}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-sun no-underline"
+        >
+          <Icon name="storefront" size={18} />
+          {t("viewAsCustomer")}
+          <Icon name="open_in_new" size={14} className="ml-auto opacity-60" />
+        </Link>
         <a
           href="https://wa.me/5547999999999"
           target="_blank"

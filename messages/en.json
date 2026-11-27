@@ -209,6 +209,7 @@
   },
   "panel": {
     "sidebar": {
+      "viewAsCustomer": "View as customer",
       "subtitle": "Establishment panel",
       "support": "Support",
       "logout": "Log out",
@@ -446,6 +447,14 @@
       "deleteQrBody": "The QR for <b>{label}</b> will be removed. Prints already made will stop opening the menu."
     },
     "qr": {
+      "batchButton": "Generate QR codes in batch ({n})",
+      "batchTitle": "QR codes in batch",
+      "batchSubtitle": "{n, plural, one {# QR} other {# QRs}} for {name} — print or save as PDF.",
+      "batchPrint": "Print / save PDF",
+      "batchBack": "Back to panel",
+      "batchScanHint": "Point your camera and order from your phone",
+      "batchEmptyTable": "No tables yet. Add tables in the panel to generate the QR codes.",
+      "batchEmptyBeach": "No umbrellas yet. Add umbrellas in the panel to generate the QR codes.",
       "titleBeach": "Generate QR Code",
       "titleTable": "Generate QR Code",
       "description": "Each QR opens the menu already identifying the spot — so the order arrives with the right origin.",

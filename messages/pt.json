@@ -209,6 +209,7 @@
   },
   "panel": {
     "sidebar": {
+      "viewAsCustomer": "Ver como cliente",
       "subtitle": "Painel do estabelecimento",
       "support": "Suporte",
       "logout": "Sair",
@@ -446,6 +447,14 @@
       "deleteQrBody": "O QR de <b>{label}</b> será removido. Impressões já feitas deixam de abrir o cardápio."
     },
     "qr": {
+      "batchButton": "Gerar QR Codes em lote ({n})",
+      "batchTitle": "QR Codes em lote",
+      "batchSubtitle": "{n, plural, one {# QR} other {# QRs}} de {name} — imprima ou salve em PDF.",
+      "batchPrint": "Imprimir / salvar PDF",
+      "batchBack": "Voltar ao painel",
+      "batchScanHint": "Aponte a câmera e peça pelo celular",
+      "batchEmptyTable": "Nenhuma mesa cadastrada ainda. Cadastre as mesas no painel para gerar os QRs.",
+      "batchEmptyBeach": "Nenhum guarda-sol cadastrado ainda. Cadastre os guarda-sóis no painel para gerar os QRs.",
       "titleBeach": "Gerar QR Code",
       "titleTable": "Gerar QR Code",
       "description": "Cada QR abre o cardápio já identificando o local — assim o pedido chega com a origem certa.",
