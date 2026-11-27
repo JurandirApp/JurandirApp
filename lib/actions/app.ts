@@ -1,6 +1,6 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createOrder, getOrdersByIds } from "@/lib/db/orders";
 import { isClosedError } from "@/lib/domain/order-errors";
 import {
@@ -30,6 +30,16 @@ import { isStaffOf } from "@/lib/auth/preview";
  *  de cliente com essa sessão (erro `previewMode`). Só as actions do site; as
  *  rotas `/api/public/*` do app não passam por aqui. */
 async function staffSessionFor(establishmentId: string): Promise<boolean> {
+  // Só no modo visualização (marca `jur_preview` = este bar, posta pela
+  // página com ?preview=1): fora dele, o dono logado no painel pode pagar
+  // normalmente no próprio bar (ex.: testar um pagamento real).
+  let previewOn = false;
+  try {
+    previewOn = (await cookies()).get("jur_preview")?.value === establishmentId;
+  } catch {
+    previewOn = false;
+  }
+  if (!previewOn) return false;
   return isStaffOf(await getSession(), establishmentId);
 }
 

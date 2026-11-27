@@ -88,6 +88,20 @@ export function ClientApp({
   // volta direto pra tela do Pix (com o QR), em vez de perder tudo.
   const viewKey = `${ns}_view_${est.slug}`;
 
+  // Marca do modo visualização pro servidor: só com ela (e a sessão do painel
+  // deste bar) as actions de pedido recusam com `previewMode`. Fora do modo
+  // visualização a marca é apagada — o dono logado no painel ainda consegue
+  // testar um pagamento real no próprio bar pelo site.
+  useEffect(() => {
+    try {
+      document.cookie = preview
+        ? `jur_preview=${encodeURIComponent(est.id)}; path=/; max-age=7200; samesite=lax`
+        : "jur_preview=; path=/; max-age=0; samesite=lax";
+    } catch {
+      /* sem cookie: o bloqueio na tela continua valendo */
+    }
+  }, [preview, est.id]);
+
   // Voltando do Checkout Pro (?paid=1) → já abre em "Meus pedidos". Vem do
   // servidor (prop) para não quebrar a hidratação.
   // Pela landing (sem ?local=) o cliente cai direto no CARDÁPIO; a mesa/guarda-sol

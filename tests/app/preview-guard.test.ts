@@ -4,9 +4,13 @@ const m = vi.hoisted(() => ({
   createOrder: vi.fn(),
   getSession: vi.fn(),
   payOrderWithCard: vi.fn(),
+  previewCookie: undefined as string | undefined,
 }));
 
-vi.mock("next/headers", () => ({ headers: vi.fn().mockResolvedValue(new Headers()) }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers()),
+  cookies: vi.fn(async () => ({ get: (k: string) => (k === "jur_preview" && m.previewCookie ? { value: m.previewCookie } : undefined) })),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getSession: m.getSession }));
 vi.mock("@/lib/db/orders", () => ({
@@ -44,6 +48,7 @@ const staff = (role: string, establishmentId: string | null) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  m.previewCookie = "e1"; // página aberta com ?preview=1 deste bar
   m.createOrder.mockResolvedValue({ id: "o1", status: "PENDING", payment: { method: "PIX" } });
 });
 
@@ -66,6 +71,14 @@ describe("modo visualização — actions de pedido do site", () => {
 
   it("cliente sem sessão segue normal", async () => {
     m.getSession.mockResolvedValue(null);
+    const r = await createOrderAction(input);
+    expect(r.ok).toBe(true);
+    expect(m.createOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("sem a marca do modo visualização, o dono logado paga normal no próprio bar", async () => {
+    m.previewCookie = undefined;
+    m.getSession.mockResolvedValue(staff("ESTABLISHMENT", "e1"));
     const r = await createOrderAction(input);
     expect(r.ok).toBe(true);
     expect(m.createOrder).toHaveBeenCalledTimes(1);
