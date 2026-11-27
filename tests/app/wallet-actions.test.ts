@@ -15,6 +15,8 @@ const m = vi.hoisted(() => ({
 vi.mock("next/headers", () => ({ headers: m.headers }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// Sem sessão do painel (cliente anônimo) — o guarda do modo visualização não barra.
+vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/lib/db/orders", () => ({
   createOrder: m.createOrder,
   getOrdersByIds: m.getOrdersByIds,

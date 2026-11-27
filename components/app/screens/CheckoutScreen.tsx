@@ -17,7 +17,7 @@ export function CheckoutScreen() {
     est, loc, spotFromQr, beach, menu, cart, addItem, decItem, removeItem, goMenu,
     note, setNote, mode, setMode, selPay, pickPay,
     people, pplPlus, pplMinus, paying, finish,
-    wallets, walletAttempt, payWithWallet, toastMsg,
+    wallets, walletAttempt, payWithWallet, toastMsg, preview,
   } = useApp();
   const t = useTranslations("app");
   const tPay = useTranslations("app.pay");
@@ -74,6 +74,13 @@ export function CheckoutScreen() {
 
   if (closed) {
     payLabel = t("closedPay");
+    payBg = "#cbd5e1";
+    onPay = null;
+  }
+  // Modo visualização: o botão fica desativado (o seletor de mesa continua
+  // acessível pelo cabeçalho do resumo).
+  if (preview) {
+    payLabel = t("previewPayDisabled");
     payBg = "#cbd5e1";
     onPay = null;
   }
@@ -260,7 +267,9 @@ export function CheckoutScreen() {
       {full ? (
         <>
           <h2 className="m-0 mb-2 text-sm font-semibold text-ink/70">{t("paymentMethod")}</h2>
-          {/* Apple Pay / Google Pay (somente crédito) — só no pagamento inteiro. */}
+          {/* Apple Pay / Google Pay (somente crédito) — só no pagamento inteiro.
+              Escondidos no modo visualização. */}
+          {!preview && (
           <WalletButtons
             config={wallets}
             disabled={paying || closed}
@@ -277,6 +286,7 @@ export function CheckoutScreen() {
             }}
             onError={() => toastMsg(t("walletUnavailable"), WALLET_TOAST_MS)}
           />
+          )}
           <div className="grid grid-cols-2 gap-2">
             {PAY_IDS.map((id) => {
               const soon = isComingSoon(id);

@@ -74,9 +74,11 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       </nav>
 
       <div className="mt-auto flex flex-col gap-0.5 border-t border-sand/15 pt-4">
-        {/* Modo cliente: abre a página pública do bar numa nova aba (sem logout). */}
+        {/* Modo visualização: abre a página pública do bar numa nova aba com
+            ?preview=1 — navega como o cliente, mas sem pagar (o servidor só
+            aceita o preview com a sessão deste bar). */}
         <Link
-          href={`/${slug}`}
+          href={`/${slug}?preview=1`}
           target="_blank"
           rel="noreferrer"
           className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-sun no-underline"

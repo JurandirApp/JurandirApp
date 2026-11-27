@@ -22,6 +22,16 @@ import { clientInfoFromHeaders, sanitizeDeviceSessionId } from "@/lib/payments/t
 import type { CardPaymentResult, PaymentClientInfo } from "@/lib/payments/types";
 import { parseTunaThreeDs, sanitizeTunaBrowserInfo } from "@/lib/payments/tuna-3ds";
 import { KitchenClosedError } from "@/lib/domain/kitchen";
+import { getSession } from "@/lib/auth/session";
+import { isStaffOf } from "@/lib/auth/preview";
+
+/** Quem chama tem sessão de estabelecimento/garçom DESTE bar (cookie do
+ *  painel)? Então é o modo visualização / a equipe — o site não cria pedido
+ *  de cliente com essa sessão (erro `previewMode`). Só as actions do site; as
+ *  rotas `/api/public/*` do app não passam por aqui. */
+async function staffSessionFor(establishmentId: string): Promise<boolean> {
+  return isStaffOf(await getSession(), establishmentId);
+}
 
 /** IP/UA de quem chamou a action (antifraude da Tuna, origem "WEBSITE"). Sem
  *  contexto de requisição → undefined; nunca derruba a cobrança. Nunca logar. */
@@ -39,6 +49,7 @@ export async function createOrderAction(
 ): Promise<{ ok: boolean; order?: ClientOrder; checkoutUrl?: string; error?: string }> {
   const parsed = orderCreateSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
+  if (await staffSessionFor(parsed.data.establishmentId)) return { ok: false, error: "previewMode" };
   try {
     const created = await createOrder(parsed.data);
     // Cartão (e Pix via InfinitePay) nasce AWAITING_PAYMENT → cria o checkout
@@ -68,6 +79,9 @@ export async function payCardAction(
 ): Promise<{ ok: boolean; status: ChargeStatus; order?: ClientOrder; detail?: string }> {
   const parsed = orderCreateSchema.safeParse(input);
   if (!parsed.success) return { ok: false, status: "failed" };
+  if (await staffSessionFor(parsed.data.establishmentId)) {
+    return { ok: false, status: "failed", detail: "previewMode" };
+  }
   try {
     const created = await createOrder(parsed.data); // nasce AWAITING_PAYMENT (cartão)
     const res = await payOrderWithCard(created.id, brick);
@@ -100,6 +114,7 @@ export async function createWalletOrderAction(
   if (!parsed.success) return { ok: false, error: "invalid" };
   const pay = parsed.data.payment;
   if (!pay || pay.kind !== "full" || pay.method !== "CREDIT") return { ok: false, error: "invalid" };
+  if (await staffSessionFor(parsed.data.establishmentId)) return { ok: false, error: "previewMode" };
   try {
     // Carteira é sempre crédito à vista.
     const created = await createOrder({ ...parsed.data, payment: { ...pay, installments: 1 } });

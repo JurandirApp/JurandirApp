@@ -11,6 +11,8 @@ import { ClientApp } from "@/components/app/ClientApp";
 import { BEACH_TYPES } from "@/lib/data/admin";
 import { DEFAULT_LOC_BEACH, DEFAULT_LOC_TABLE } from "@/lib/data/app";
 import { isKitchenCategory, kitchenConfigOf, kitchenPublicFields } from "@/lib/domain/kitchen";
+import { getSession } from "@/lib/auth/session";
+import { canPreview, wantsPreview } from "@/lib/auth/preview";
 
 // Public customer app (Fase 4): establishment + menu are fetched by slug from
 // the DB. `local` (from the QR) sets the spot label shown throughout the flow.
@@ -30,7 +32,7 @@ export default async function ClientAppPage({
   searchParams,
 }: {
   params: Promise<{ locale: string; slug: string }>;
-  searchParams: Promise<{ local?: string; paid?: string }>;
+  searchParams: Promise<{ local?: string; paid?: string; preview?: string }>;
 }) {
   const { locale, slug } = await params;
   setRequestLocale(locale);
@@ -51,7 +53,10 @@ export default async function ClientAppPage({
   ]);
 
   const beach = BEACH_TYPES.includes(dbEst.type);
-  const { local, paid } = await searchParams;
+  const { local, paid, preview: previewParam } = await searchParams;
+  // Modo visualização: só com a sessão do PRÓPRIO bar (ou ADMIN); senão o
+  // parâmetro é ignorado e a página é a normal do cliente.
+  const preview = wantsPreview(previewParam) && canPreview(await getSession(), dbEst.id);
   const loc = local ?? (beach ? DEFAULT_LOC_BEACH : DEFAULT_LOC_TABLE);
 
   return (
@@ -65,7 +70,8 @@ export default async function ClientAppPage({
       spotFromQr={Boolean(local)}
       spots={dbSpots.map((s) => s.label)}
       popularNames={popularNames}
-      paidReturn={Boolean(paid)}
+      paidReturn={!preview && Boolean(paid)}
+      preview={preview}
     />
   );
 }

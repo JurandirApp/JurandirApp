@@ -9,6 +9,7 @@ import { cartCount, cartTotal } from "@/lib/app/helpers";
 import { useApp } from "../context";
 import { ClosedNotice } from "../ClosedNotice";
 import { CartContents } from "../CartDrawer";
+import { PREVIEW_BANNER_H } from "../PreviewBanner";
 
 export function MenuScreen() {
   const {
@@ -30,6 +31,7 @@ export function MenuScreen() {
     myOrders,
     kitchenOpen,
     kitchenLabel,
+    preview,
   } = useApp();
   const t = useTranslations("app");
   // Platform taxonomy is translated via the shared panel maps (state still keys
@@ -255,7 +257,11 @@ export function MenuScreen() {
         )}
 
         {/* Sticky search + pills */}
-        <div className="sticky top-0 z-20 bg-page pb-1 pt-3">
+        {/* No modo visualização desce abaixo da faixa fixa do topo. */}
+        <div
+          className="sticky top-0 z-20 bg-page pb-1 pt-3"
+          style={preview ? { top: PREVIEW_BANNER_H } : undefined}
+        >
           <div className="relative mb-2 px-4 lg:px-0">
             <Icon
               name="search"
@@ -425,7 +431,10 @@ export function MenuScreen() {
       </div>
 
       {/* Carrinho fixo à direita (só desktop) */}
-      <aside className="hidden lg:sticky lg:top-6 lg:block">
+      <aside
+        className="hidden lg:sticky lg:top-6 lg:block"
+        style={preview ? { top: PREVIEW_BANNER_H + 24 } : undefined}
+      >
         <div
           className="rounded-[24px] bg-white p-5"
           style={{ boxShadow: "0 10px 30px -16px rgba(12,67,71,.35)" }}

@@ -34,6 +34,7 @@ import { CardPaymentModal } from "./CardPaymentModal";
 import { TunaCardModal } from "./TunaCardModal";
 import { ClientToast } from "./ClientToast";
 import { useTunaFingerprint } from "./useTunaFingerprint";
+import { PreviewBanner } from "./PreviewBanner";
 
 import type { WalletWebConfig } from "@/lib/payments/wallet-web";
 import type { WalletType } from "@/lib/payments/wallet-sdk";
@@ -58,6 +59,7 @@ export function ClientApp({
   paidReturn = false,
   wallets,
   kitchen = null,
+  preview = false,
 }: {
   est: AppEstablishment;
   menu: MenuItem[];
@@ -70,15 +72,21 @@ export function ClientApp({
   wallets: WalletWebConfig;
   /** Config da cozinha (horário + categorias). null/vazia = sempre aberta. */
   kitchen?: KitchenConfig | null;
+  /** Modo visualização do estabelecimento (?preview=1 validado no servidor):
+   *  navega como o cliente, mas nenhuma ação de pagamento/pedido roda. */
+  preview?: boolean;
 }) {
   const t = useTranslations("app");
   const locale = useLocale();
-  const storageKey = `jur_orders_${est.slug}`;
-  const cartKey = `jur_cart_${est.slug}`;
-  const pendingKey = `jur_pending_${est.slug}`;
+  // No modo visualização as chaves do localStorage são outras: o teste do
+  // estabelecimento não mistura carrinho/pedidos com os de cliente no navegador.
+  const ns = preview ? "jur_preview" : "jur";
+  const storageKey = `${ns}_orders_${est.slug}`;
+  const cartKey = `${ns}_cart_${est.slug}`;
+  const pendingKey = `${ns}_pending_${est.slug}`;
   // Lembra qual pedido está aguardando pagamento nesta aba → um F5/fechar-reabrir
   // volta direto pra tela do Pix (com o QR), em vez de perder tudo.
-  const viewKey = `jur_view_${est.slug}`;
+  const viewKey = `${ns}_view_${est.slug}`;
 
   // Voltando do Checkout Pro (?paid=1) → já abre em "Meus pedidos". Vem do
   // servidor (prop) para não quebrar a hidratação.
@@ -157,6 +165,7 @@ export function ClientApp({
   // num bar com crédito/débito/carteira na Tuna — o tags.js precisa de 5–10 s
   // rodando antes da cobrança. Ref pra as callbacks memoizadas lerem o atual.
   const tunaFpActive =
+    !preview &&
     step === "checkout" &&
     (est.gateways.credit === "TUNA" ||
       est.gateways.debit === "TUNA" ||
@@ -402,7 +411,15 @@ export function ClientApp({
       return blocked;
     };
 
+    // Modo visualização: nenhuma ação de pagamento/pedido roda (o servidor
+    // também recusa com `previewMode`).
+    const previewBlocked = () => {
+      if (preview) toastMsg(t("previewPayDisabled"), 3200);
+      return preview;
+    };
+
     const finish = (sharesArg: Share[] | null, locOverride?: string) => {
+      if (previewBlocked()) return;
       const where = locOverride || loc;
       if (!where) return; // o checkout pede o lugar antes de chegar aqui
       if (kitchenBlocked()) return;
@@ -464,7 +481,9 @@ export function ClientApp({
               ? t("closedError")
               : r.error === "kitchenClosed"
                 ? t("kitchenClosedOrder")
-                : t("orderError"),
+                : r.error === "previewMode"
+                  ? t("previewPayDisabled")
+                  : t("orderError"),
           );
           return;
         }
@@ -504,6 +523,7 @@ export function ClientApp({
     };
 
     const openCardPay = () => {
+      if (previewBlocked()) return;
       if (kitchenBlocked()) return;
       const items = cart.flatMap((c) => {
         const m = menu.find((x) => x.id === c.id);
@@ -526,6 +546,7 @@ export function ClientApp({
     // snapshot vai pra folha da carteira e pro servidor — o carrinho pode mudar
     // com a folha aberta e o valor autorizado tem que ser o do pedido.
     const walletAttempt = (): WalletAttempt | null => {
+      if (previewBlocked()) return null;
       if (kitchenBlocked()) return null;
       const items = cart.flatMap((c) => {
         const m = menu.find((x) => x.id === c.id);
@@ -555,7 +576,7 @@ export function ClientApp({
       walletType: WalletType,
       token: string,
     ): Promise<boolean> => {
-      if (walletLock.current) return false;
+      if (preview || walletLock.current) return false;
       walletLock.current = true;
       const showOrder = (order: ClientOrder) =>
         setMyOrders((prev) => [order, ...prev.filter((o) => o.dbId !== order.dbId)]);
@@ -642,6 +663,7 @@ export function ClientApp({
     return {
       est,
       wallets,
+      preview,
       beach,
       loc,
       setLoc,
@@ -763,11 +785,12 @@ export function ClientApp({
   }, [
     est, wallets, beach, loc, spotFromQr, spots, popularNames, menu, step, cart, cartOpen, cat, sub, query, custName, note,
     mode, selPay, parc, people, paid, paying, myOrders, lastOrder, exp, toast,
-    storageKey, pendingKey, t, kitchenOpen, kitchenLabel,
+    storageKey, pendingKey, t, kitchenOpen, kitchenLabel, preview,
   ]);
 
   return (
     <AppContext.Provider value={value}>
+      {preview && <PreviewBanner />}
       <div className="flex min-h-screen justify-center bg-page">
         {/* Celular: coluna de 448px. Desktop (lg+): o cardápio abre em largura
             confortável (grade + carrinho lateral); as demais telas (formulários)

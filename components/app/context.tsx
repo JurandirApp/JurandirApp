@@ -17,6 +17,8 @@ export interface AppValue {
   est: AppEstablishment;
   /** Config das carteiras do bar; `applePay`/`googlePay` null = carteira indisponível. */
   wallets: WalletWebConfig;
+  /** Modo visualização do estabelecimento: navega, mas não paga nem cria pedido. */
+  preview: boolean;
   beach: boolean;
   loc: string;
   setLoc: (v: string) => void;
