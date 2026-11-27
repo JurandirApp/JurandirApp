@@ -77,6 +77,14 @@ export function LoginScreen() {
       <div className="relative z-[1] mx-auto grid w-full max-w-[1152px] flex-1 grid-cols-1 items-center gap-12 px-6 py-12 md:grid-cols-2">
         {/* Branding */}
         <div className="animate-fade-up">
+          {/* Voltar pra home do site. */}
+          <Link
+            href="/"
+            className="mb-6 inline-flex items-center gap-1 text-sm font-semibold text-ink/60 no-underline transition-colors hover:text-ink"
+          >
+            <Icon name="arrow_back" size={16} />
+            {t("backHome")}
+          </Link>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/jurandir-logo-horizontal.svg"

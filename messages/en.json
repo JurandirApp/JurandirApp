@@ -175,6 +175,7 @@
     "waiterUseApp": "Waiter account: please sign in through the Jurandir app. The website is only for establishments and administration."
   },
   "login": {
+    "backHome": "Back to home",
     "metaTitle": "Sign in",
     "metaDescription": "Access your establishment's panel or the Jurandir administration.",
     "welcomeLine1": "Welcome",

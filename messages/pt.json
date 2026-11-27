@@ -175,6 +175,7 @@
     "waiterUseApp": "Conta de garçom: entre pelo app do Jurandir. O site é só para o estabelecimento e a administração."
   },
   "login": {
+    "backHome": "Voltar para o início",
     "metaTitle": "Entrar",
     "metaDescription": "Acesse o painel do seu estabelecimento ou a administração do Jurandir.",
     "welcomeLine1": "Bem-vindo",
