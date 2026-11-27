@@ -170,6 +170,19 @@ export function ClientApp({
     [],
   );
 
+  // Troca de idioma recarrega a página no outro locale: volta pra tela em que o
+  // cliente estava (cardápio / meus pedidos). O carrinho já fica no localStorage.
+  useEffect(() => {
+    try {
+      const k = `jur_locale_step_${est.slug}`;
+      const saved = sessionStorage.getItem(k);
+      sessionStorage.removeItem(k);
+      if (saved === "menu" || saved === "myorders") setStep(saved);
+    } catch {
+      /* sessionStorage indisponível */
+    }
+  }, [est.slug]);
+
   // Load "my orders" (ids persisted in this browser) from the DB on mount. Se
   // havia um pedido aguardando pagamento (Pix) salvo nesta aba, resume a tela do
   // QR depois do fetch — assim um F5 ou fechar/reabrir não perde o QR nem o pedido.

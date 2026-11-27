@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PAY_LOGOS } from "@/lib/data/app";
 import { useApp } from "../context";
 import { SpotModal } from "../SpotModal";
+import { ClientLocalePicker } from "../ClientLocalePicker";
 
 export function QrScreen() {
   const { est, beach, loc, spotFromQr, custName, setCustName, goMenu } = useApp();
@@ -40,6 +41,8 @@ export function QrScreen() {
                 "linear-gradient(to top,rgba(20,24,33,.85),rgba(20,24,33,.15) 60%,transparent)",
             }}
           />
+          {/* Idioma — atalho no topo da tela de boas-vindas */}
+          <ClientLocalePicker compact className="absolute right-3 top-3 border-white/60 bg-white/90" />
           <div className="absolute bottom-[66px] left-0 right-0 text-white">
             <span className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-sun px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[.08em] text-ink">
               <Icon name="bolt" size={12} />
