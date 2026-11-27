@@ -4,6 +4,7 @@ import {
   GATEWAY_FEE_PCT,
   computeTotals,
   makeOrderCode,
+  splitPlatformFee,
   splitShares,
   splitToEstablishment,
 } from "../domain/pricing";
@@ -48,6 +49,9 @@ export async function createOrder(input: OrderCreateInput) {
   const payment = data.payment;
   const amounts =
     payment.kind === "split" ? splitShares(total, payment.shares.length) : [];
+  // Comissão da plataforma também na conta dividida: cada Pix leva a sua fatia
+  // proporcional (soma = platformFee do pedido); o bar recebe parte − fatia.
+  const shareFees = payment.kind === "split" ? splitPlatformFee(platformFee, amounts) : [];
 
   // Gateway FIXO por método; toda cobrança cheia (Pix/cartão) é real.
   //  - Pix (cheio)  → cobrança direta (QR na hora, aqui).
@@ -84,7 +88,8 @@ export async function createOrder(input: OrderCreateInput) {
     });
   }
 
-  // Split: uma cobrança Pix por parte (o valor de cada pessoa).
+  // Split: uma cobrança Pix por parte (o valor de cada pessoa), cada uma com a
+  // sua fatia da comissão da plataforma.
   let shareCharges: (PixCharge | null)[] = [];
   if (isSplit) {
     const provider = getProvider(est, "PIX");
@@ -95,7 +100,7 @@ export async function createOrder(input: OrderCreateInput) {
             est,
             reference: `${code}-P${i + 1}`,
             total: amt,
-            platformFee: 0,
+            platformFee: shareFees[i],
             customerName: data.customerName ?? undefined,
             customerDocument: data.customerDocument ?? undefined,
             customerPhone: data.customerPhone ?? undefined,

@@ -59,6 +59,31 @@ export function splitShares(grand: number, n: number): number[] {
   return arr;
 }
 
+/** Distribui a comissão da plataforma (`platformFee` do pedido inteiro) entre as
+ *  partes de uma conta dividida, proporcional ao valor de cada parte:
+ *  fee_i = round2(platformFee × share_i / total), com o resto do arredondamento na
+ *  ÚLTIMA parte — a soma bate exatamente com `platformFee`. Conta em centavos (sem
+ *  erro de ponto flutuante). Guarda: a fatia nunca alcança o valor da parte (o bar
+ *  sempre recebe ≥ 1 centavo, senão alguns gateways recusam o recebedor com 0). */
+export function splitPlatformFee(platformFee: number, shares: number[]): number[] {
+  const n = shares.length;
+  if (n === 0) return [];
+  const shareC = shares.map((v) => Math.round(v * 100));
+  const totalC = shareC.reduce((a, b) => a + b, 0);
+  const feeC = Math.round(platformFee * 100);
+  if (totalC <= 0 || feeC <= 0) return Array<number>(n).fill(0);
+  const cap = (i: number, c: number) => Math.min(Math.max(0, c), Math.max(0, shareC[i] - 1));
+  const out: number[] = [];
+  let used = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const c = cap(i, Math.round((feeC * shareC[i]) / totalC));
+    out.push(c);
+    used += c;
+  }
+  out.push(cap(n - 1, feeC - used));
+  return out.map((c) => c / 100);
+}
+
 /** Random order code: "PED-" + 8 uppercase hex chars. */
 export function makeOrderCode(): string {
   const hex = "0123456789ABCDEF";
