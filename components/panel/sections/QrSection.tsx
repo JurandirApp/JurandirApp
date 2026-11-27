@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { qrImg } from "@/lib/panel/helpers";
 import { usePanel } from "../context";
@@ -39,6 +40,19 @@ export function QrSection() {
             {t("qr.generate")}
           </button>
         </div>
+        {/* Folha de impressão com o QR de todas as mesas/guarda-sóis (gerados
+            localmente). Abre em nova aba pra imprimir ou salvar em PDF. */}
+        {qrs.length > 0 && (
+          <Link
+            href="/painel/qr-lote"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-xl border-2 border-ink bg-white px-4 py-2 text-sm font-semibold text-ink no-underline"
+          >
+            <Icon name="print" size={16} />
+            {t("qr.batchButton", { n: qrs.length })}
+          </Link>
+        )}
       </div>
 
       <div
