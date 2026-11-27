@@ -201,11 +201,15 @@ describe("walletWebConfig - Tuna", () => {
     expect(g.merchantId).toBe("BCR2DN123");
     expect(g.gateway).toBe("tuna");
   });
-  it("PRODUCTION sem merchantId → null (nunca cai pra TEST, mesmo na allowlist)", () => {
-    expect(
-      walletWebConfig(tunaEst(), { ...tunaEnv, googleMerchantId: "", googleTestSlugs: ["bar-do-ze"] }, tProd)
-        .googlePay,
-    ).toBeNull();
+  it("PRODUCTION sem merchantId → null fora da allowlist", () => {
+    expect(walletWebConfig(tunaEst(), { ...tunaEnv, googleMerchantId: "" }, tProd).googlePay).toBeNull();
+  });
+  it("PRODUCTION sem merchantId, bar na allowlist → Google TEST (prints da aprovação web)", () => {
+    const g = walletWebConfig(tunaEst(), { ...tunaEnv, googleMerchantId: "", googleTestSlugs: ["BAR-do-ze"] }, tProd)
+      .googlePay!;
+    expect(g.environment).toBe("TEST");
+    expect(g).not.toHaveProperty("merchantId");
+    expect(g.gateway).toBe("tuna");
   });
   it("modo da Tuna desconhecido → null", () => {
     expect(walletWebConfig(tunaEst(), tunaEnv, prod).googlePay).toBeNull();

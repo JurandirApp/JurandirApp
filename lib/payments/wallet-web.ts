@@ -103,8 +103,15 @@ export function walletWebConfig(
     // PRODUÇÃO exige o merchantId do Google, como nos outros gateways.
     const mode = modes.TUNA;
     const gatewayMerchantId = env.googleGatewayMerchantIds.TUNA;
-    const production = mode === "PRODUCTION";
-    if (mode && gatewayMerchantId && (!production || env.googleMerchantId)) {
+    // Google PRODUCTION só com o merchantId do Google. Sem ele, bares da
+    // allowlist (GOOGLE_PAY_TEST_SLUGS) mostram o Google Pay em TESTE — usado
+    // pra tirar os prints da aprovação da integração web no Google Pay &
+    // Wallet Console (token de teste é recusado pela Tuna de produção: nada é
+    // cobrado). Fora da allowlist, sem merchantId → sem Google Pay.
+    const tunaSlug = est.slug.trim().toLowerCase();
+    const tunaTestAllowed = env.googleTestSlugs.some((s) => s.trim().toLowerCase() === tunaSlug);
+    const production = mode === "PRODUCTION" && !!env.googleMerchantId;
+    if (mode && gatewayMerchantId && (production || mode === "TEST" || tunaTestAllowed)) {
       googlePay = {
         environment: production ? "PRODUCTION" : "TEST",
         ...(production ? { merchantId: env.googleMerchantId } : {}),
