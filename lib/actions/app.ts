@@ -1,7 +1,8 @@
 "use server";
 
 import { headers } from "next/headers";
-import { createOrder, getOrdersByIds, isClosedError } from "@/lib/db/orders";
+import { createOrder, getOrdersByIds } from "@/lib/db/orders";
+import { isClosedError } from "@/lib/domain/order-errors";
 import {
   createCardCheckout,
   reconcileOrder,

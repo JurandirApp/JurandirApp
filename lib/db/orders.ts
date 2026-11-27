@@ -12,19 +12,9 @@ import { getProvider, resolveGateway, type PixCharge } from "@/lib/payments";
 import { enqueuePrintJob } from "./print";
 import { allSharesCharged } from "@/lib/app/split";
 import { openStatus } from "@/lib/domain/schedule";
+import { OrderError } from "@/lib/domain/order-errors";
 
-/** Erro de negócio na criação do pedido, com código estável pra API/app.
- *  `closed` = bar fechado agora (só quando ele TEM horário configurado). */
-export class OrderError extends Error {
-  constructor(public code: "closed") {
-    super(code);
-    this.name = "OrderError";
-  }
-}
-
-export function isClosedError(e: unknown): boolean {
-  return e instanceof OrderError && e.code === "closed";
-}
+export { OrderError, isClosedError } from "@/lib/domain/order-errors";
 
 const ORDER_INCLUDE = { items: true, payment: true, splitShares: true } as const;
 

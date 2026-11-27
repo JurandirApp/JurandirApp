@@ -8,7 +8,12 @@ const m = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
-  prisma: { order: { findUnique: m.findUnique }, payment: { findUnique: m.paymentFindUnique } },
+  prisma: {
+    order: { findUnique: m.findUnique },
+    payment: { findUnique: m.paymentFindUnique },
+    // reconcileByChargeId procura a cobrança também nas partes da conta dividida.
+    splitShare: { findFirst: vi.fn().mockResolvedValue(null) },
+  },
 }));
 vi.mock("@/lib/payments", () => ({ getProviderByName: m.getProvider, resolveWalletGateway: vi.fn() }));
 vi.mock("@/lib/payments/tuna", async (orig) => ({

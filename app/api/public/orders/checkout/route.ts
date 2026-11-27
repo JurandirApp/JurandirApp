@@ -1,4 +1,5 @@
-import { createOrder, getOrdersByIds, isClosedError } from "@/lib/db/orders";
+import { createOrder, getOrdersByIds } from "@/lib/db/orders";
+import { isClosedError } from "@/lib/domain/order-errors";
 import { createCardCheckout } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
