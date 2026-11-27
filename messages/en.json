@@ -1203,7 +1203,7 @@
     "closedCheckoutSub": "The venue is closed — the order can't be sent right now.",
     "closedPay": "Venue closed",
     "closedError": "The venue is closed right now. Try again during business hours.",
-    "doneTitlePartial": "Partial payment received",
+    "doneTitlePartial": "Waiting for everyone's Pix",
     "doneTitleAwaiting": "Awaiting payment",
     "doneTitleExpired": "Pix expired",
     "doneTitleNamed": "All set, {name}!",

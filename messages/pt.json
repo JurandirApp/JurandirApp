@@ -1203,7 +1203,7 @@
     "closedCheckoutSub": "O estabelecimento está fechado — não é possível enviar o pedido agora.",
     "closedPay": "Estabelecimento fechado",
     "closedError": "O estabelecimento está fechado agora. Tente no horário de funcionamento.",
-    "doneTitlePartial": "Pagamento parcial recebido",
+    "doneTitlePartial": "Aguardando o Pix de cada um",
     "doneTitleAwaiting": "Aguardando pagamento",
     "doneTitleExpired": "Pix expirado",
     "doneTitleNamed": "Tudo certo, {name}!",
