@@ -1,4 +1,5 @@
 import { createOrder, getOrdersByIds } from "@/lib/db/orders";
+import { KitchenClosedError } from "@/lib/domain/kitchen";
 import { createCardCheckout } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
@@ -44,6 +45,9 @@ export async function POST(req: Request): Promise<Response> {
       { status: 201, headers: CORS },
     );
   } catch (e) {
+    if (e instanceof KitchenClosedError) {
+      return Response.json({ ok: false, error: "kitchenClosed" }, { status: 409, headers: CORS });
+    }
     console.error("[orders/checkout] erro", e);
     return Response.json({ ok: false, error: "failed" }, { status: 500, headers: CORS });
   }

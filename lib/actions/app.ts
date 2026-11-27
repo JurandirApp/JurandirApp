@@ -21,6 +21,7 @@ import { isValidCpf, onlyDigits } from "@/lib/app/card-form";
 import { clientInfoFromHeaders, sanitizeDeviceSessionId } from "@/lib/payments/tuna-fingerprint";
 import type { CardPaymentResult, PaymentClientInfo } from "@/lib/payments/types";
 import { parseTunaThreeDs, sanitizeTunaBrowserInfo } from "@/lib/payments/tuna-3ds";
+import { KitchenClosedError } from "@/lib/domain/kitchen";
 
 /** IP/UA de quem chamou a action (antifraude da Tuna, origem "WEBSITE"). Sem
  *  contexto de requisição → undefined; nunca derruba a cobrança. Nunca logar. */
@@ -52,8 +53,8 @@ export async function createOrderAction(
       checkoutUrl = (await createCardCheckout(created.id)) ?? undefined;
     }
     return { ok: true, order: toClientOrder(created), checkoutUrl };
-  } catch {
-    return { ok: false, error: "failed" };
+  } catch (e) {
+    return { ok: false, error: e instanceof KitchenClosedError ? e.code : "failed" };
   }
 }
 
@@ -75,8 +76,12 @@ export async function payCardAction(
       order: fresh ? toClientOrder(fresh) : undefined,
       detail: res.statusDetail,
     };
-  } catch {
-    return { ok: false, status: "failed" };
+  } catch (e) {
+    return {
+      ok: false,
+      status: "failed",
+      ...(e instanceof KitchenClosedError ? { detail: e.code } : {}),
+    };
   }
 }
 
@@ -93,8 +98,8 @@ export async function createWalletOrderAction(
     // Carteira é sempre crédito à vista.
     const created = await createOrder({ ...parsed.data, payment: { ...pay, installments: 1 } });
     return { ok: true, order: toClientOrder(created) };
-  } catch {
-    return { ok: false, error: "failed" };
+  } catch (e) {
+    return { ok: false, error: e instanceof KitchenClosedError ? e.code : "failed" };
   }
 }
 

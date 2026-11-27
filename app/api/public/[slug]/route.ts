@@ -4,6 +4,7 @@ import { getEstablishmentBySlug } from "@/lib/db/establishments";
 import { getPopularItemNames, listMenu } from "@/lib/db/menu";
 import { listQrSpots } from "@/lib/db/qr";
 import { tunaPublicReadiness } from "@/lib/payments/tuna-public";
+import { isKitchenCategory, kitchenConfigOf, kitchenPublicFields } from "@/lib/domain/kitchen";
 
 // Consultas ao Neon a cada request.
 export const dynamic = "force-dynamic";
@@ -22,10 +23,12 @@ export async function OPTIONS(): Promise<Response> {
 /**
  * GET /api/public/{slug}
  * Retorna o estabelecimento + cardápio + mesas (QR) + mais pedidos.
+ * Cozinha: `est.kitchenOpenNow`, `est.kitchenNextOpenLabel?` e `menu[].kitchen`
+ * (`?lang=en` traduz o rótulo; padrão pt).
  * Segredos de pagamento/impressora são removidos por `toAppEstablishment`.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ slug: string }> },
 ): Promise<Response> {
   const { slug } = await ctx.params;
@@ -42,10 +45,21 @@ export async function GET(
     tunaPublicReadiness([est]),
   ]);
 
+  // Cozinha: status calculado no relógio de Brasília. A resposta fica em cache
+  // de CDN por ~30 s (+ SWR), então a virada de horário pode atrasar um pouco —
+  // a criação do pedido sempre revalida no servidor (erro `kitchenClosed`).
+  const kitchen = kitchenConfigOf(est);
+  const lang = new URL(req.url).searchParams.get("lang") === "en" ? "en" : "pt";
+
   return Response.json(
     {
-      est: toAppEstablishment({ ...est, tuna: tunaOf(est) }),
-      menu: menu.filter((m) => m.active).map(toAppMenuItem),
+      est: {
+        ...toAppEstablishment({ ...est, tuna: tunaOf(est) }),
+        ...kitchenPublicFields(kitchen, new Date(), lang),
+      },
+      menu: menu
+        .filter((m) => m.active)
+        .map((m) => ({ ...toAppMenuItem(m), kitchen: isKitchenCategory(kitchen, m.category) })),
       spots: spots.map((s) => s.label),
       popularNames,
     },

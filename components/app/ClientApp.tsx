@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { CATS, type AppEstablishment, type PayId } from "@/lib/data/app";
 import type { MenuItem } from "@/lib/data/panel";
 import { cartTotal, fees, type CartLine, type ClientOrder, type Share } from "@/lib/app/helpers";
 import { PIX_EXPIRES_MIN } from "@/lib/domain/pricing";
 import { appToEnum } from "@/lib/app/adapters";
+import {
+  kitchenNextOpenLabel,
+  kitchenOpenNow,
+  type KitchenConfig,
+} from "@/lib/domain/kitchen";
 import {
   chargeWalletAction,
   createOrderAction,
@@ -52,6 +57,7 @@ export function ClientApp({
   popularNames = [],
   paidReturn = false,
   wallets,
+  kitchen = null,
 }: {
   est: AppEstablishment;
   menu: MenuItem[];
@@ -62,8 +68,11 @@ export function ClientApp({
   popularNames?: string[];
   paidReturn?: boolean;
   wallets: WalletWebConfig;
+  /** Config da cozinha (horário + categorias). null/vazia = sempre aberta. */
+  kitchen?: KitchenConfig | null;
 }) {
   const t = useTranslations("app");
+  const locale = useLocale();
   const storageKey = `jur_orders_${est.slug}`;
   const cartKey = `jur_cart_${est.slug}`;
   const pendingKey = `jur_pending_${est.slug}`;
@@ -118,6 +127,22 @@ export function ClientApp({
   } | null>(null);
   const [exp, setExp] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // Cozinha: começa com o valor do servidor (hidratação estável) e é recalculada
+  // no cliente a cada minuto (relógio de Brasília) — a página pode ficar aberta
+  // por horas. O servidor revalida na criação do pedido (erro kitchenClosed).
+  const [kitchenOpen, setKitchenOpen] = useState(est.kitchenOpenNow ?? true);
+  const [kitchenLabel, setKitchenLabel] = useState(est.kitchenNextOpenLabel);
+  useEffect(() => {
+    if (!kitchen) return;
+    const tick = () => {
+      const now = new Date();
+      setKitchenOpen(kitchenOpenNow(kitchen, now));
+      setKitchenLabel(kitchenNextOpenLabel(kitchen, now, locale));
+    };
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [kitchen, locale]);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Single-flight das carteiras: nunca duas cobranças de carteira ao mesmo tempo.
@@ -346,7 +371,16 @@ export function ClientApp({
     };
 
 
+    // Cozinha fechada + item da cozinha no carrinho → avisa e não segue.
+    const kitchenBlocked = () => {
+      if (kitchenOpen) return false;
+      const blocked = cart.some((c) => menu.find((x) => x.id === c.id)?.kitchen);
+      if (blocked) toastMsg(t("kitchenClosedOrder"), 3200);
+      return blocked;
+    };
+
     const finish = (sharesArg: Share[] | null) => {
+      if (kitchenBlocked()) return;
       const items = cart.flatMap((c) => {
         const m = menu.find((x) => x.id === c.id);
         return m ? [{ name: m.name, qty: c.qty, unitPrice: m.price }] : [];
@@ -401,7 +435,7 @@ export function ClientApp({
         });
         setPaying(false);
         if (!r.ok || !r.order) {
-          toastMsg(t("orderError"));
+          toastMsg(r.error === "kitchenClosed" ? t("kitchenClosedOrder") : t("orderError"));
           return;
         }
         const order = r.order;
@@ -440,6 +474,7 @@ export function ClientApp({
     };
 
     const openCardPay = () => {
+      if (kitchenBlocked()) return;
       const items = cart.flatMap((c) => {
         const m = menu.find((x) => x.id === c.id);
         return m ? [{ name: m.name, qty: c.qty, unitPrice: m.price }] : [];
@@ -461,6 +496,7 @@ export function ClientApp({
     // snapshot vai pra folha da carteira e pro servidor — o carrinho pode mudar
     // com a folha aberta e o valor autorizado tem que ser o do pedido.
     const walletAttempt = (): WalletAttempt | null => {
+      if (kitchenBlocked()) return null;
       const items = cart.flatMap((c) => {
         const m = menu.find((x) => x.id === c.id);
         return m ? [{ name: m.name, qty: c.qty, unitPrice: m.price }] : [];
@@ -505,7 +541,10 @@ export function ClientApp({
         const r = await createWalletOrderAction(attempt.input);
         const dbId = r.order?.dbId;
         if (!r.ok || !r.order || !dbId) {
-          toastMsg(t("walletUnavailable"), WALLET_TOAST_MS);
+          toastMsg(
+            r.error === "kitchenClosed" ? t("kitchenClosedOrder") : t("walletUnavailable"),
+            WALLET_TOAST_MS,
+          );
           return false;
         }
         // Valor autorizado na folha ≠ total do pedido → não cobra.
@@ -576,6 +615,8 @@ export function ClientApp({
       spots,
       popularNames,
       menu,
+      kitchenOpen,
+      kitchenLabel,
 
       step,
       goQr: () => setStep("qr"),
@@ -590,13 +631,18 @@ export function ClientApp({
       goMyOrders: () => setStep("myorders"),
 
       cart,
-      addItem: (id) =>
+      addItem: (id) => {
+        if (!kitchenOpen && menu.find((x) => x.id === id)?.kitchen) {
+          toastMsg(kitchenLabel ? `${t("kitchenClosed")} · ${kitchenLabel}` : t("kitchenClosed"), 3200);
+          return;
+        }
         setCart((s) => {
           const ex = s.find((c) => c.id === id);
           return ex
             ? s.map((c) => (c.id === id ? { ...c, qty: c.qty + 1 } : c))
             : [...s, { id, qty: 1 }];
-        }),
+        });
+      },
       decItem: (id) =>
         setCart((s) =>
           s.flatMap((c) =>
@@ -703,7 +749,7 @@ export function ClientApp({
   }, [
     est, wallets, beach, loc, spotFromQr, spots, popularNames, menu, step, cart, cartOpen, cat, sub, query, custName, note,
     mode, selPay, parc, people, paid, paying, myOrders, lastOrder, exp, toast,
-    storageKey, pendingKey, t,
+    storageKey, pendingKey, t, kitchenOpen, kitchenLabel,
   ]);
 
   return (

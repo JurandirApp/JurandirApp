@@ -9,6 +9,9 @@
     "label": "Language",
     "pt": "PT",
     "en": "EN",
+    "ptName": "Português",
+    "enName": "English",
+    "hint": "Choose the site language. Saved in this browser.",
     "accessPanel": "Access Panel"
   },
   "hero": {
@@ -544,6 +547,8 @@
       "hint": "Changes appear instantly on the customer's menu."
     },
     "config": {
+      "language": "Language",
+      "languageHint": "Panel and site language in this browser.",
       "title": "Settings",
       "subtitle": "Account, printer and notifications for your establishment.",
       "changePassword": "Change password",
@@ -788,6 +793,18 @@
       "tunaNotAvailable": "Tuna registration is unavailable for this bar right now.",
       "tunaRejected": "Tuna rejected the registration. Check the details and try again.",
       "tunaError": "Couldn't send the registration to Tuna. Try again."
+    },
+    "kitchen": {
+      "title": "Kitchen hours",
+      "hint": "Outside these hours, items in the selected categories show as \"Kitchen closed\" and can't be ordered. Other categories (e.g. drinks) keep working. No category or no hours = kitchen always open.",
+      "categories": "Kitchen categories",
+      "hours": "Kitchen hours",
+      "statusActive": "Active: kitchen items can only be ordered during these hours.",
+      "statusInactive": "Inactive: select at least one category and one time window to enable.",
+      "save": "Save kitchen hours",
+      "saving": "Saving…",
+      "saved": "Kitchen hours saved!",
+      "saveError": "Couldn't save. Please try again."
     },
     "cat": {
       "Combos & Combinações": "Combos & Pairings",
@@ -1166,6 +1183,11 @@
     "splitWarn": "{n, plural, one {<b>#</b> payment left} other {<b>#</b> payments left}}. The order only goes to the kitchen once it's <b>100% paid</b> — the others can pay later in “My orders”.",
     "payProcessing": "Processing payment…",
     "paySending": "Sending order…",
+    "kitchenClosed": "Kitchen closed",
+    "kitchenClosedBanner": "The kitchen is closed right now — drinks are still available.",
+    "kitchenClosedOrder": "The kitchen is closed. Remove the kitchen items to place the order.",
+    "kitchenClosedInCart": "Kitchen closed — remove this item to continue.",
+    "languageTitle": "Language",
     "orderError": "Could not send the order.",
     "payError": "Could not process the payment.",
     "walletCreditOnly": "Credit only",

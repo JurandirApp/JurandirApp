@@ -76,6 +76,11 @@ export type AppEstablishment = {
   instagram: { url: string; handle: string };
   phone: { tel: string; display: string };
   website: { url: string };
+  /** Cozinha aberta agora (sem config = sempre true). Itens `kitchen` ficam
+   *  indisponíveis quando false. */
+  kitchenOpenNow?: boolean;
+  /** Ex.: "Cozinha abre hoje às 18:00" (só quando fechada e há próxima abertura). */
+  kitchenNextOpenLabel?: string;
 };
 
 export const APP_EST: AppEstablishment = {

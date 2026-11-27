@@ -1,6 +1,8 @@
 "use server";
 
 import { randomBytes } from "crypto";
+import { saveKitchenConfig } from "@/lib/db/kitchen";
+import type { KitchenConfig } from "@/lib/domain/kitchen";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db/prisma";
 import { getSession } from "@/lib/auth/session";
@@ -663,4 +665,17 @@ export async function deleteWaiterAction(id: string): Promise<void> {
 export async function orderTimelineAction(orderId: string) {
   const s = await requireEst();
   return buildOrderTimeline(orderId, s.establishmentId!);
+}
+
+/** Horário da cozinha + categorias "da cozinha" (painel → Configurações).
+ *  Normaliza no servidor; vazio = cozinha sempre aberta. */
+export async function saveKitchenConfigAction(
+  hours: unknown,
+  categories: unknown,
+): Promise<{ ok: boolean; config?: KitchenConfig; error?: string }> {
+  const s = await requireEst();
+  if (!Array.isArray(hours) || !Array.isArray(categories)) return { ok: false, error: "invalid" };
+  const config = await saveKitchenConfig(s.establishmentId!, hours, categories);
+  revalidatePath("/painel");
+  return { ok: true, config };
 }

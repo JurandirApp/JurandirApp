@@ -12,6 +12,7 @@ export function MenuScreen() {
   const {
     est, loc, menu, popularNames, cart, cat, sub, query, setQuery,
     pickCat, pickSub, addItem, decItem, openCart, goMyOrders, myOrders,
+    kitchenOpen, kitchenLabel,
   } = useApp();
   const t = useTranslations("app");
   // Platform taxonomy is translated via the shared panel maps (state still keys
@@ -44,6 +45,9 @@ export function MenuScreen() {
   const total = cartTotal(cart, menu);
   const count = cartCount(cart);
   const qtyOf = (id: number) => cart.find((c) => c.id === id)?.qty ?? 0;
+  // Item da cozinha com a cozinha fechada → indisponível (bebidas seguem).
+  const closedOf = (m: MenuItem) => !kitchenOpen && !!m.kitchen;
+  const hasKitchenItems = menu.some((m) => m.kitchen);
 
   // Só os canais de contato realmente preenchidos (nada de linkar pra "#").
   const contacts = [
@@ -139,6 +143,8 @@ export function MenuScreen() {
                     badgeFg="#141821"
                     onAdd={() => addItem(m.id)}
                     addAria={t("addAria")}
+                    closed={closedOf(m)}
+                    closedLabel={t("kitchenClosed")}
                   />
                 ))}
               </div>
@@ -159,6 +165,8 @@ export function MenuScreen() {
                     badgeFg="#fff"
                     onAdd={() => addItem(m.id)}
                     addAria={t("addAria")}
+                    closed={closedOf(m)}
+                    closedLabel={t("kitchenClosed")}
                   />
                 ))}
               </div>
@@ -245,6 +253,18 @@ export function MenuScreen() {
         </p>
       )}
 
+      {/* Cozinha fechada — aviso geral (itens da cozinha ficam indisponíveis) */}
+      {!kitchenOpen && hasKitchenItems && (
+        <div className="mx-4 mb-3 mt-1 flex items-start gap-2 rounded-2xl border border-[#fde68a] bg-[#fffbeb] px-3.5 py-2.5 text-[13px] text-[#92400e]">
+          <Icon name="soup_kitchen" size={18} className="mt-px flex-shrink-0" />
+          <span>
+            <b className="font-bold">{t("kitchenClosed")}</b>
+            {kitchenLabel ? ` · ${kitchenLabel}` : ""}
+            <span className="block text-xs text-[#b45309]">{t("kitchenClosedBanner")}</span>
+          </span>
+        </div>
+      )}
+
       {/* Item list */}
       <div className="flex flex-col gap-4 px-4 pt-1">
         {list.map((m) => (
@@ -255,6 +275,8 @@ export function MenuScreen() {
             onAdd={() => addItem(m.id)}
             onDec={() => decItem(m.id)}
             t={t}
+            closed={closedOf(m)}
+            closedText={kitchenLabel}
           />
         ))}
         {searching && list.length === 0 && (
@@ -320,6 +342,8 @@ function MiniCard({
   badgeFg,
   onAdd,
   addAria,
+  closed = false,
+  closedLabel,
 }: {
   m: MenuItem;
   badge: string;
@@ -327,6 +351,8 @@ function MiniCard({
   badgeFg: string;
   onAdd: () => void;
   addAria: string;
+  closed?: boolean;
+  closedLabel?: string;
 }) {
   return (
     <div
@@ -354,14 +380,23 @@ function MiniCard({
             )}
             <p className="m-0 font-extrabold text-coral-emph">{money(m.price)}</p>
           </div>
-          <button
-            type="button"
-            onClick={onAdd}
-            aria-label={addAria}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-coral text-white"
-          >
-            <Icon name="add" size={16} />
-          </button>
+          {closed ? (
+            <span
+              title={closedLabel}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-ink/40"
+            >
+              <Icon name="soup_kitchen" size={16} />
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onAdd}
+              aria-label={addAria}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-coral text-white"
+            >
+              <Icon name="add" size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -374,12 +409,17 @@ function ItemCard({
   onAdd,
   onDec,
   t,
+  closed = false,
+  closedText,
 }: {
   m: MenuItem;
   qty: number;
   onAdd: () => void;
   onDec: () => void;
   t: ReturnType<typeof useTranslations>;
+  /** Cozinha fechada: item indisponível (não pode ser adicionado). */
+  closed?: boolean;
+  closedText?: string;
 }) {
   const promo = m.old && m.old > m.price;
   return (
@@ -390,7 +430,10 @@ function ItemCard({
       <div className="relative">
         <div
           className="h-44 w-full bg-[#e2e8f0] bg-cover bg-center"
-          style={{ backgroundImage: `url("${m.photo}")` }}
+          style={{
+            backgroundImage: `url("${m.photo}")`,
+            ...(closed ? { filter: "grayscale(1)", opacity: 0.6 } : {}),
+          }}
         />
         {promo && (
           <span
@@ -410,6 +453,9 @@ function ItemCard({
           </span>
         )}
         <p className="m-0 mt-1 text-xs leading-[1.4] text-[#94a3b8]">{m.desc}</p>
+        {closed && closedText && (
+          <p className="m-0 mt-1.5 text-[11px] font-semibold text-[#b45309]">{closedText}</p>
+        )}
         <div className="mt-3 flex items-center justify-between">
           <div className="leading-none">
             {promo && (
@@ -417,7 +463,12 @@ function ItemCard({
             )}
             <span className="text-xl font-extrabold text-coral-emph">{money(m.price)}</span>
           </div>
-          {qty > 0 ? (
+          {closed ? (
+            <span className="flex items-center gap-1 rounded-xl bg-[#f1f5f9] px-3 py-2 text-xs font-bold text-ink/50">
+              <Icon name="soup_kitchen" size={14} />
+              {t("kitchenClosed")}
+            </span>
+          ) : qty > 0 ? (
             <div className="flex items-center gap-2">
               <button
                 type="button"

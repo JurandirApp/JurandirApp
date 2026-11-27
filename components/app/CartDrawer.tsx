@@ -7,7 +7,7 @@ import { cartTotal } from "@/lib/app/helpers";
 import { useApp } from "./context";
 
 export function CartDrawer() {
-  const { menu, cart, addItem, decItem, closeCart, goCheckout } = useApp();
+  const { menu, cart, addItem, decItem, closeCart, goCheckout, kitchenOpen } = useApp();
   const t = useTranslations("app");
 
   const lines = cart
@@ -42,6 +42,11 @@ export function CartDrawer() {
                 <p className="m-0 text-sm font-semibold text-coral-emph">
                   {money(m.price * c.qty)}
                 </p>
+                {!kitchenOpen && m.kitchen && (
+                  <p className="m-0 text-[11px] font-semibold text-[#b45309]">
+                    {t("kitchenClosedInCart")}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button

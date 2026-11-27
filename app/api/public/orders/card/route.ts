@@ -1,4 +1,5 @@
 import { createOrder, getOrdersByIds } from "@/lib/db/orders";
+import { KitchenClosedError } from "@/lib/domain/kitchen";
 import { payOrderWithCardToken, resolveChargeableOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
@@ -165,6 +166,9 @@ export async function POST(req: Request): Promise<Response> {
       { headers: CORS },
     );
   } catch (e) {
+    if (e instanceof KitchenClosedError) {
+      return Response.json({ ok: false, error: "kitchenClosed" }, { status: 409, headers: CORS });
+    }
     // Erro da Tuna (ex.: reconciliação) nunca loga o corpo cru.
     const detail = e instanceof TunaError ? tunaSafeMessage(e) : e instanceof Error ? e.message : String(e);
     console.error("[orders/card] falha ao cobrar cartão:", detail);

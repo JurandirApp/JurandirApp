@@ -9,6 +9,7 @@ import {
   isOvernight,
   type DayWindows,
   type TimeWindow,
+  type WeekSchedule,
 } from "@/lib/domain/schedule";
 import { usePanel } from "../context";
 
@@ -24,8 +25,18 @@ function firstOpenWindow(week: DayWindows[]): TimeWindow {
   return { o: "09:00", c: "18:00" };
 }
 
-export function WeeklyHoursEditor() {
-  const { weekly, setWeekly } = usePanel();
+/** Editor da semana. Sem props edita o horário de funcionamento (contexto do
+ *  painel); com `value`/`onChange` edita outra semana (ex.: horário da cozinha). */
+export function WeeklyHoursEditor({
+  value,
+  onChange,
+}: {
+  value?: WeekSchedule;
+  onChange?: (w: WeekSchedule) => void;
+} = {}) {
+  const panel = usePanel();
+  const weekly = value ?? panel.weekly;
+  const setWeekly = onChange ?? panel.setWeekly;
   const t = useTranslations("panel.perfil");
   const days = t.raw("weekdaysFull") as string[];
 

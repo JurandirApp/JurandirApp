@@ -24,7 +24,7 @@ export const MON_FIRST = [1, 2, 3, 4, 5, 6, 0] as const;
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
 /** Minutos desde 00:00, ou null se o texto não for um "HH:MM" válido. */
-function toMin(hhmm: unknown): number | null {
+export function toMin(hhmm: unknown): number | null {
   if (typeof hhmm !== "string") return null;
   const m = HHMM.exec(hhmm.trim());
   if (!m) return null;
@@ -78,9 +78,13 @@ export function normalizeWeekly(raw: unknown): WeekSchedule {
 
 /** O estabelecimento está aberto no instante dado? Trata virada de madrugada. */
 export function isOpenAt(week: WeekSchedule, date: Date): boolean {
-  const day = date.getDay();
-  const mins = date.getHours() * 60 + date.getMinutes();
+  return isOpenAtParts(week, date.getDay(), date.getHours() * 60 + date.getMinutes());
+}
 
+/** Igual a `isOpenAt`, mas recebe o dia da semana (0 = domingo) e os minutos
+ *  desde 00:00 já calculados — permite avaliar em qualquer fuso (ex.: Brasília)
+ *  sem depender do fuso do servidor/navegador. */
+export function isOpenAtParts(week: WeekSchedule, day: number, mins: number): boolean {
   for (const w of week[day] ?? []) {
     const o = toMin(w.o);
     const c = toMin(w.c);

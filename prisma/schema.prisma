@@ -109,6 +109,11 @@ model Establishment {
   rating         Decimal?            @db.Decimal(2, 1)
   rankingOrders  Int                 @default(0)
   weeklyHours    Json?
+  // Horário da COZINHA (mesmo shape do weeklyHours) + categorias do cardápio que
+  // são "da cozinha". Fora do horário, esses itens ficam indisponíveis (bebidas
+  // seguem). Vazio = cozinha sempre aberta (nunca bloqueia).
+  kitchenHours      Json?
+  kitchenCategories String[]        @default([])
   status         EstablishmentStatus @default(ACTIVE)
   isLive         Boolean             @default(false)
   tagline        String?

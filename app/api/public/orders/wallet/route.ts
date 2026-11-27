@@ -1,4 +1,5 @@
 import { createOrder, getOrdersByIds } from "@/lib/db/orders";
+import { KitchenClosedError } from "@/lib/domain/kitchen";
 import { payOrderWithWallet, resolveChargeableOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
@@ -83,6 +84,9 @@ export async function POST(req: Request): Promise<Response> {
       { headers: CORS },
     );
   } catch (e) {
+    if (e instanceof KitchenClosedError) {
+      return Response.json({ ok: false, status: "failed", error: "kitchenClosed" }, { status: 409, headers: CORS });
+    }
     // Loga o motivo real (ex.: PagarmeError com o campo inválido do token) pra
     // diagnosticar a cobrança de carteira sem vazar detalhe do gateway pro app.
     const detail = e instanceof Error ? e.message : String(e);

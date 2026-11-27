@@ -9,6 +9,8 @@ import { usePanel } from "../context";
 import { PrintersManager } from "./PrintersManager";
 import { PrinterSetupGuide } from "./PrinterSetupGuide";
 import { PaymentsManager } from "./PaymentsManager";
+import { KitchenHoursCard } from "./KitchenHoursCard";
+import type { KitchenConfig } from "@/lib/domain/kitchen";
 
 const PRINT_STATUS_STYLE: Record<
   string,
@@ -19,7 +21,13 @@ const PRINT_STATUS_STYLE: Record<
   PENDING: { bg: "#fffbeb", fg: "#d97706", icon: "schedule" },
 };
 
-export function ConfigSection() {
+export function ConfigSection({
+  kitchen,
+  onKitchenSaved,
+}: {
+  kitchen: KitchenConfig;
+  onKitchenSaved: (cfg: KitchenConfig) => void;
+}) {
   const {
     pw,
     setPw,
@@ -36,6 +44,7 @@ export function ConfigSection() {
     refreshPrintJobs,
   } = usePanel();
   const t = useTranslations("panel.config");
+  const tk = useTranslations("panel.kitchen");
 
   return (
     <div className="max-w-[1000px]">
@@ -106,6 +115,12 @@ export function ConfigSection() {
           <p className="m-0 mt-2 text-[11px] text-ink/40">
             {t("notificationsFootnote")}
           </p>
+        </Card>
+
+        {/* Horário da cozinha — itens da cozinha bloqueados fora do horário */}
+        <Card className="md:col-span-2">
+          <CardTitle icon="soup_kitchen">{tk("title")}</CardTitle>
+          <KitchenHoursCard initial={kitchen} onSaved={onKitchenSaved} />
         </Card>
 
         {/* Pagamentos — matriz método × gateway + conexões (MP / Pagar.me / …) */}

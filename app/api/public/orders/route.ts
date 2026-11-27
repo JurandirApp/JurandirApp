@@ -1,4 +1,5 @@
 import { createOrder, getOrdersByIds, cancelPendingOrder } from "@/lib/db/orders";
+import { KitchenClosedError } from "@/lib/domain/kitchen";
 import { reconcileOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
@@ -40,7 +41,10 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const created = await createOrder(parsed.data);
     return Response.json({ order: toClientOrder(created) }, { status: 201, headers: CORS });
-  } catch {
+  } catch (e) {
+    if (e instanceof KitchenClosedError) {
+      return Response.json({ error: "kitchenClosed" }, { status: 409, headers: CORS });
+    }
     return Response.json({ error: "failed" }, { status: 500, headers: CORS });
   }
 }

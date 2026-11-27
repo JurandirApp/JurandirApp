@@ -10,6 +10,7 @@ import {
 import { orderCreateSchema, type OrderCreateInput } from "../validation";
 import { getProvider, resolveGateway, type PixCharge } from "@/lib/payments";
 import { enqueuePrintJob } from "./print";
+import { assertKitchenAllows } from "./kitchen";
 
 const ORDER_INCLUDE = { items: true, payment: true, splitShares: true } as const;
 
@@ -26,6 +27,9 @@ export async function createOrder(input: OrderCreateInput) {
   const data = orderCreateSchema.parse(input);
   const est = await prisma.establishment.findUnique({ where: { id: data.establishmentId } });
   if (!est) throw new Error("establishment not found");
+  // Cozinha fechada + item da cozinha → KitchenClosedError (code "kitchenClosed")
+  // ANTES de qualquer cobrança. Sem config de cozinha, nunca bloqueia.
+  await assertKitchenAllows(est, data.items);
 
   const subtotal = data.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
   const { platformFee, serviceFee, total } = computeTotals(
