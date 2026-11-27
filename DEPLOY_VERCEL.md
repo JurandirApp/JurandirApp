@@ -45,6 +45,8 @@ Sem estas variáveis os botões simplesmente não aparecem (o resto do checkout 
 | `APPLE_PAY_DOMAIN` | Domínio verificado na Apple (`jurandir.app.br`; se vier URL, vale só o host). Padrão: host do `APP_BASE_URL`. O botão só aparece nesse domínio |
 | `APPLE_PAY_MERCHANT_CERT` | **Secreto.** Merchant Identity Certificate da Apple, PEM em base64 numa linha |
 | `APPLE_PAY_MERCHANT_KEY` | **Secreto.** Chave privada desse certificado, PEM em base64 numa linha |
+| `APPLE_PAY_TUNA_MERCHANT_CERT` / `APPLE_PAY_TUNA_MERCHANT_KEY` | **Secretos.** Merchant Identity Certificate (+ chave) do merchant `merchant.br.app.jurandir.tuna` — Apple Pay no site dos bares na Tuna. Sem eles o botão fica escondido nesses bares. Passo a passo em `docs/applepay-web-tuna.md` |
+| `APPLE_PAY_TUNA_MERCHANT_ID` | Opcional (padrão `merchant.br.app.jurandir.tuna`) |
 | `GOOGLE_PAY_MERCHANT_ID` | Merchant ID do console do Google Pay & Wallet (ex. `BCR2DN…`). Sem ele o Google Pay nunca roda em PRODUCTION |
 | `GOOGLE_PAY_PAGARME_GATEWAY_MERCHANT_ID` (+ `_TEST`) | `gatewayMerchantId` do Pagar.me (conta `acc_…`). O `_TEST` vale quando o Pagar.me está em TEST no admin (cai no sem sufixo se não existir) |
 | `GOOGLE_PAY_PAGBANK_GATEWAY_MERCHANT_ID` (+ `_TEST`) | `gatewayMerchantId` do PagBank (conta `ACCO_…`). Mesma regra do `_TEST` pelo modo do PagBank no admin |

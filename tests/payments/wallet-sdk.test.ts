@@ -17,6 +17,7 @@ const gp: GooglePayWebConfig = {
   allowedAuthMethods: ["PAN_ONLY", "CRYPTOGRAM_3DS"],
 };
 const ap: ApplePayWebConfig = {
+  merchant: "default",
   merchantIdentifier: "merchant.br.app.jurandir",
   displayName: "Jurandir",
   supportedNetworks: ["visa", "masterCard"],

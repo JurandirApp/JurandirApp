@@ -4,6 +4,11 @@ export type WalletWebEnv = {
   appleMerchantId: string;
   appleDisplayName: string;
   appleCertReady: boolean;
+  /** Merchant ID SEPARADO da Apple pros bares na Tuna (o certificado de
+   *  processamento dele foi gerado com o CSR da Tuna). */
+  appleTunaMerchantId: string;
+  /** Certificado de identidade do merchant da Tuna (APPLE_PAY_TUNA_MERCHANT_CERT/KEY) + domínio. */
+  appleTunaCertReady: boolean;
   /** Domínio verificado na Apple (normalizado, minúsculo); "" = não resolvido. */
   appleDomain: string;
   googleMerchantId: string;
@@ -21,7 +26,12 @@ export type GatewayModes = {
   TUNA?: "TEST" | "PRODUCTION";
 };
 
+/** Qual merchant da Apple a sessão usa: o nosso (Pagar.me/PagBank) ou o da Tuna. */
+export type AppleMerchantKey = "default" | "tuna";
+
 export type ApplePayWebConfig = {
+  /** Enviado na validação do merchant (escolhe o certificado no servidor). */
+  merchant: AppleMerchantKey;
   merchantIdentifier: string;
   displayName: string;
   supportedNetworks: string[];
@@ -57,16 +67,25 @@ export function walletWebConfig(
   env: WalletWebEnv,
   modes: GatewayModes,
 ): WalletWebConfig {
-  // Apple Pay no site só nos gateways que decifram o token do NOSSO certificado
-  // (Pagar.me/PagBank). Tuna fica de fora até ela liberar o nosso domínio.
+  // Apple Pay no site: Pagar.me/PagBank decifram o token do NOSSO merchant
+  // (merchant.br.app.jurandir); a Tuna decifra o do merchant DELA
+  // (merchant.br.app.jurandir.tuna), que tem certificado de identidade próprio —
+  // sem ele (appleTunaCertReady=false) o botão fica escondido nos bares da Tuna.
   const appleGw = est.gateways.applePay;
+  const appleMerchant: AppleMerchantKey | null =
+    appleGw === "PAGARME" || appleGw === "PAGBANK"
+      ? env.appleCertReady
+        ? "default"
+        : null
+      : appleGw === "TUNA" && env.appleTunaCertReady
+        ? "tuna"
+        : null;
   const applePay: ApplePayWebConfig | null =
-    est.applePay &&
-    (appleGw === "PAGARME" || appleGw === "PAGBANK") &&
-    env.appleCertReady &&
-    !!env.appleDomain
+    est.applePay && appleMerchant && !!env.appleDomain
       ? {
-          merchantIdentifier: env.appleMerchantId,
+          merchant: appleMerchant,
+          merchantIdentifier:
+            appleMerchant === "tuna" ? env.appleTunaMerchantId : env.appleMerchantId,
           displayName: env.appleDisplayName,
           supportedNetworks: ["visa", "masterCard"],
           merchantCapabilities: ["supports3DS", "supportsCredit"],
