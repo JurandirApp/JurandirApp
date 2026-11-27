@@ -28,6 +28,10 @@ export interface AppValue {
   menu: MenuItem[];
   /** Nomes dos itens mais pedidos (ordem = ranking), derivado dos pedidos reais. */
   popularNames: string[];
+  /** Cozinha aberta agora? (false → itens `kitchen` indisponíveis). */
+  kitchenOpen: boolean;
+  /** "Cozinha abre hoje às 18:00" quando fechada. */
+  kitchenLabel?: string;
 
   // Navigation
   step: Step;

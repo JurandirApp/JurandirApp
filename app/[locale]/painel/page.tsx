@@ -25,6 +25,7 @@ import {
 } from "@/lib/panel/adapters";
 import { periodRange } from "@/lib/domain/period";
 import { normalizeWeekly } from "@/lib/domain/schedule";
+import { kitchenConfigOf } from "@/lib/domain/kitchen";
 import { PanelApp } from "@/components/panel/PanelApp";
 
 export async function generateMetadata({
@@ -97,6 +98,7 @@ export default async function PainelPage({
       dayStartHour={est.dayStartHour}
       dayStartSet={est.dayStartSet}
       weekly={normalizeWeekly(est.weeklyHours)}
+      kitchen={kitchenConfigOf(est)}
       profile={toProfileForm(est)}
       images={{ cover: est.coverImg, logo: est.logoImg }}
       orders={dbOrders.map(toPanelOrder)}

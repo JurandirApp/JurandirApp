@@ -76,6 +76,8 @@ export type MenuItem = {
   cat: string;
   sub: string;
   groups?: MenuOptionGroup[];
+  /** Item de categoria "da cozinha" (fica indisponível com a cozinha fechada). */
+  kitchen?: boolean;
 };
 
 /** [quantity, item name, unit price] */

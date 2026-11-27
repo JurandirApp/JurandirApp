@@ -163,7 +163,8 @@ export function WalletButtons({
       fetch("/api/public/applepay/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ validationURL: event.validationURL }),
+        // `merchant` escolhe o certificado no servidor (nosso × Tuna).
+        body: JSON.stringify({ validationURL: event.validationURL, merchant: ap.merchant }),
       })
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error("merchant validation"))))
         .then((merchantSession: unknown) => session.completeMerchantValidation(merchantSession))

@@ -4,6 +4,7 @@ import {
   decodePem,
   isAppleValidationUrl,
   resolveInitiativeContext,
+  type AppleMerchantKey,
 } from "@/lib/payments/wallet-web";
 import { readWalletWebEnv } from "@/lib/payments/wallet-web-env";
 
@@ -62,11 +63,31 @@ function postToApple(
   });
 }
 
+/** Certificado de identidade + merchant ID por merchant da Apple:
+ *  - "default": merchant.br.app.jurandir (Pagar.me/PagBank) — APPLE_PAY_MERCHANT_CERT/KEY
+ *  - "tuna":    merchant.br.app.jurandir.tuna — APPLE_PAY_TUNA_MERCHANT_CERT/KEY */
+function merchantCredentials(merchant: AppleMerchantKey) {
+  const e = process.env;
+  const [certEnv, keyEnv] =
+    merchant === "tuna"
+      ? [e.APPLE_PAY_TUNA_MERCHANT_CERT, e.APPLE_PAY_TUNA_MERCHANT_KEY]
+      : [e.APPLE_PAY_MERCHANT_CERT, e.APPLE_PAY_MERCHANT_KEY];
+  const env = readWalletWebEnv();
+  return {
+    cert: certEnv?.trim() ? decodePem(certEnv) : null,
+    key: keyEnv?.trim() ? decodePem(keyEnv) : null,
+    merchantIdentifier: merchant === "tuna" ? env.appleTunaMerchantId : env.appleMerchantId,
+    displayName: env.appleDisplayName,
+  };
+}
+
 export async function POST(req: Request) {
   let validationURL: unknown;
+  let merchantRaw: unknown;
   try {
-    const json = (await req.json()) as { validationURL?: unknown } | null;
+    const json = (await req.json()) as { validationURL?: unknown; merchant?: unknown } | null;
     validationURL = json?.validationURL;
+    merchantRaw = json?.merchant;
   } catch {
     return NextResponse.json({ error: "invalidUrl" }, { status: 400 });
   }
@@ -74,12 +95,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalidUrl" }, { status: 400 });
   }
 
-  const cert = process.env.APPLE_PAY_MERCHANT_CERT?.trim()
-    ? decodePem(process.env.APPLE_PAY_MERCHANT_CERT)
-    : null;
-  const key = process.env.APPLE_PAY_MERCHANT_KEY?.trim()
-    ? decodePem(process.env.APPLE_PAY_MERCHANT_KEY)
-    : null;
+  // Ausente = "default" (compat com páginas antigas em cache); outro valor = 400.
+  if (merchantRaw !== undefined && merchantRaw !== "default" && merchantRaw !== "tuna") {
+    return NextResponse.json({ error: "invalidMerchant" }, { status: 400 });
+  }
+  const merchant: AppleMerchantKey = merchantRaw === "tuna" ? "tuna" : "default";
+  const { cert, key, merchantIdentifier, displayName } = merchantCredentials(merchant);
   const initiativeContext = resolveInitiativeContext(
     process.env.APPLE_PAY_DOMAIN,
     process.env.APP_BASE_URL,
@@ -88,10 +109,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "notConfigured" }, { status: 503 });
   }
 
-  const env = readWalletWebEnv();
   const body = JSON.stringify({
-    merchantIdentifier: env.appleMerchantId,
-    displayName: env.appleDisplayName,
+    merchantIdentifier,
+    displayName,
     initiative: "web",
     initiativeContext,
   });
@@ -99,7 +119,7 @@ export async function POST(req: Request) {
   try {
     const res = await postToApple(validationURL, body, cert, key);
     if (res.status < 200 || res.status >= 300) {
-      console.error(`[applepay/session] apple status ${res.status}`);
+      console.error(`[applepay/session] apple status ${res.status} (merchant ${merchant})`);
       return NextResponse.json({ error: "appleFailed" }, { status: 502 });
     }
     let session: unknown;

@@ -10,6 +10,7 @@ import { tunaPublicReadiness } from "@/lib/payments/tuna-public";
 import { ClientApp } from "@/components/app/ClientApp";
 import { BEACH_TYPES } from "@/lib/data/admin";
 import { DEFAULT_LOC_BEACH, DEFAULT_LOC_TABLE } from "@/lib/data/app";
+import { isKitchenCategory, kitchenConfigOf, kitchenPublicFields } from "@/lib/domain/kitchen";
 
 // Public customer app (Fase 4): establishment + menu are fetched by slug from
 // the DB. `local` (from the QR) sets the spot label shown throughout the flow.
@@ -36,7 +37,12 @@ export default async function ClientAppPage({
   const dbEst = await getEstablishmentBySlug(slug);
   if (!dbEst) notFound();
   const tunaOf = await tunaPublicReadiness([dbEst]);
-  const appEst = toAppEstablishment({ ...dbEst, tuna: tunaOf(dbEst) });
+  const kitchen = kitchenConfigOf(dbEst);
+  const appEst = {
+    ...toAppEstablishment({ ...dbEst, tuna: tunaOf(dbEst) }),
+    // Página dinâmica (por request): o relógio é o da requisição.
+    ...kitchenPublicFields(kitchen, new Date(), locale),
+  };
   const [dbMenu, dbSpots, popularNames, wallets] = await Promise.all([
     listMenu(dbEst.id),
     listQrSpots(dbEst.id),
@@ -52,7 +58,8 @@ export default async function ClientAppPage({
     <ClientApp
       est={appEst}
       wallets={wallets}
-      menu={dbMenu.map(toAppMenuItem)}
+      menu={dbMenu.map((m) => ({ ...toAppMenuItem(m), kitchen: isKitchenCategory(kitchen, m.category) }))}
+      kitchen={kitchen}
       beach={beach}
       loc={loc}
       spotFromQr={Boolean(local)}

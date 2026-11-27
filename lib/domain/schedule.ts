@@ -24,7 +24,7 @@ export const MON_FIRST = [1, 2, 3, 4, 5, 6, 0] as const;
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 
 /** Minutos desde 00:00, ou null se o texto não for um "HH:MM" válido. */
-function toMin(hhmm: unknown): number | null {
+export function toMin(hhmm: unknown): number | null {
   if (typeof hhmm !== "string") return null;
   const m = HHMM.exec(hhmm.trim());
   if (!m) return null;
@@ -79,13 +79,13 @@ export function normalizeWeekly(raw: unknown): WeekSchedule {
 /** O estabelecimento está aberto no instante dado? Trata virada de madrugada.
  *  Usa o fuso LOCAL do `Date` (navegador); no servidor use `openStatus`. */
 export function isOpenAt(week: WeekSchedule, date: Date): boolean {
-  return isOpenAtLocal(week, date.getDay(), date.getHours() * 60 + date.getMinutes());
+  return isOpenAtParts(week, date.getDay(), date.getHours() * 60 + date.getMinutes());
 }
 
-/** Mesmo que `isOpenAt`, a partir do dia da semana (0 = dom) e dos minutos
- *  desde 00:00 já no fuso do estabelecimento. */
-export function isOpenAtLocal(week: WeekSchedule, day: number, mins: number): boolean {
-
+/** Igual a `isOpenAt`, mas recebe o dia da semana (0 = domingo) e os minutos
+ *  desde 00:00 já calculados — permite avaliar em qualquer fuso (ex.: Brasília)
+ *  sem depender do fuso do servidor/navegador. */
+export function isOpenAtParts(week: WeekSchedule, day: number, mins: number): boolean {
   for (const w of week[day] ?? []) {
     const o = toMin(w.o);
     const c = toMin(w.c);
@@ -233,7 +233,7 @@ export function openStatus(rawWeekly: unknown, now: Date, timeZone = EST_TIMEZON
   const week = normalizeWeekly(rawWeekly);
   if (!hasAnyWindow(week)) return { configured: false, openNow: true };
   const { day, mins } = localDayMinutes(now, timeZone);
-  if (isOpenAtLocal(week, day, mins)) return { configured: true, openNow: true };
+  if (isOpenAtParts(week, day, mins)) return { configured: true, openNow: true };
 
   // Próxima janela que abre: hoje (depois de agora) ou nos próximos 7 dias.
   for (let offset = 0; offset <= 7; offset++) {

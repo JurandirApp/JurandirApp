@@ -49,6 +49,7 @@ import {
 } from "@/lib/actions/panel";
 import type { OrdersPeriod } from "@/lib/domain/period";
 import type { WeekSchedule } from "@/lib/domain/schedule";
+import type { KitchenConfig } from "@/lib/domain/kitchen";
 import type { PagarmeRecipientForm, TunaMerchantFormInput } from "@/lib/validation";
 import type { RouteKey, Routing } from "@/lib/payments/capabilities";
 import {
@@ -111,6 +112,7 @@ export function PanelApp({
   dayStartHour,
   dayStartSet: dayStartSet0,
   weekly: weekly0,
+  kitchen: kitchen0,
   profile: profile0,
   images,
   orders: orders0,
@@ -138,6 +140,7 @@ export function PanelApp({
   dayStartHour: number;
   dayStartSet: boolean;
   weekly: WeekSchedule;
+  kitchen: KitchenConfig;
   profile: ProfileForm;
   images: { cover: string | null; logo: string | null };
   orders: Order[];
@@ -180,6 +183,7 @@ export function PanelApp({
   const [dayStart, setDayStart] = useState(dayStartHour);
   const [dayStartSet, setDayStartSet] = useState(dayStartSet0);
   const [weekly, setWeeklyState] = useState<WeekSchedule>(weekly0);
+  const [kitchen, setKitchen] = useState<KitchenConfig>(kitchen0);
   const [period, setPeriod] = useState("hoje");
   const [openPay, setOpenPay] = useState<string | null>(null);
   const [menuCat, setMenuCat] = useState("Todos");
@@ -868,7 +872,9 @@ export function PanelApp({
             {tab === "kpis" && <KpisSection />}
             {tab === "auditoria" && <AuditoriaSection />}
             {tab === "perfil" && <PerfilSection />}
-            {tab === "config" && <ConfigSection />}
+            {tab === "config" && (
+              <ConfigSection kitchen={kitchen} onKitchenSaved={setKitchen} />
+            )}
           </main>
         </div>
 

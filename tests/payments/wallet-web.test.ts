@@ -12,6 +12,8 @@ const env: WalletWebEnv = {
   appleMerchantId: "merchant.br.app.jurandir",
   appleDisplayName: "Jurandir",
   appleCertReady: true,
+  appleTunaMerchantId: "merchant.br.app.jurandir.tuna",
+  appleTunaCertReady: false,
   appleDomain: "jurandir.app.br",
   googleMerchantId: "BCR2DN123",
   googleGatewayMerchantIds: { PAGARME: "acc_pagarme", PAGBANK: "pb_merchant" },
@@ -32,6 +34,7 @@ describe("walletWebConfig - Apple Pay", () => {
   it("presente com cert pronto", () => {
     const c = walletWebConfig(est(true, false), env, test);
     expect(c.applePay).toEqual({
+      merchant: "default",
       merchantIdentifier: "merchant.br.app.jurandir",
       displayName: "Jurandir",
       supportedNetworks: ["visa", "masterCard"],
@@ -213,9 +216,23 @@ describe("walletWebConfig - Tuna", () => {
   it("sem gatewayMerchantId da Tuna → null", () => {
     expect(walletWebConfig(tunaEst(), env, tTest).googlePay).toBeNull();
   });
-  it("Apple Pay com gateway TUNA → null no site (fora do escopo)", () => {
+  it("Apple Pay com gateway TUNA → null sem o certificado do merchant da Tuna", () => {
     expect(walletWebConfig(est(true, false, "TUNA", "PAGARME"), env, tProd).applePay).toBeNull();
     expect(walletWebConfig(est(true, false, "PAGBANK", "PAGARME"), env, tProd).applePay).not.toBeNull();
+  });
+
+  it("Apple Pay com gateway TUNA + cert da Tuna → merchant da Tuna", () => {
+    const tunaApple: WalletWebEnv = { ...env, appleCertReady: false, appleTunaCertReady: true };
+    const c = walletWebConfig(est(true, false, "TUNA", "PAGARME"), tunaApple, tProd).applePay;
+    expect(c?.merchant).toBe("tuna");
+    expect(c?.merchantIdentifier).toBe("merchant.br.app.jurandir.tuna");
+    expect(c?.domain).toBe("jurandir.app.br");
+    // O cert da Tuna não libera Pagar.me/PagBank (e vice-versa).
+    expect(walletWebConfig(est(true, false, "PAGARME", "PAGARME"), tunaApple, tProd).applePay).toBeNull();
+    expect(
+      walletWebConfig(est(true, false, "TUNA", "PAGARME"), { ...tunaApple, appleDomain: "" }, tProd).applePay,
+    ).toBeNull();
+    expect(walletWebConfig(est(false, false, "TUNA", "PAGARME"), tunaApple, tProd).applePay).toBeNull();
   });
 });
 

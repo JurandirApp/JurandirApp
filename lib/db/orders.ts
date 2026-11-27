@@ -13,6 +13,7 @@ import { enqueuePrintJob } from "./print";
 import { allSharesCharged } from "@/lib/app/split";
 import { openStatus } from "@/lib/domain/schedule";
 import { OrderError } from "@/lib/domain/order-errors";
+import { assertKitchenAllows } from "./kitchen";
 
 export { OrderError, isClosedError } from "@/lib/domain/order-errors";
 
@@ -31,9 +32,13 @@ export async function createOrder(input: OrderCreateInput) {
   const data = orderCreateSchema.parse(input);
   const est = await prisma.establishment.findUnique({ where: { id: data.establishmentId } });
   if (!est) throw new Error("establishment not found");
+  // Ordem: 1) bar fechado; 2) cozinha fechada — ambos ANTES de qualquer cobrança.
   // Bar fechado (pelo horário semanal, fuso de SP) não recebe pedido. Sem
   // horário configurado nunca bloqueia.
   if (!openStatus(est.weeklyHours, new Date()).openNow) throw new OrderError("closed");
+  // Cozinha fechada + item da cozinha → KitchenClosedError (code "kitchenClosed")
+  // ANTES de qualquer cobrança. Sem config de cozinha, nunca bloqueia.
+  await assertKitchenAllows(est, data.items);
 
   const subtotal = data.items.reduce((s, i) => s + i.qty * i.unitPrice, 0);
   const { platformFee, serviceFee, total } = computeTotals(

@@ -8,11 +8,28 @@ import { CATS, CAT_ICON } from "@/lib/data/app";
 import { cartCount, cartTotal } from "@/lib/app/helpers";
 import { useApp } from "../context";
 import { ClosedNotice } from "../ClosedNotice";
+import { CartContents } from "../CartDrawer";
 
 export function MenuScreen() {
   const {
-    est, loc, menu, popularNames, cart, cat, sub, query, setQuery,
-    pickCat, pickSub, addItem, decItem, openCart, goMyOrders, myOrders,
+    est,
+    loc,
+    menu,
+    popularNames,
+    cart,
+    cat,
+    sub,
+    query,
+    setQuery,
+    pickCat,
+    pickSub,
+    addItem,
+    decItem,
+    openCart,
+    goMyOrders,
+    myOrders,
+    kitchenOpen,
+    kitchenLabel,
   } = useApp();
   const t = useTranslations("app");
   // Platform taxonomy is translated via the shared panel maps (state still keys
@@ -23,15 +40,19 @@ export function MenuScreen() {
   const q = query.trim();
   const searching = q.length > 0;
   const list = searching
-    ? menu.filter((m) => `${m.name} ${m.desc}`.toLowerCase().includes(q.toLowerCase()))
+    ? menu.filter((m) =>
+        `${m.name} ${m.desc}`.toLowerCase().includes(q.toLowerCase()),
+      )
     : menu.filter((m) => m.cat === cat && m.sub === sub);
 
   // "Os mais pedidos" vem dos pedidos reais (popularNames, já ranqueado por
   // quantidade). Casa por nome e ignora itens que não existem mais no cardápio.
-  const popular = popularNames.flatMap((n) => {
-    const m = menu.find((x) => x.name === n);
-    return m ? [m] : [];
-  }).map((m, k) => ({ m, rank: k + 1 }));
+  const popular = popularNames
+    .flatMap((n) => {
+      const m = menu.find((x) => x.name === n);
+      return m ? [m] : [];
+    })
+    .map((m, k) => ({ m, rank: k + 1 }));
   const promos = menu.filter((m) => m.old && m.old > m.price);
 
   // Só categorias/subcategorias que têm item cadastrado — nada de aba vazia.
@@ -45,281 +66,377 @@ export function MenuScreen() {
   const total = cartTotal(cart, menu);
   const count = cartCount(cart);
   const qtyOf = (id: number) => cart.find((c) => c.id === id)?.qty ?? 0;
+  // Item da cozinha com a cozinha fechada → indisponível (bebidas seguem).
+  const closedOf = (m: MenuItem) => !kitchenOpen && !!m.kitchen;
+  const hasKitchenItems = menu.some((m) => m.kitchen);
 
   // Só os canais de contato realmente preenchidos (nada de linkar pra "#").
   const contacts = [
-    { key: "wa", href: est.whatsapp, icon: "chat", tint: "#ecfdf5", fg: "#059669", label: t("whatsapp"), external: true, show: Boolean(est.whatsapp) },
-    { key: "ig", href: est.instagram.url, icon: "alternate_email", tint: "#fdf2f8", fg: "#db2777", label: est.instagram.handle, external: true, show: Boolean(est.instagram.handle) },
-    { key: "tel", href: `tel:${est.phone.tel}`, icon: "call", tint: "#eef2f7", fg: "#475569", label: est.phone.display, external: false, show: Boolean(est.phone.display) },
-    { key: "web", href: est.website.url, icon: "language", tint: "#faf3e2", fg: "#b45309", label: t("website"), external: true, show: est.website.url !== "#" },
+    {
+      key: "wa",
+      href: est.whatsapp,
+      icon: "chat",
+      tint: "#ecfdf5",
+      fg: "#059669",
+      label: t("whatsapp"),
+      external: true,
+      show: Boolean(est.whatsapp),
+    },
+    {
+      key: "ig",
+      href: est.instagram.url,
+      icon: "alternate_email",
+      tint: "#fdf2f8",
+      fg: "#db2777",
+      label: est.instagram.handle,
+      external: true,
+      show: Boolean(est.instagram.handle),
+    },
+    {
+      key: "tel",
+      href: `tel:${est.phone.tel}`,
+      icon: "call",
+      tint: "#eef2f7",
+      fg: "#475569",
+      label: est.phone.display,
+      external: false,
+      show: Boolean(est.phone.display),
+    },
+    {
+      key: "web",
+      href: est.website.url,
+      icon: "language",
+      tint: "#faf3e2",
+      fg: "#b45309",
+      label: t("website"),
+      external: true,
+      show: est.website.url !== "#",
+    },
   ].filter((c) => c.show);
 
   return (
-    <div className="pb-[112px]">
-      {/* Cover header */}
-      <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={est.cover} alt="" className="block h-[208px] w-full object-cover" />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(to top,rgba(0,0,0,.8),rgba(0,0,0,.25) 50%,transparent)",
-          }}
-        />
-        {est.logo && (
-          // eslint-disable-next-line @next/next/no-img-element
+    // Desktop (lg+): 2 colunas — cardápio à esquerda, carrinho fixo à direita.
+    // No celular segue 1 coluna com a barra do carrinho embaixo.
+    <div className="pb-[112px] lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8 lg:pb-12 lg:pt-6">
+      <div className="min-w-0">
+        {/* Cover header */}
+        <div className="relative lg:overflow-hidden lg:rounded-[28px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={est.logo}
+            src={est.cover}
             alt=""
-            className="absolute left-5 top-5 h-14 w-14 rounded-2xl border-2 border-white/85 object-cover shadow-lg"
+            className="block h-[208px] w-full object-cover lg:h-[280px]"
           />
-        )}
-        <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-          <h1 className="m-0 font-display text-2xl font-extrabold leading-[1.2]">
-            {est.name}
-          </h1>
-          <p className="m-0 mt-0.5 text-sm text-white/90">{est.tagline}</p>
-          <p className="m-0 mt-2 flex items-center gap-1 text-xs text-white/80">
-            <Icon name="location_on" size={12} />
-            {est.address}
-          </p>
-          <p className="m-0 mt-0.5 flex items-center gap-1 text-xs text-white/80">
-            <Icon name="schedule" size={12} />
-            {est.hours}
-          </p>
-          {/* Sem lugar ainda (chegou pela landing): é escolhido no checkout. */}
-          {loc && (
-            <span
-              className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
-              style={{ background: "rgba(255,255,255,.2)", backdropFilter: "blur(4px)" }}
-            >
-              <Icon name="location_on" size={11} />
-              {loc}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Bar fechado agora → aviso logo abaixo da capa. */}
-      {!est.openNow && (
-        <div className="px-4 pt-3">
-          <ClosedNotice variant="menu" />
-        </div>
-      )}
-
-      {/* Tabs + finder */}
-      <div className="px-4 pt-3">
-        <div
-          className="flex gap-1 rounded-xl bg-white p-1"
-          style={{ boxShadow: "0 4px 12px -6px rgba(12,67,71,.15)" }}
-        >
-          <button
-            type="button"
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-coral py-2 text-sm font-medium text-white"
-          >
-            <Icon name="restaurant" size={15} />
-            {t("tabMenu")}
-          </button>
-          <button
-            type="button"
-            onClick={goMyOrders}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-transparent py-2 text-sm font-semibold text-ink/50"
-          >
-            <Icon name="space_dashboard" size={15} />
-            {myOrders.length > 0 ? t("tabOrdersCount", { n: myOrders.length }) : t("tabOrders")}
-          </button>
-        </div>
-      </div>
-
-      {/* Carousels (only when not searching, and only the ones with items) */}
-      {!searching && (popular.length > 0 || promos.length > 0) && (
-        <div className="pt-4">
-          {popular.length > 0 && (
-            <>
-              <h2 className="m-0 mb-2 px-4 font-display text-lg font-extrabold">
-                {t("mostOrdered")}
-              </h2>
-              <div className="hscroll flex gap-3 overflow-x-auto px-4 pb-2">
-                {popular.map(({ m, rank }) => (
-                  <MiniCard
-                    key={m.id}
-                    m={m}
-                    badge={`${rank}º`}
-                    badgeBg="#FFC24B"
-                    badgeFg="#141821"
-                    onAdd={() => addItem(m.id)}
-                    addAria={t("addAria")}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-          {promos.length > 0 && (
-            <>
-              <h2 className="m-0 mb-2 mt-3 px-4 font-display text-lg font-extrabold">
-                {t("dailyOffers")}
-              </h2>
-              <div className="hscroll flex gap-3 overflow-x-auto px-4 pb-2">
-                {promos.map((m) => (
-                  <MiniCard
-                    key={m.id}
-                    m={m}
-                    badge={`-${Math.round((1 - m.price / m.old!) * 100)}%`}
-                    badgeBg="#ef4444"
-                    badgeFg="#fff"
-                    onAdd={() => addItem(m.id)}
-                    addAria={t("addAria")}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Sticky search + pills */}
-      <div className="sticky top-0 z-20 bg-page pb-1 pt-3">
-        <div className="relative mb-2 px-4">
-          <Icon
-            name="search"
-            size={16}
-            className="absolute left-7 top-1/2 -translate-y-1/2 text-ink/40"
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to top,rgba(0,0,0,.8),rgba(0,0,0,.25) 50%,transparent)",
+            }}
           />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("searchPh")}
-            className="w-full rounded-full border border-ink/[0.12] bg-white px-9 py-2.5 text-sm outline-none focus:border-ink"
-          />
-          {searching && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              aria-label={t("clear")}
-              className="absolute right-7 top-1/2 -translate-y-1/2 bg-transparent p-0 text-ink/40"
-            >
-              <Icon name="close" size={16} />
-            </button>
+          {est.logo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={est.logo}
+              alt=""
+              className="absolute left-5 top-5 h-14 w-14 rounded-2xl border-2 border-white/85 object-cover shadow-lg"
+            />
           )}
-        </div>
-        {!searching && (
-          <>
-            <div className="hscroll flex gap-2 overflow-x-auto px-4">
-              {availableCats.map((c) => {
-                const active = cat === c;
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => pickCat(c)}
-                    className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold"
-                    style={{
-                      background: active ? "#141821" : "#fff",
-                      color: active ? "#EDD8A3" : "rgba(20,24,33,.7)",
-                    }}
-                  >
-                    <Icon name={CAT_ICON[c]} size={15} />
-                    {tCat(c)}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="hscroll flex gap-2 overflow-x-auto px-4 py-3">
-              {availableSubs.map((s) => {
-                const active = sub === s;
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => pickSub(s)}
-                    className="whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm"
-                    style={{
-                      background: active ? "#FF6B4A" : "#fff",
-                      color: active ? "#fff" : "rgba(20,24,33,.6)",
-                      fontWeight: active ? 500 : 400,
-                      border: active ? "1px solid #FF6B4A" : "1px solid rgba(20,24,33,.1)",
-                    }}
-                  >
-                    {tSub(s)}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-
-      {searching && (
-        <p className="m-0 px-4 pt-2 text-sm text-[#64748b]">
-          {t("resultLabel", { count: list.length, q })}
-        </p>
-      )}
-
-      {/* Item list */}
-      <div className="flex flex-col gap-4 px-4 pt-1">
-        {list.map((m) => (
-          <ItemCard
-            key={m.id}
-            m={m}
-            qty={qtyOf(m.id)}
-            onAdd={() => addItem(m.id)}
-            onDec={() => decItem(m.id)}
-            t={t}
-          />
-        ))}
-        {searching && list.length === 0 && (
-          <p className="m-0 py-10 text-center text-sm text-[#94a3b8]">{t("noResults")}</p>
-        )}
-      </div>
-
-      {/* Contact card (only when not searching, and when there's info to show) */}
-      {!searching && contacts.length > 0 && (
-        <div className="px-4 pt-4">
-          <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white shadow-[0_6px_20px_-12px_rgba(12,67,71,.25)]">
-            <div className="flex items-center gap-2 px-4 py-3">
-              <Icon name="storefront" size={16} className="text-coral-emph" />
-              <h2 className="m-0 truncate text-sm font-bold text-ink">
-                {t("contactTitle", { name: est.name })}
-              </h2>
-            </div>
-            <div className="divide-y divide-ink/[0.06] border-t border-ink/[0.06]">
-              {contacts.map((c) => (
-                <ContactRow
-                  key={c.key}
-                  href={c.href}
-                  icon={c.icon}
-                  tint={c.tint}
-                  fg={c.fg}
-                  label={c.label}
-                  external={c.external}
-                />
-              ))}
-            </div>
+          <div className="absolute bottom-0 left-0 right-0 p-5 text-white lg:p-7">
+            <h1 className="m-0 font-display text-2xl font-extrabold leading-[1.2] lg:text-4xl">
+              {est.name}
+            </h1>
+            <p className="m-0 mt-0.5 text-sm text-white/90">{est.tagline}</p>
+            <p className="m-0 mt-2 flex items-center gap-1 text-xs text-white/80">
+              <Icon name="location_on" size={12} />
+              {est.address}
+            </p>
+            <p className="m-0 mt-0.5 flex items-center gap-1 text-xs text-white/80">
+              <Icon name="schedule" size={12} />
+              {est.hours}
+            </p>
+            {/* Sem lugar ainda (chegou pela landing): é escolhido no checkout. */}
+            {loc && (
+              <span
+                className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                style={{
+                  background: "rgba(255,255,255,.2)",
+                  backdropFilter: "blur(4px)",
+                }}
+              >
+                <Icon name="location_on" size={11} />
+                {loc}
+              </span>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Sticky cart bar */}
-      {count > 0 && (
-        <div
-          className="sticky bottom-0 z-30 p-3"
-          style={{ background: "linear-gradient(to top,#F8EFDA 55%,transparent)" }}
-        >
-          <button
-            type="button"
-            onClick={openCart}
-            className="flex w-full items-center justify-between rounded-2xl bg-ink px-5 py-3.5 text-sand"
-            style={{ boxShadow: "0 10px 30px -10px rgba(20,24,33,.5)" }}
+        {/* Bar fechado agora → aviso logo abaixo da capa. */}
+        {!est.openNow && (
+          <div className="px-4 pt-3 lg:px-0 lg:pt-5">
+            <ClosedNotice variant="menu" />
+          </div>
+        )}
+
+        {/* Tabs + finder */}
+        <div className="px-4 pt-3 lg:px-0 lg:pt-5">
+          <div
+            className="flex gap-1 rounded-xl bg-white p-1 lg:max-w-[420px]"
+            style={{ boxShadow: "0 4px 12px -6px rgba(12,67,71,.15)" }}
           >
-            <span className="flex items-center gap-2 font-semibold">
-              <Icon name="shopping_cart" size={18} />
-              {t("cartItems", { count })}
-            </span>
-            <span className="font-bold">{money(total)}</span>
-          </button>
+            <button
+              type="button"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-coral py-2 text-sm font-medium text-white"
+            >
+              <Icon name="restaurant" size={15} />
+              {t("tabMenu")}
+            </button>
+            <button
+              type="button"
+              onClick={goMyOrders}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-transparent py-2 text-sm font-semibold text-ink/50"
+            >
+              <Icon name="space_dashboard" size={15} />
+              {myOrders.length > 0
+                ? t("tabOrdersCount", { n: myOrders.length })
+                : t("tabOrders")}
+            </button>
+          </div>
         </div>
-      )}
+
+        {/* Carousels (only when not searching, and only the ones with items) */}
+        {!searching && (popular.length > 0 || promos.length > 0) && (
+          <div className="pt-4">
+            {popular.length > 0 && (
+              <>
+                <h2 className="m-0 mb-2 px-4 font-display text-lg font-extrabold lg:px-0">
+                  {t("mostOrdered")}
+                </h2>
+                <div className="hscroll flex gap-3 overflow-x-auto px-4 pb-2 lg:px-0">
+                  {popular.map(({ m, rank }) => (
+                    <MiniCard
+                      key={m.id}
+                      m={m}
+                      badge={`${rank}º`}
+                      badgeBg="#FFC24B"
+                      badgeFg="#141821"
+                      onAdd={() => addItem(m.id)}
+                      addAria={t("addAria")}
+                      closed={closedOf(m)}
+                      closedLabel={t("kitchenClosed")}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+            {promos.length > 0 && (
+              <>
+                <h2 className="m-0 mb-2 mt-3 px-4 font-display text-lg font-extrabold lg:px-0">
+                  {t("dailyOffers")}
+                </h2>
+                <div className="hscroll flex gap-3 overflow-x-auto px-4 pb-2 lg:px-0">
+                  {promos.map((m) => (
+                    <MiniCard
+                      key={m.id}
+                      m={m}
+                      badge={`-${Math.round((1 - m.price / m.old!) * 100)}%`}
+                      badgeBg="#ef4444"
+                      badgeFg="#fff"
+                      onAdd={() => addItem(m.id)}
+                      addAria={t("addAria")}
+                      closed={closedOf(m)}
+                      closedLabel={t("kitchenClosed")}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Sticky search + pills */}
+        <div className="sticky top-0 z-20 bg-page pb-1 pt-3">
+          <div className="relative mb-2 px-4 lg:px-0">
+            <Icon
+              name="search"
+              size={16}
+              className="absolute left-7 top-1/2 -translate-y-1/2 text-ink/40 lg:left-3"
+            />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("searchPh")}
+              className="w-full rounded-full border border-ink/[0.12] bg-white px-9 py-2.5 text-sm outline-none focus:border-ink"
+            />
+            {searching && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label={t("clear")}
+                className="absolute right-7 top-1/2 -translate-y-1/2 bg-transparent p-0 text-ink/40 lg:right-3"
+              >
+                <Icon name="close" size={16} />
+              </button>
+            )}
+          </div>
+          {!searching && (
+            <>
+              <div className="hscroll flex gap-2 overflow-x-auto px-4 lg:flex-wrap lg:px-0">
+                {availableCats.map((c) => {
+                  const active = cat === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => pickCat(c)}
+                      className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold"
+                      style={{
+                        background: active ? "#141821" : "#fff",
+                        color: active ? "#EDD8A3" : "rgba(20,24,33,.7)",
+                      }}
+                    >
+                      <Icon name={CAT_ICON[c]} size={15} />
+                      {tCat(c)}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="hscroll flex gap-2 overflow-x-auto px-4 py-3 lg:flex-wrap lg:px-0">
+                {availableSubs.map((s) => {
+                  const active = sub === s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => pickSub(s)}
+                      className="whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm"
+                      style={{
+                        background: active ? "#FF6B4A" : "#fff",
+                        color: active ? "#fff" : "rgba(20,24,33,.6)",
+                        fontWeight: active ? 500 : 400,
+                        border: active
+                          ? "1px solid #FF6B4A"
+                          : "1px solid rgba(20,24,33,.1)",
+                      }}
+                    >
+                      {tSub(s)}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {searching && (
+          <p className="m-0 px-4 pt-2 text-sm text-[#64748b] lg:px-0">
+            {t("resultLabel", { count: list.length, q })}
+          </p>
+        )}
+
+        {/* Cozinha fechada — aviso geral (itens da cozinha ficam indisponíveis) */}
+        {!kitchenOpen && hasKitchenItems && (
+          <div className="mx-4 mb-3 mt-1 flex items-start lg:mx-0 gap-2 rounded-2xl border border-[#fde68a] bg-[#fffbeb] px-3.5 py-2.5 text-[13px] text-[#92400e]">
+            <Icon
+              name="soup_kitchen"
+              size={18}
+              className="mt-px flex-shrink-0"
+            />
+            <span>
+              <b className="font-bold">{t("kitchenClosed")}</b>
+              {kitchenLabel ? ` · ${kitchenLabel}` : ""}
+              <span className="block text-xs text-[#b45309]">
+                {t("kitchenClosedBanner")}
+              </span>
+            </span>
+          </div>
+        )}
+
+        {/* Item list */}
+        <div className="flex flex-col gap-4 px-4 pt-1 lg:grid lg:grid-cols-2 lg:gap-5 lg:px-0 xl:grid-cols-3">
+          {list.map((m) => (
+            <ItemCard
+              key={m.id}
+              m={m}
+              qty={qtyOf(m.id)}
+              onAdd={() => addItem(m.id)}
+              onDec={() => decItem(m.id)}
+              t={t}
+              closed={closedOf(m)}
+              closedText={kitchenLabel}
+            />
+          ))}
+          {searching && list.length === 0 && (
+            <p className="m-0 py-10 text-center lg:col-span-full text-sm text-[#94a3b8]">
+              {t("noResults")}
+            </p>
+          )}
+        </div>
+
+        {/* Contact card (only when not searching, and when there's info to show) */}
+        {!searching && contacts.length > 0 && (
+          <div className="px-4 pt-4 lg:px-0 lg:pt-8">
+            <div className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white shadow-[0_6px_20px_-12px_rgba(12,67,71,.25)]">
+              <div className="flex items-center gap-2 px-4 py-3">
+                <Icon name="storefront" size={16} className="text-coral-emph" />
+                <h2 className="m-0 truncate text-sm font-bold text-ink">
+                  {t("contactTitle", { name: est.name })}
+                </h2>
+              </div>
+              <div className="divide-y divide-ink/[0.06] border-t border-ink/[0.06]">
+                {contacts.map((c) => (
+                  <ContactRow
+                    key={c.key}
+                    href={c.href}
+                    icon={c.icon}
+                    tint={c.tint}
+                    fg={c.fg}
+                    label={c.label}
+                    external={c.external}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sticky cart bar (celular/tablet; no desktop o carrinho fica na lateral) */}
+        {count > 0 && (
+          <div
+            className="sticky bottom-0 z-30 p-3 lg:hidden"
+            style={{
+              background: "linear-gradient(to top,#F8EFDA 55%,transparent)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={openCart}
+              className="flex w-full items-center justify-between rounded-2xl bg-ink px-5 py-3.5 text-sand"
+              style={{ boxShadow: "0 10px 30px -10px rgba(20,24,33,.5)" }}
+            >
+              <span className="flex items-center gap-2 font-semibold">
+                <Icon name="shopping_cart" size={18} />
+                {t("cartItems", { count })}
+              </span>
+              <span className="font-bold">{money(total)}</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Carrinho fixo à direita (só desktop) */}
+      <aside className="hidden lg:sticky lg:top-6 lg:block">
+        <div
+          className="rounded-[24px] bg-white p-5"
+          style={{ boxShadow: "0 10px 30px -16px rgba(12,67,71,.35)" }}
+        >
+          <h2 className="m-0 mb-4 flex items-center gap-2 text-lg font-bold">
+            <Icon name="shopping_cart" size={18} />
+            {t("yourOrder")}
+          </h2>
+          <CartContents />
+        </div>
+      </aside>
     </div>
   );
 }
@@ -331,6 +448,8 @@ function MiniCard({
   badgeFg,
   onAdd,
   addAria,
+  closed = false,
+  closedLabel,
 }: {
   m: MenuItem;
   badge: string;
@@ -338,6 +457,8 @@ function MiniCard({
   badgeFg: string;
   onAdd: () => void;
   addAria: string;
+  closed?: boolean;
+  closedLabel?: string;
 }) {
   return (
     <div
@@ -351,28 +472,47 @@ function MiniCard({
         />
         <span
           className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-extrabold"
-          style={{ background: badgeBg, color: badgeFg, boxShadow: "0 2px 6px rgba(0,0,0,.2)" }}
+          style={{
+            background: badgeBg,
+            color: badgeFg,
+            boxShadow: "0 2px 6px rgba(0,0,0,.2)",
+          }}
         >
           {badge}
         </span>
       </div>
       <div className="p-2.5">
-        <h3 className="m-0 truncate text-sm font-semibold leading-[1.2]">{m.name}</h3>
+        <h3 className="m-0 truncate text-sm font-semibold leading-[1.2]">
+          {m.name}
+        </h3>
         <div className="mt-1 flex items-center justify-between">
           <div className="leading-none">
             {m.old && (
-              <span className="text-[11px] text-[#cbd5e1] line-through">{money(m.old)}</span>
+              <span className="text-[11px] text-[#cbd5e1] line-through">
+                {money(m.old)}
+              </span>
             )}
-            <p className="m-0 font-extrabold text-coral-emph">{money(m.price)}</p>
+            <p className="m-0 font-extrabold text-coral-emph">
+              {money(m.price)}
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={onAdd}
-            aria-label={addAria}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-coral text-white"
-          >
-            <Icon name="add" size={16} />
-          </button>
+          {closed ? (
+            <span
+              title={closedLabel}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#f1f5f9] text-ink/40"
+            >
+              <Icon name="soup_kitchen" size={16} />
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onAdd}
+              aria-label={addAria}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-coral text-white"
+            >
+              <Icon name="add" size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -385,12 +525,17 @@ function ItemCard({
   onAdd,
   onDec,
   t,
+  closed = false,
+  closedText,
 }: {
   m: MenuItem;
   qty: number;
   onAdd: () => void;
   onDec: () => void;
   t: ReturnType<typeof useTranslations>;
+  /** Cozinha fechada: item indisponível (não pode ser adicionado). */
+  closed?: boolean;
+  closedText?: string;
 }) {
   const promo = m.old && m.old > m.price;
   return (
@@ -401,7 +546,10 @@ function ItemCard({
       <div className="relative">
         <div
           className="h-44 w-full bg-[#e2e8f0] bg-cover bg-center"
-          style={{ backgroundImage: `url("${m.photo}")` }}
+          style={{
+            backgroundImage: `url("${m.photo}")`,
+            ...(closed ? { filter: "grayscale(1)", opacity: 0.6 } : {}),
+          }}
         />
         {promo && (
           <span
@@ -420,15 +568,31 @@ function ItemCard({
             {m.measure} {m.unit}
           </span>
         )}
-        <p className="m-0 mt-1 text-xs leading-[1.4] text-[#94a3b8]">{m.desc}</p>
+        <p className="m-0 mt-1 text-xs leading-[1.4] text-[#94a3b8]">
+          {m.desc}
+        </p>
+        {closed && closedText && (
+          <p className="m-0 mt-1.5 text-[11px] font-semibold text-[#b45309]">
+            {closedText}
+          </p>
+        )}
         <div className="mt-3 flex items-center justify-between">
           <div className="leading-none">
             {promo && (
-              <span className="mr-1.5 text-xs text-[#cbd5e1] line-through">{money(m.old!)}</span>
+              <span className="mr-1.5 text-xs text-[#cbd5e1] line-through">
+                {money(m.old!)}
+              </span>
             )}
-            <span className="text-xl font-extrabold text-coral-emph">{money(m.price)}</span>
+            <span className="text-xl font-extrabold text-coral-emph">
+              {money(m.price)}
+            </span>
           </div>
-          {qty > 0 ? (
+          {closed ? (
+            <span className="flex items-center gap-1 rounded-xl bg-[#f1f5f9] px-3 py-2 text-xs font-bold text-ink/50">
+              <Icon name="soup_kitchen" size={14} />
+              {t("kitchenClosed")}
+            </span>
+          ) : qty > 0 ? (
             <div className="flex items-center gap-2">
               <button
                 type="button"

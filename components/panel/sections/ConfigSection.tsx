@@ -9,6 +9,9 @@ import { usePanel } from "../context";
 import { PrintersManager } from "./PrintersManager";
 import { PrinterSetupGuide } from "./PrinterSetupGuide";
 import { PaymentsManager } from "./PaymentsManager";
+import { KitchenHoursCard } from "./KitchenHoursCard";
+import { LocalePicker } from "@/components/site/LocalePicker";
+import type { KitchenConfig } from "@/lib/domain/kitchen";
 
 const PRINT_STATUS_STYLE: Record<
   string,
@@ -19,7 +22,13 @@ const PRINT_STATUS_STYLE: Record<
   PENDING: { bg: "#fffbeb", fg: "#d97706", icon: "schedule" },
 };
 
-export function ConfigSection() {
+export function ConfigSection({
+  kitchen,
+  onKitchenSaved,
+}: {
+  kitchen: KitchenConfig;
+  onKitchenSaved: (cfg: KitchenConfig) => void;
+}) {
   const {
     pw,
     setPw,
@@ -38,6 +47,7 @@ export function ConfigSection() {
     setWaiterModule,
   } = usePanel();
   const t = useTranslations("panel.config");
+  const tk = useTranslations("panel.kitchen");
 
   return (
     <div className="max-w-[1000px]">
@@ -119,6 +129,19 @@ export function ConfigSection() {
             checked={waiterModule}
             onChange={() => setWaiterModule(!waiterModule)}
           />
+        </Card>
+
+        {/* Idioma do painel/site (cookie NEXT_LOCALE, persistente) */}
+        <Card>
+          <CardTitle icon="translate">{t("language")}</CardTitle>
+          <p className="m-0 -mt-2 mb-3 text-xs text-ink/50">{t("languageHint")}</p>
+          <LocalePicker />
+        </Card>
+
+        {/* Horário da cozinha — itens da cozinha bloqueados fora do horário */}
+        <Card className="md:col-span-2">
+          <CardTitle icon="soup_kitchen">{tk("title")}</CardTitle>
+          <KitchenHoursCard initial={kitchen} onSaved={onKitchenSaved} />
         </Card>
 
         {/* Pagamentos — matriz método × gateway + conexões (MP / Pagar.me / …) */}

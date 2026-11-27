@@ -52,6 +52,11 @@ export function readWalletWebEnv(modes: GatewayModes = DEFAULT_MODES): WalletWeb
     appleDisplayName: e.APPLE_PAY_DISPLAY_NAME?.trim() || "Jurandir",
     appleCertReady:
       !!e.APPLE_PAY_MERCHANT_CERT?.trim() && !!e.APPLE_PAY_MERCHANT_KEY?.trim() && !!appleDomain,
+    appleTunaMerchantId: e.APPLE_PAY_TUNA_MERCHANT_ID?.trim() || "merchant.br.app.jurandir.tuna",
+    appleTunaCertReady:
+      !!e.APPLE_PAY_TUNA_MERCHANT_CERT?.trim() &&
+      !!e.APPLE_PAY_TUNA_MERCHANT_KEY?.trim() &&
+      !!appleDomain,
     appleDomain,
     googleMerchantId: e.GOOGLE_PAY_MERCHANT_ID?.trim() ?? "",
     googleGatewayMerchantIds: {

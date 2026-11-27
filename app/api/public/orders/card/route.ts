@@ -1,5 +1,6 @@
 import { createOrder, getOrdersByIds } from "@/lib/db/orders";
 import { isClosedError } from "@/lib/domain/order-errors";
+import { KitchenClosedError } from "@/lib/domain/kitchen";
 import { payOrderWithCardToken, resolveChargeableOrder } from "@/lib/db/payments";
 import { orderCreateSchema } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
@@ -169,6 +170,9 @@ export async function POST(req: Request): Promise<Response> {
     // Bar fechado agora (horário configurado) → 409 { error: "closed" }.
     if (isClosedError(e)) {
       return Response.json({ ok: false, status: "failed", error: "closed" }, { status: 409, headers: CORS });
+    }
+    if (e instanceof KitchenClosedError) {
+      return Response.json({ ok: false, status: "failed", error: "kitchenClosed" }, { status: 409, headers: CORS });
     }
     // Erro da Tuna (ex.: reconciliação) nunca loga o corpo cru.
     const detail = e instanceof TunaError ? tunaSafeMessage(e) : e instanceof Error ? e.message : String(e);

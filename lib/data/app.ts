@@ -80,6 +80,11 @@ export type AppEstablishment = {
   openNow: boolean;
   /** Só quando fechado: "Abre hoje às 18:00" / "Abre amanhã às 18:00". */
   nextOpenLabel?: string;
+  /** Cozinha aberta agora (sem config = sempre true). Itens `kitchen` ficam
+   *  indisponíveis quando false. */
+  kitchenOpenNow?: boolean;
+  /** Ex.: "Cozinha abre hoje às 18:00" (só quando fechada e há próxima abertura). */
+  kitchenNextOpenLabel?: string;
 };
 
 export const APP_EST: AppEstablishment = {

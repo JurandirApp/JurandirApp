@@ -6,6 +6,7 @@ import { money, padId } from "@/lib/panel/helpers";
 import { paidAmount, paidCount } from "@/lib/app/helpers";
 import { useApp } from "../context";
 import { SplitSharesPix } from "../SplitSharesPix";
+import { ClientLocalePicker } from "../ClientLocalePicker";
 
 export function MyOrdersScreen() {
   const { est, loc, myOrders, exp, toggleExp, goMenu, openOrder } = useApp();
@@ -186,6 +187,18 @@ export function MyOrdersScreen() {
             </div>
           );
         })}
+      </div>
+
+      {/* Idioma (preferência do cliente — cookie NEXT_LOCALE, persistente) */}
+      <div
+        className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3"
+        style={{ boxShadow: "0 4px 12px -6px rgba(12,67,71,.15)" }}
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-ink/70">
+          <Icon name="translate" size={16} />
+          {t("languageTitle")}
+        </span>
+        <ClientLocalePicker />
       </div>
     </div>
   );

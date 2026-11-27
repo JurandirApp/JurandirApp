@@ -13,6 +13,9 @@ const VARS = [
   "APPLE_PAY_DOMAIN",
   "APPLE_PAY_MERCHANT_CERT",
   "APPLE_PAY_MERCHANT_KEY",
+  "APPLE_PAY_TUNA_MERCHANT_ID",
+  "APPLE_PAY_TUNA_MERCHANT_CERT",
+  "APPLE_PAY_TUNA_MERCHANT_KEY",
   "APP_BASE_URL",
   "GOOGLE_PAY_MERCHANT_ID",
   "GOOGLE_PAY_PAGARME_GATEWAY_MERCHANT_ID",
@@ -82,6 +85,18 @@ describe("readWalletWebEnv - allowlist e domínio", () => {
   });
   it("sem GOOGLE_PAY_TEST_SLUGS -> lista vazia", () => {
     expect(readWalletWebEnv().googleTestSlugs).toEqual([]);
+  });
+  it("merchant Apple da Tuna: default + cert próprio separado", () => {
+    vi.stubEnv("APPLE_PAY_DOMAIN", "jurandir.app.br");
+    vi.stubEnv("APPLE_PAY_MERCHANT_CERT", "cert");
+    vi.stubEnv("APPLE_PAY_MERCHANT_KEY", "key");
+    let e = readWalletWebEnv();
+    expect(e.appleTunaMerchantId).toBe("merchant.br.app.jurandir.tuna");
+    expect(e.appleTunaCertReady).toBe(false); // o cert do nosso merchant não vale pra Tuna
+    vi.stubEnv("APPLE_PAY_TUNA_MERCHANT_CERT", "tcert");
+    vi.stubEnv("APPLE_PAY_TUNA_MERCHANT_KEY", "tkey");
+    e = readWalletWebEnv();
+    expect(e.appleTunaCertReady).toBe(true);
   });
   it("appleDomain normalizado do APPLE_PAY_DOMAIN", () => {
     vi.stubEnv("APPLE_PAY_DOMAIN", "https://Jurandir.app.br/x");

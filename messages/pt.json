@@ -9,6 +9,9 @@
     "label": "Idioma",
     "pt": "PT",
     "en": "EN",
+    "ptName": "Português",
+    "enName": "English",
+    "hint": "Escolha o idioma do site. Fica salvo neste navegador.",
     "accessPanel": "Acessar Painel"
   },
   "hero": {
@@ -559,6 +562,8 @@
       "waiterModuleToggle": "Botão de entrega (Módulo do Garçom)",
       "waiterModuleHint": "Ligado: garçons separam e entregam os pedidos com código de entrega, e a aba Garçons aparece. Desligado: sem fluxo de entrega.",
       "waiterModuleError": "Não foi possível salvar a entrega pelo garçom.",
+      "language": "Idioma",
+      "languageHint": "Idioma do painel e do site neste navegador.",
       "title": "Configurações",
       "subtitle": "Conta, impressora e notificações do seu estabelecimento.",
       "changePassword": "Alterar senha",
@@ -803,6 +808,18 @@
       "tunaNotAvailable": "Cadastro na Tuna indisponível para este bar no momento.",
       "tunaRejected": "A Tuna recusou o cadastro. Confira os dados e tente de novo.",
       "tunaError": "Não foi possível enviar o cadastro à Tuna. Tente de novo."
+    },
+    "kitchen": {
+      "title": "Horário da cozinha",
+      "hint": "Fora deste horário, os itens das categorias marcadas aparecem como \"Cozinha fechada\" e não podem ser pedidos. As demais (ex.: bebidas) seguem normais. Sem categoria ou sem horário = cozinha sempre aberta.",
+      "categories": "Categorias da cozinha",
+      "hours": "Horário da cozinha",
+      "statusActive": "Ativo: itens da cozinha só podem ser pedidos dentro do horário.",
+      "statusInactive": "Inativo: marque ao menos uma categoria e um horário para ativar.",
+      "save": "Salvar horário da cozinha",
+      "saving": "Salvando…",
+      "saved": "Horário da cozinha salvo!",
+      "saveError": "Não foi possível salvar. Tente de novo."
     },
     "cat": {
       "Combos & Combinações": "Combos & Combinações",
@@ -1144,6 +1161,7 @@
     "whatsapp": "WhatsApp",
     "website": "Website",
     "cartItems": "{count, plural, one {# item} other {# itens}}",
+    "cartEmpty": "Seu carrinho está vazio. Adicione itens do cardápio.",
     "yourOrder": "Seu pedido",
     "close": "Fechar",
     "total": "Total",
@@ -1181,6 +1199,11 @@
     "splitWarn": "{n, plural, one {Falta <b>#</b> pagamento} other {Faltam <b>#</b> pagamentos}}. O pedido só vai para a cozinha quando estiver <b>100% pago</b> — os demais podem pagar depois em “Meus pedidos”.",
     "payProcessing": "Processando pagamento…",
     "paySending": "Enviando pedido…",
+    "kitchenClosed": "Cozinha fechada",
+    "kitchenClosedBanner": "A cozinha está fechada agora — bebidas seguem disponíveis.",
+    "kitchenClosedOrder": "A cozinha está fechada. Remova os itens da cozinha para finalizar o pedido.",
+    "kitchenClosedInCart": "Cozinha fechada — remova este item para continuar.",
+    "languageTitle": "Idioma",
     "orderError": "Não foi possível enviar o pedido.",
     "payError": "Não foi possível processar o pagamento.",
     "walletCreditOnly": "Somente crédito",
