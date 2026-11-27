@@ -14,6 +14,7 @@ import { upsertMenuItem, deleteMenuItem, bulkAdjustPrices } from "@/lib/db/menu"
 import type { ItemChange } from "@/lib/pricing/bulk-adjust";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
 import { setWaiterModuleEnabled } from "@/lib/db/establishments";
+import { needsReconcile } from "@/lib/app/split";
 import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
 import { reconcileOrder } from "@/lib/db/payments";
 import { getPagbankDebitEnabled } from "@/lib/db/settings";
@@ -128,7 +129,8 @@ export async function refreshOrdersAction(period?: OrdersPeriod): Promise<Order[
   // token do próprio estabelecimento. Teto de 25 (mais recentes) por atualização.
   if (p.kind === "hoje") {
     const awaiting = rows
-      .filter((o) => o.status === "AWAITING_PAYMENT" && o.payment)
+      // Conta dividida não tem `payment` (só splitShares) — também reconcilia.
+      .filter(needsReconcile)
       .slice(0, 25);
     if (awaiting.length) {
       await Promise.all(awaiting.map((o) => reconcileOrder(o.id).catch(() => {})));
