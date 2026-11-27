@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { methodToKey, toPanelOrder } from "@/lib/panel/adapters";
+import { methodToKey, toPanelOrder, waiterNameOf } from "@/lib/panel/adapters";
 
 describe("methodToKey", () => {
   it("maps enum → pt key", () => {
@@ -42,5 +42,30 @@ describe("toPanelOrder", () => {
     expect(o.pay).toBe("credito");
     expect(o.card).toBe("Visa •••• 4412");
     expect(o.splits).toBeUndefined();
+  });
+});
+
+describe("waiterName (garçom que atendeu o pedido)", () => {
+  const ev = (type: string, name: string | null) => ({ type, waiter: name ? { name } : null });
+  it("prefere quem ENTREGOU; sem entrega, quem PEGOU; sem garçom → undefined", () => {
+    expect(waiterNameOf([ev("PICKED", "Ana"), ev("DELIVERED", "Bruno")])).toBe("Bruno");
+    expect(waiterNameOf([ev("PICKED", "Ana")])).toBe("Ana");
+    expect(waiterNameOf([])).toBeUndefined();
+    expect(waiterNameOf(undefined)).toBeUndefined();
+    expect(waiterNameOf([ev("DELIVERED", null)])).toBeUndefined();
+  });
+  it("vários garçons → nomes sem repetir, em ordem", () => {
+    expect(
+      waiterNameOf([ev("DELIVERED", "Ana"), ev("DELIVERED", "Bruno"), ev("DELIVERED", "Ana")]),
+    ).toBe("Ana, Bruno");
+  });
+  it("toPanelOrder inclui waiterName só quando há garçom", () => {
+    const base = {
+      id: "o1", number: 1, code: "PED-1", status: "DELIVERED", locationLabel: "Mesa 1", posto: null,
+      customerName: null, note: null, createdAt: new Date(), total: 10,
+      items: [], payment: { method: "PIX", cardMask: null }, splitShares: [],
+    };
+    expect(toPanelOrder({ ...base, events: [ev("DELIVERED", "Carla")] } as never).waiterName).toBe("Carla");
+    expect(toPanelOrder(base as never)).not.toHaveProperty("waiterName");
   });
 });

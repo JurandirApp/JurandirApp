@@ -274,6 +274,7 @@
       "timelineError": "Não foi possível carregar o histórico do pedido."
     },
     "pedidos": {
+      "waiterBy": "Garçom: {name}",
       "periodToday": "Hoje",
       "periodYesterday": "Ontem",
       "period7d": "7 dias",

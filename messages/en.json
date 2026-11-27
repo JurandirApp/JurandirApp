@@ -274,6 +274,7 @@
       "timelineError": "Could not load the order history."
     },
     "pedidos": {
+      "waiterBy": "Waiter: {name}",
       "periodToday": "Today",
       "periodYesterday": "Yesterday",
       "period7d": "7 days",

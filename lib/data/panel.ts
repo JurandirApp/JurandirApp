@@ -110,6 +110,8 @@ export type Order = {
   note?: string;
   card?: string;
   splits?: Split;
+  /** Garçom que entregou (ou pegou, se ainda não entregou) — Módulo do Garçom. */
+  waiterName?: string;
 };
 
 export type Qr = { id: string; label: string };

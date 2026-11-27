@@ -276,6 +276,12 @@ function OrderCard({ order: o }: { order: Order }) {
           <Icon name="schedule" size={14} />
           {fmtDateTime(o.ts)}
         </span>
+        {o.waiterName && (
+          <span className="flex items-center gap-1 font-semibold text-ink/70">
+            <Icon name="room_service" size={14} />
+            {t("waiterBy", { name: o.waiterName })}
+          </span>
+        )}
       </div>
 
       <div className="mb-3 flex flex-col gap-1">

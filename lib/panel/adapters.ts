@@ -51,7 +51,28 @@ type DbOrder = {
   }[];
   payment: { method: string; cardMask: string | null } | null;
   splitShares: { method: string | null; paid: boolean; amount: unknown }[];
+  /** Eventos PICKED/DELIVERED com garçom (ordem cronológica). */
+  events?: { type: string; waiter: { name: string } | null }[];
 };
+
+/** Nome do(s) garçom(ns) que atendeu o pedido: quem ENTREGOU; se ninguém
+ *  entregou ainda, quem PEGOU. Vários garçons → "Ana, Bruno" (sem repetir).
+ *  undefined quando nenhum garçom mexeu no pedido. */
+export function waiterNameOf(
+  events: { type: string; waiter: { name: string } | null }[] | undefined,
+): string | undefined {
+  const namesOf = (type: string) => {
+    const out: string[] = [];
+    for (const e of events ?? []) {
+      const n = e.type === type ? e.waiter?.name?.trim() : "";
+      if (n && !out.includes(n)) out.push(n);
+    }
+    return out;
+  };
+  const delivered = namesOf("DELIVERED");
+  const names = delivered.length ? delivered : namesOf("PICKED");
+  return names.length ? names.join(", ") : undefined;
+}
 
 export function toPanelOrder(o: DbOrder): Order {
   const items: OrderLine[] = o.items.map((i) => [i.qty, i.name, num(i.unitPrice)]);
@@ -77,6 +98,7 @@ export function toPanelOrder(o: DbOrder): Order {
         paidAmt: o.splitShares.reduce((s, x) => s + (x.paid ? num(x.amount) : 0), 0),
       }
     : undefined;
+  const waiterName = waiterNameOf(o.events);
   return {
     id: o.number,
     dbId: o.id,
@@ -100,6 +122,7 @@ export function toPanelOrder(o: DbOrder): Order {
     note: o.note ?? undefined,
     card: o.payment?.cardMask ?? undefined,
     splits,
+    ...(waiterName ? { waiterName } : {}),
   };
 }
 

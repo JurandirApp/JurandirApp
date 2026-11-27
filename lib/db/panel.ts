@@ -35,7 +35,17 @@ export function listPanelOrders(
       ...(range ? { createdAt: { gte: range.from, lt: range.to } } : {}),
     },
     orderBy: { createdAt: "desc" },
-    include: { items: true, payment: true, splitShares: true },
+    include: {
+      items: true,
+      payment: true,
+      splitShares: true,
+      // Quem pegou/entregou (Módulo do Garçom) → nome do garçom no pedido.
+      events: {
+        where: { type: { in: ["PICKED", "DELIVERED"] }, waiterId: { not: null } },
+        orderBy: { at: "asc" },
+        select: { type: true, waiter: { select: { name: true } } },
+      },
+    },
   });
 }
 export function listPanelMenu(establishmentId: string) {
