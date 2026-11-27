@@ -545,6 +545,10 @@
       "hint": "Changes appear instantly on the customer's menu."
     },
     "config": {
+      "waiterModuleTitle": "Waiter delivery",
+      "waiterModuleToggle": "Delivery button (Waiter Module)",
+      "waiterModuleHint": "On: waiters pick and deliver orders with a delivery code, and the Waiters tab shows up. Off: no delivery flow.",
+      "waiterModuleError": "Couldn't save the waiter delivery setting.",
       "title": "Settings",
       "subtitle": "Account, printer and notifications for your establishment.",
       "changePassword": "Change password",

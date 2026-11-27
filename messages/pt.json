@@ -545,6 +545,10 @@
       "hint": "As mudanças aparecem na hora no cardápio do cliente."
     },
     "config": {
+      "waiterModuleTitle": "Entrega pelo garçom",
+      "waiterModuleToggle": "Botão de entrega (Módulo do Garçom)",
+      "waiterModuleHint": "Ligado: garçons separam e entregam os pedidos com código de entrega, e a aba Garçons aparece. Desligado: sem fluxo de entrega.",
+      "waiterModuleError": "Não foi possível salvar a entrega pelo garçom.",
       "title": "Configurações",
       "subtitle": "Conta, impressora e notificações do seu estabelecimento.",
       "changePassword": "Alterar senha",

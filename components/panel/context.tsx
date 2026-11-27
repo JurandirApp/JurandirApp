@@ -91,9 +91,11 @@ export interface PanelValue {
   openBulkAdjust: () => void;
 
   // Garçons (Módulo do Garçom)
-  /** O Módulo do Garçom está habilitado para este estabelecimento? (liga no admin).
+  /** O Módulo do Garçom está habilitado para este estabelecimento? (admin ou o próprio bar).
    *  Quando false, some a aba Garçons, o "marcar pronto" e o rastreio. */
   waiterModule: boolean;
+  /** O próprio estabelecimento liga/desliga o Módulo do Garçom (Configurações). */
+  setWaiterModule: (v: boolean) => void;
   waiters: Waiter[];
   openWaiterEditor: (w: Waiter | null) => void;
   askDeleteWaiter: (w: Waiter) => void;

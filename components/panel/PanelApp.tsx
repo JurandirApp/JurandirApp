@@ -16,6 +16,7 @@ import { padId } from "@/lib/panel/helpers";
 import {
   addQrSpotAction,
   changePasswordAction,
+  setWaiterModuleAction,
   checkPixReadyAction,
   connectAsaasAction,
   createPagarmeRecipientAction,
@@ -115,7 +116,7 @@ export function PanelApp({
   orders: orders0,
   menu: menu0,
   waiters: waiters0,
-  waiterModule,
+  waiterModule: waiterModule0,
   qrs: qrs0,
   stats,
   printJobs: printJobs0,
@@ -201,6 +202,8 @@ export function PanelApp({
     model: "Epson TM-T20",
   });
   const [printEnabled, setPrintEnabledState] = useState(printer0.enabled);
+  // Módulo do Garçom: o próprio bar liga/desliga nas Configurações.
+  const [waiterModule, setWaiterModuleState] = useState(waiterModule0);
   const [hasPrintToken, setHasPrintToken] = useState(printer0.hasToken);
   const [printToken, setPrintToken] = useState<string | null>(null);
   const [mpConnected, setMpConnected] = useState(mpConnected0);
@@ -716,6 +719,18 @@ export function PanelApp({
           .catch(() => {});
       },
       waiterModule,
+      setWaiterModule: (v) => {
+        // Otimista; volta se o servidor recusar.
+        setWaiterModuleState(v);
+        if (!v && tab === "garcons") setTab("pedidos");
+        startTransition(async () => {
+          const r = await setWaiterModuleAction(v).catch(() => ({ ok: false as const }));
+          if (!r.ok) {
+            setWaiterModuleState(!v);
+            toast(t("config.waiterModuleError"));
+          }
+        });
+      },
     };
   }, [
     t, beach, now, slug, orders, kpiOrders, menu, waiters, qrs, stats, tab, orderFilter, ordersPeriod, dayStart,

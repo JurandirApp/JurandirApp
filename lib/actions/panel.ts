@@ -13,6 +13,7 @@ import { listPendingCalls, handleCall } from "@/lib/db/help";
 import { upsertMenuItem, deleteMenuItem, bulkAdjustPrices } from "@/lib/db/menu";
 import type { ItemChange } from "@/lib/pricing/bulk-adjust";
 import { createQrSpot, deleteQrSpot } from "@/lib/db/qr";
+import { setWaiterModuleEnabled } from "@/lib/db/establishments";
 import { enqueueOrderReprint, enqueueTestJob } from "@/lib/db/print";
 import { reconcileOrder } from "@/lib/db/payments";
 import { getPagbankDebitEnabled } from "@/lib/db/settings";
@@ -82,6 +83,22 @@ export async function tableDetailAction(day: string, label: string) {
   const s = await getSession();
   if (s?.role !== "ESTABLISHMENT" || !s.establishmentId) throw new Error("unauthorized");
   return listTableDetail(s.establishmentId, day, label);
+}
+
+/** O próprio estabelecimento liga/desliga o Módulo do Garçom (botão de entrega)
+ *  nas Configurações. Só altera a flag do bar da sessão. */
+export async function setWaiterModuleAction(
+  enabled: boolean,
+): Promise<{ ok: boolean; enabled?: boolean }> {
+  const s = await requireEst();
+  if (typeof enabled !== "boolean") return { ok: false };
+  try {
+    const on = await setWaiterModuleEnabled(s.establishmentId!, enabled);
+    revalidatePath("/painel");
+    return { ok: true, enabled: on };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /** Chamados de ajuda ("chamar garçom") pendentes do estabelecimento — banner do painel. */

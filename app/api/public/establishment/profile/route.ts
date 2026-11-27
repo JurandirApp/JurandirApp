@@ -30,6 +30,7 @@ export async function GET(req: Request): Promise<Response> {
     select: {
       name: true, tagline: true, address: true, hours: true, weeklyHours: true,
       whatsapp: true, instagram: true, phone: true, email: true,
+      waiterModuleEnabled: true,
     },
   });
   if (!e) return Response.json({ error: "not found" }, { status: 404, headers: CORS });
@@ -45,6 +46,9 @@ export async function GET(req: Request): Promise<Response> {
       instagram: e.instagram ?? "",
       phone: e.phone ?? "",
       email: e.email ?? "",
+      // Módulo do Garçom (botão de entrega) — o próprio bar liga/desliga em
+      // POST /api/public/establishment/waiter-module.
+      waiterModuleEnabled: e.waiterModuleEnabled,
     },
     { headers: CORS },
   );

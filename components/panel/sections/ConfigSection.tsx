@@ -34,6 +34,8 @@ export function ConfigSection() {
     generatePrintToken,
     printJobs,
     refreshPrintJobs,
+    waiterModule,
+    setWaiterModule,
   } = usePanel();
   const t = useTranslations("panel.config");
 
@@ -106,6 +108,17 @@ export function ConfigSection() {
           <p className="m-0 mt-2 text-[11px] text-ink/40">
             {t("notificationsFootnote")}
           </p>
+        </Card>
+
+        {/* Entrega pelo garçom (Módulo do Garçom) — o próprio bar liga/desliga. */}
+        <Card>
+          <CardTitle icon="room_service">{t("waiterModuleTitle")}</CardTitle>
+          <ToggleRow
+            title={t("waiterModuleToggle")}
+            sub={t("waiterModuleHint")}
+            checked={waiterModule}
+            onChange={() => setWaiterModule(!waiterModule)}
+          />
         </Card>
 
         {/* Pagamentos — matriz método × gateway + conexões (MP / Pagar.me / …) */}
