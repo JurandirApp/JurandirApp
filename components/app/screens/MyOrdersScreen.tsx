@@ -3,14 +3,13 @@
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { money, padId } from "@/lib/panel/helpers";
-import { PAY_IDS, PM, isComingSoon } from "@/lib/data/app";
 import { paidAmount, paidCount } from "@/lib/app/helpers";
 import { useApp } from "../context";
+import { SplitSharesPix } from "../SplitSharesPix";
 
 export function MyOrdersScreen() {
-  const { est, loc, myOrders, exp, toggleExp, payShare, goMenu, openOrder } = useApp();
+  const { est, loc, myOrders, exp, toggleExp, goMenu, openOrder } = useApp();
   const t = useTranslations("app");
-  const tShort = useTranslations("app.payShort");
 
   return (
     <div className="px-4 pb-10 pt-5">
@@ -159,48 +158,8 @@ export function MyOrdersScreen() {
                     {isExp ? t("expandHide") : t("expandComplete")}
                   </button>
                   {isExp && (
-                    <div className="mt-3 flex flex-col gap-2">
-                      {o.splits.map((s, idx) => (
-                        <div key={idx} className="rounded-xl border border-[#e2e8f0] p-2.5">
-                          <div className="mb-1.5 flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 text-sm font-medium">
-                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f1f5f9] text-xs font-bold">
-                                {idx + 1}
-                              </span>
-                              {t("friend", { n: idx + 1 })}
-                            </span>
-                            {s.m ? (
-                              <span className="flex items-center gap-1 text-xs font-medium text-[#059669]">
-                                <Icon name="check" size={13} />
-                                {t("paidWith", { method: tShort(s.m) })}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-[#94a3b8]">{money(s.amount)}</span>
-                            )}
-                          </div>
-                          {!s.m && (
-                            <div className="grid grid-cols-4 gap-1.5">
-                              {PAY_IDS.map((id) => {
-                                const soon = isComingSoon(id);
-                                return (
-                                  <button
-                                    key={id}
-                                    type="button"
-                                    disabled={soon}
-                                    onClick={() => payShare(o.id, idx, id)}
-                                    className="flex flex-col items-center gap-0.5 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] py-1.5 disabled:opacity-50"
-                                  >
-                                    <Icon name={PM[id].icon} size={15} className="text-[#475569]" />
-                                    <span className="text-center text-[9px] leading-none text-[#64748b]">
-                                      {soon ? t("comingSoon") : tShort(id)}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                    <div className="mt-3">
+                      <SplitSharesPix splits={o.splits} />
                     </div>
                   )}
                 </div>

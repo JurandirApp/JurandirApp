@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { money } from "@/lib/panel/helpers";
 import { paidAmount, type ClientOrder } from "@/lib/app/helpers";
 import { useApp } from "../context";
+import { SplitSharesPix } from "../SplitSharesPix";
 
 export function DoneScreen() {
   const { lastOrder, loc, goMyOrders, goMenu } = useApp();
@@ -180,6 +181,21 @@ export function DoneScreen() {
             {copied ? t("pixCopied") : t("pixCopy")}
           </button>
           <p className="m-0 mt-3 text-[13px] text-[#d97706]">{t("pixWaiting")}</p>
+        </div>
+      )}
+
+      {/* Conta dividida: o Pix de cada pessoa (o pedido vai pra cozinha quando
+          todas as partes caírem). */}
+      {inc && isSplit && L.splits && (
+        <div
+          className="mt-5 rounded-2xl bg-white p-4"
+          style={{ boxShadow: "0 4px 12px -6px rgba(12,67,71,.15)" }}
+        >
+          <p className="m-0 mb-1 font-display text-[15px] font-bold uppercase tracking-[-0.01em]">
+            {t("splitPixTitle")}
+          </p>
+          <p className="m-0 mb-3 text-xs text-ink/60">{t("splitPixHint")}</p>
+          <SplitSharesPix splits={L.splits} />
         </div>
       )}
 

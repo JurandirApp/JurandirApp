@@ -10,6 +10,7 @@ import {
 import { orderCreateSchema, type OrderCreateInput } from "../validation";
 import { getProvider, resolveGateway, type PixCharge } from "@/lib/payments";
 import { enqueuePrintJob } from "./print";
+import { allSharesCharged } from "@/lib/app/split";
 
 const ORDER_INCLUDE = { items: true, payment: true, splitShares: true } as const;
 
@@ -94,6 +95,11 @@ export async function createOrder(input: OrderCreateInput) {
           .catch(() => null),
       ),
     );
+    // Parte sem cobrança nunca é paga → o pedido ficaria preso em
+    // AWAITING_PAYMENT e nunca chegaria ao bar. Falha visível em vez de pedido morto.
+    if (!allSharesCharged(shareCharges)) {
+      throw new Error("split: não foi possível gerar o Pix de todas as partes");
+    }
   }
 
   // Split fica AWAITING até todas as partes caírem (reconcile).

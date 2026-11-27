@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { money } from "@/lib/panel/helpers";
-import { PAY_IDS, PM, isComingSoon, type PayId } from "@/lib/data/app";
+import { PAY_IDS, PM, isComingSoon } from "@/lib/data/app";
 import { cartTotal, fees, shares as splitShares } from "@/lib/app/helpers";
 import { useApp } from "../context";
 import { WalletButtons } from "../WalletButtons";
@@ -13,12 +13,11 @@ export function CheckoutScreen() {
   const {
     est, loc, menu, cart, addItem, decItem, removeItem, goMenu,
     note, setNote, mode, setMode, selPay, pickPay,
-    people, pplPlus, pplMinus, paid, setShare, undoShare, paying, finish,
+    people, pplPlus, pplMinus, paying, finish,
     wallets, walletAttempt, payWithWallet, toastMsg,
   } = useApp();
   const t = useTranslations("app");
   const tPay = useTranslations("app.pay");
-  const tShort = useTranslations("app.payShort");
 
   const total = cartTotal(cart, menu);
   const { fee, grand } = fees(total, est.platformFeePct, est.serviceFeePct);
@@ -33,10 +32,6 @@ export function CheckoutScreen() {
     .slice(0, 4);
 
   const shareArr = splitShares(grand, people);
-  const nPaid = paid.filter(Boolean).length;
-  const allPaid = nPaid === people;
-  const paidAmt = paid.reduce((s, m, i) => s + (m ? shareArr[i] : 0), 0);
-  const missing = people - nPaid;
 
   // Pay button state
   let payLabel: string;
@@ -54,18 +49,15 @@ export function CheckoutScreen() {
     // nativo, em vez de digitar tudo à mão no Brick transparente.
     if (can) onPay = () => finish(null);
   } else {
-    const can = nPaid > 0 && !paying;
+    // Conta dividida: o servidor gera um Pix POR PESSOA; ninguém paga aqui.
+    const can = !paying;
     payLabel = paying
       ? t("paySending")
-      : nPaid === 0
-        ? t("paySelectOne")
-        : allPaid
-          ? t("payFinishSplit", { amount: money(grand) })
-          : t("paySendSplit", { paid: nPaid, people });
-    payBg = !can ? "#cbd5e1" : allPaid ? "#FF6B4A" : "#f59e0b";
+      : t("payGenerateSplit", { people, amount: money(grand) });
+    payBg = can ? "#FF6B4A" : "#cbd5e1";
     if (can)
       onPay = () =>
-        finish(paid.map((m, i) => ({ m, amount: shareArr[i] })));
+        finish(shareArr.map((amount) => ({ m: "pix" as const, amount })));
   }
 
   return (
@@ -309,73 +301,29 @@ export function CheckoutScreen() {
           </p>
 
           <div className="flex flex-col gap-2">
-            {paid.map((m, idx) => (
-              <div key={idx} className="rounded-xl border border-[#e2e8f0] p-2.5">
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-sm font-medium">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f1f5f9] text-xs font-bold">
-                      {idx + 1}
-                    </span>
-                    {t("friend", { n: idx + 1 })}
+            {shareArr.map((amount, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between rounded-xl border border-[#e2e8f0] p-2.5"
+              >
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#f1f5f9] text-xs font-bold">
+                    {idx + 1}
                   </span>
-                  {m ? (
-                    <span className="flex items-center gap-1 text-xs font-medium text-[#059669]">
-                      <Icon name="check" size={13} />
-                      {t("paidWith", { method: tShort(m) })}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-[#94a3b8]">{money(shareArr[idx])}</span>
-                  )}
-                </div>
-                {m ? (
-                  <button
-                    type="button"
-                    onClick={() => undoShare(idx)}
-                    className="bg-transparent p-0 text-[11px] text-[#94a3b8] underline"
-                  >
-                    {t("undo")}
-                  </button>
-                ) : (
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {PAY_IDS.map((id) => (
-                      <PayMini
-                        key={id}
-                        id={id}
-                        label={isComingSoon(id) ? t("comingSoon") : tShort(id)}
-                        soon={isComingSoon(id)}
-                        onClick={() => setShare(idx, id)}
-                      />
-                    ))}
-                  </div>
-                )}
+                  {t("friend", { n: idx + 1 })}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-ink/60">
+                  <Icon name={PM.pix.icon} size={14} style={{ color: PM.pix.color }} />
+                  {money(amount)}
+                </span>
               </div>
             ))}
           </div>
 
-          <div className="mt-3">
-            <div className="mb-1 flex justify-between text-xs text-ink/60">
-              <span>{t("paidCountSplit", { paid: nPaid, people })}</span>
-              <span>{t("paidAmtOf", { paid: money(paidAmt), total: money(grand) })}</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-[#f1f5f9]">
-              <div
-                className="h-full rounded-full bg-[#10b981]"
-                style={{ width: `${Math.round((nPaid / people) * 100)}%` }}
-              />
-            </div>
+          <div className="mt-3 flex gap-1.5 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-xs text-[#92400e]">
+            <Icon name="info" size={14} className="mt-px flex-shrink-0" />
+            <span>{t("splitPixNote")}</span>
           </div>
-
-          {nPaid > 0 && nPaid < people && (
-            <div className="mt-3 flex gap-1.5 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-xs text-[#92400e]">
-              <Icon name="schedule" size={14} className="mt-px flex-shrink-0" />
-              <span>
-                {t.rich("splitWarn", {
-                  n: missing,
-                  b: (c) => <b>{c}</b>,
-                })}
-              </span>
-            </div>
-          )}
         </div>
       )}
 
@@ -431,30 +379,6 @@ function ModeBtn({
       }}
     >
       {children}
-    </button>
-  );
-}
-
-function PayMini({
-  id,
-  label,
-  onClick,
-  soon,
-}: {
-  id: PayId;
-  label: string;
-  onClick: () => void;
-  soon?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={soon}
-      onClick={onClick}
-      className="flex flex-col items-center gap-0.5 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] py-1.5 disabled:opacity-50"
-    >
-      <Icon name={PM[id].icon} size={15} className="text-ink/70" />
-      <span className="text-center text-[9px] leading-none text-ink/60">{label}</span>
     </button>
   );
 }

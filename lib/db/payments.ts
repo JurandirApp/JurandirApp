@@ -60,7 +60,17 @@ export async function reconcileByChargeId(gatewayChargeId: string): Promise<void
     where: { gatewayChargeId },
     include: { order: { include: { establishment: true } } },
   });
-  if (!payment?.order || payment.order.status !== OrderStatus.AWAITING_PAYMENT) return;
+  if (!payment) {
+    // Pode ser a cobrança de UMA parte da conta dividida (Pix por pessoa) — essas
+    // ficam em SplitShare, não em Payment. Sem isto o webhook ignorava as partes.
+    const share = await prisma.splitShare.findFirst({
+      where: { gatewayChargeId },
+      select: { orderId: true },
+    });
+    if (share) await reconcileOrder(share.orderId);
+    return;
+  }
+  if (!payment.order || payment.order.status !== OrderStatus.AWAITING_PAYMENT) return;
   const status = await getProviderByName(payment.provider ?? "MERCADO_PAGO").getChargeStatus(
     payment.order.establishment,
     gatewayChargeId,

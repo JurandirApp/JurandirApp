@@ -7,13 +7,13 @@ import type { MenuItem } from "@/lib/data/panel";
 import { cartTotal, fees, type CartLine, type ClientOrder, type Share } from "@/lib/app/helpers";
 import { PIX_EXPIRES_MIN } from "@/lib/domain/pricing";
 import { appToEnum } from "@/lib/app/adapters";
+import { splitPayment } from "@/lib/app/split";
 import {
   chargeWalletAction,
   createOrderAction,
   createWalletOrderAction,
   getMyOrdersAction,
   payCardAction,
-  payShareAction,
   payTunaCardAction,
   tunaCardStatusAction,
 } from "@/lib/actions/app";
@@ -378,11 +378,10 @@ export function ClientApp({
         });
         return;
       }
+      // Conta dividida = uma cobrança Pix POR PESSOA (o servidor gera os QRs);
+      // ninguém "marca pago" no checkout — cada um paga o seu Pix depois.
       const payment = sharesArg
-        ? {
-            kind: "split" as const,
-            shares: sharesArg.map((s) => ({ method: s.m ? appToEnum(s.m) : null })),
-          }
+        ? splitPayment(sharesArg.length)
         : {
             kind: "full" as const,
             method: appToEnum(selPay!),
@@ -672,26 +671,6 @@ export function ClientApp({
       lastOrder,
       exp,
       toggleExp: (id) => setExp((e) => (e === id ? null : id)),
-      payShare: (orderId, idx, id) => {
-        const o = myOrders.find((x) => x.id === orderId);
-        if (!o?.dbId) return;
-        (async () => {
-          const r = await payShareAction(o.dbId!, idx, appToEnum(id));
-          if (r.ok) {
-            let ids: string[] = [];
-            try {
-              ids = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-            } catch {
-              ids = [];
-            }
-            const fresh = await getMyOrdersAction(ids);
-            setMyOrders(fresh);
-          } else {
-            toastMsg(t("payError"));
-          }
-        })();
-      },
-
       openOrder: (order) => {
         setLastOrder(order);
         setStep("done");

@@ -1,9 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import type { PaymentMethod } from "@prisma/client";
-import { createOrder, payShare, getOrdersByIds } from "@/lib/db/orders";
+import { createOrder, getOrdersByIds } from "@/lib/db/orders";
 import {
   createCardCheckout,
   reconcileOrder,
@@ -15,6 +13,7 @@ import {
 } from "@/lib/db/payments";
 import { orderCreateSchema, type OrderCreateInput } from "@/lib/validation";
 import { toClientOrder } from "@/lib/app/adapters";
+import { needsReconcile } from "@/lib/app/split";
 import type { ClientOrder } from "@/lib/app/helpers";
 import type { CardBrickData, ChargeStatus } from "@/lib/payments/types";
 import { isValidCpf, onlyDigits } from "@/lib/app/card-form";
@@ -265,28 +264,15 @@ export async function tunaCardStatusAction(
   }
 }
 
-export async function payShareAction(
-  orderId: string,
-  personIndex: number,
-  method: PaymentMethod,
-): Promise<{ ok: boolean; order?: ClientOrder }> {
-  try {
-    const updated = await payShare(orderId, personIndex, method);
-    if (!updated) return { ok: false };
-    revalidatePath("/painel"); // establishment panel sees the status flip
-    return { ok: true, order: toClientOrder(updated) };
-  } catch {
-    return { ok: false };
-  }
-}
-
 export async function getMyOrdersAction(ids: string[]): Promise<ClientOrder[]> {
   if (!ids.length) return [];
   let rows = await getOrdersByIds(ids);
   // Reconcilia pedidos aguardando pagamento com cobrança real (viabiliza dev sem
   // webhook público). reconcileOrder cobre Pix (por id) e cartão/Checkout Pro
   // (por external_reference).
-  const awaiting = rows.filter((o) => o.status === "AWAITING_PAYMENT" && o.payment);
+  // Conta dividida NÃO tem `payment` (só `splitShares`) — antes ficava de fora
+  // e o pedido nunca saía de AWAITING_PAYMENT no site (bug do "dividir conta").
+  const awaiting = rows.filter(needsReconcile);
   if (awaiting.length) {
     await Promise.all(awaiting.map((o) => reconcileOrder(o.id).catch(() => {})));
     rows = await getOrdersByIds(ids);
