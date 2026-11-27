@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/components/ui/Icon";
 import { money } from "@/lib/panel/helpers";
@@ -7,17 +8,22 @@ import { PAY_IDS, PM, isComingSoon } from "@/lib/data/app";
 import { cartTotal, fees, shares as splitShares } from "@/lib/app/helpers";
 import { useApp } from "../context";
 import { WalletButtons } from "../WalletButtons";
+import { SpotModal } from "../SpotModal";
 import { WALLET_TOAST_MS } from "@/lib/app/wallet-outcome";
 
 export function CheckoutScreen() {
   const {
-    est, loc, menu, cart, addItem, decItem, removeItem, goMenu,
+    est, loc, spotFromQr, beach, menu, cart, addItem, decItem, removeItem, goMenu,
     note, setNote, mode, setMode, selPay, pickPay,
     people, pplPlus, pplMinus, paying, finish,
     wallets, walletAttempt, payWithWallet, toastMsg,
   } = useApp();
   const t = useTranslations("app");
   const tPay = useTranslations("app.pay");
+  // Mesa/guarda-sol: sem QR, o cliente escolhe aqui, antes de criar o pedido.
+  // `payAfterSpot` = o clique em pagar abriu o seletor → segue ao escolher.
+  const [spotOpen, setSpotOpen] = useState(false);
+  const [payAfterSpot, setPayAfterSpot] = useState(false);
 
   const total = cartTotal(cart, menu);
   const { fee, grand } = fees(total, est.platformFeePct, est.serviceFeePct);
@@ -36,7 +42,7 @@ export function CheckoutScreen() {
   // Pay button state
   let payLabel: string;
   let payBg: string;
-  let onPay: (() => void) | null = null;
+  let onPay: ((where?: string) => void) | null = null;
   if (full) {
     const can = Boolean(selPay) && !paying;
     payLabel = paying
@@ -47,7 +53,7 @@ export function CheckoutScreen() {
     // pedido e redireciona pro Checkout Pro do MP — lá o cliente usa carteira,
     // Google Pay / Apple Pay e cartões salvos (login em 1 toque), com autofill
     // nativo, em vez de digitar tudo à mão no Brick transparente.
-    if (can) onPay = () => finish(null);
+    if (can) onPay = (where) => finish(null, where);
   } else {
     // Conta dividida: o servidor gera um Pix POR PESSOA; ninguém paga aqui.
     const can = !paying;
@@ -56,8 +62,11 @@ export function CheckoutScreen() {
       : t("payGenerateSplit", { people, amount: money(grand) });
     payBg = can ? "#FF6B4A" : "#cbd5e1";
     if (can)
-      onPay = () =>
-        finish(shareArr.map((amount) => ({ m: "pix" as const, amount })));
+      onPay = (where) =>
+        finish(
+          shareArr.map((amount) => ({ m: "pix" as const, amount })),
+          where,
+        );
   }
 
   return (
@@ -79,10 +88,26 @@ export function CheckoutScreen() {
         className="mb-4 rounded-2xl bg-white p-4"
         style={{ boxShadow: "0 4px 12px -6px rgba(12,67,71,.15)" }}
       >
-        <p className="m-0 mb-2 flex items-center gap-1 text-xs text-[#94a3b8]">
-          <Icon name="location_on" size={12} />
-          {loc}
-        </p>
+        {spotFromQr ? (
+          <p className="m-0 mb-2 flex items-center gap-1 text-xs text-[#94a3b8]">
+            <Icon name="location_on" size={12} />
+            {loc}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSpotOpen(true)}
+            className="mb-2 flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold"
+            style={{
+              borderColor: loc ? "rgba(20,24,33,.12)" : "#FF6B4A",
+              color: loc ? "#475569" : "#FF6B4A",
+            }}
+          >
+            <Icon name="location_on" size={12} />
+            {loc || (beach ? t("chooseSpotBeach") : t("chooseSpotTable"))}
+            <Icon name="expand_more" size={14} className="text-ink/40" />
+          </button>
+        )}
         {lines.map(({ c, m }) => (
           <div key={c.id} className="flex items-center gap-2 py-1.5 text-sm">
             <span className="min-w-0 flex-1 truncate text-ink/70">{m.name}</span>
@@ -224,7 +249,14 @@ export function CheckoutScreen() {
           <WalletButtons
             config={wallets}
             disabled={paying}
-            prepare={walletAttempt}
+            prepare={() => {
+              // Sem lugar ainda → pede antes (o cliente toca na carteira de novo).
+              if (!loc) {
+                setSpotOpen(true);
+                return null;
+              }
+              return walletAttempt();
+            }}
             onToken={(attempt, walletType, token, complete) => {
               payWithWallet(attempt, walletType, token).then(complete, () => complete(false));
             }}
@@ -334,7 +366,15 @@ export function CheckoutScreen() {
       >
         <button
           type="button"
-          onClick={() => onPay?.()}
+          onClick={() => {
+            if (!onPay) return;
+            if (!loc) {
+              setPayAfterSpot(true);
+              setSpotOpen(true);
+              return;
+            }
+            onPay();
+          }}
           disabled={!onPay}
           className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[15px] font-semibold text-white"
           style={{ background: payBg }}
@@ -345,6 +385,20 @@ export function CheckoutScreen() {
           {payLabel}
         </button>
       </div>
+      {spotOpen && (
+        <SpotModal
+          onClose={() => {
+            setSpotOpen(false);
+            setPayAfterSpot(false);
+          }}
+          onPicked={(label) => {
+            if (payAfterSpot) {
+              setPayAfterSpot(false);
+              onPay?.(label);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

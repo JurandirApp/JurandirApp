@@ -87,13 +87,16 @@ export function MenuScreen() {
             <Icon name="schedule" size={12} />
             {est.hours}
           </p>
-          <span
-            className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
-            style={{ background: "rgba(255,255,255,.2)", backdropFilter: "blur(4px)" }}
-          >
-            <Icon name="location_on" size={11} />
-            {loc}
-          </span>
+          {/* Sem lugar ainda (chegou pela landing): é escolhido no checkout. */}
+          {loc && (
+            <span
+              className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+              style={{ background: "rgba(255,255,255,.2)", backdropFilter: "blur(4px)" }}
+            >
+              <Icon name="location_on" size={11} />
+              {loc}
+            </span>
+          )}
         </div>
       </div>
 

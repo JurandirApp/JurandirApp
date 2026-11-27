@@ -8,7 +8,14 @@ import { useApp } from "./context";
 /** Escolha do guarda-sol/mesa quando o cliente chega pela landing (sem QR).
  *  Lista os spots cadastrados pelo estabelecimento + um fallback para digitar o
  *  número (QR danificado ou lugar não cadastrado). */
-export function SpotModal({ onClose }: { onClose: () => void }) {
+export function SpotModal({
+  onClose,
+  onPicked,
+}: {
+  onClose: () => void;
+  /** Chamado com o lugar escolhido (o checkout usa pra seguir com o pedido). */
+  onPicked?: (label: string) => void;
+}) {
   const { spots, beach, loc, setLoc } = useApp();
   const t = useTranslations("app");
   const prefix = t(beach ? "spotPrefixBeach" : "spotPrefixTable");
@@ -17,6 +24,7 @@ export function SpotModal({ onClose }: { onClose: () => void }) {
   const pick = (label: string) => {
     setLoc(label);
     onClose();
+    onPicked?.(label);
   };
   const confirmManual = () => {
     const n = manual.replace(/\D/g, "").slice(0, 4);

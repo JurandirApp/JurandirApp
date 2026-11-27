@@ -73,7 +73,12 @@ export function ClientApp({
 
   // Voltando do Checkout Pro (?paid=1) → já abre em "Meus pedidos". Vem do
   // servidor (prop) para não quebrar a hidratação.
-  const [step, setStep] = useState<Step>(paidReturn ? "myorders" : "qr");
+  // Pela landing (sem ?local=) o cliente cai direto no CARDÁPIO; a mesa/guarda-sol
+  // é perguntada no checkout, antes de criar o pedido (igual ao app). Pelo QR, a
+  // tela de boas-vindas com o lugar fixo continua.
+  const [step, setStep] = useState<Step>(
+    paidReturn ? "myorders" : spotFromQr ? "qr" : "menu",
+  );
   const [cart, setCart] = useState<CartLine[]>([]);
   // Abre na primeira categoria/sub que TEM item — um cardápio novo pode não ter
   // combos, então não faz sentido abrir numa aba vazia.
@@ -93,7 +98,7 @@ export function ClientApp({
   const [custName, setCustName] = useState("");
   const [note, setNote] = useState("");
   // Guarda-sol/mesa: se veio de um QR (?local=), usa o valor da URL. Se chegou
-  // pela landing, começa vazio — o cliente escolhe no modal antes de pedir.
+  // pela landing, começa vazio — o cliente escolhe no checkout, antes de pedir.
   const [loc, setLoc] = useState(spotFromQr ? loc0 : "");
 
   const [mode, setMode] = useState<PayMode>("full");
@@ -346,7 +351,9 @@ export function ClientApp({
     };
 
 
-    const finish = (sharesArg: Share[] | null) => {
+    const finish = (sharesArg: Share[] | null, locOverride?: string) => {
+      const where = locOverride || loc;
+      if (!where) return; // o checkout pede o lugar antes de chegar aqui
       const items = cart.flatMap((c) => {
         const m = menu.find((x) => x.id === c.id);
         return m ? [{ name: m.name, qty: c.qty, unitPrice: m.price }] : [];
@@ -367,7 +374,7 @@ export function ClientApp({
           amount: grand,
           input: {
             establishmentId: est.id,
-            locationLabel: loc,
+            locationLabel: where,
             posto: beach ? est.posto : undefined,
             customerName: custName.trim() || undefined,
             note: note.trim() || undefined,
@@ -391,7 +398,7 @@ export function ClientApp({
       (async () => {
         const r = await createOrderAction({
           establishmentId: est.id,
-          locationLabel: loc,
+          locationLabel: where,
           posto: beach ? est.posto : undefined,
           customerName: custName.trim() || undefined,
           note: note.trim() || undefined,

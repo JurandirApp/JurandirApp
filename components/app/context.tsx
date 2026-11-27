@@ -79,7 +79,12 @@ export interface AppValue {
 
   // Submission
   paying: boolean;
-  finish: (fullyPaidOrShares: null | { m: PayId | null; amount: number }[]) => void;
+  /** `locOverride`: lugar recém-escolhido no checkout (o estado `loc` ainda não
+   *  atualizou nesta renderização). */
+  finish: (
+    fullyPaidOrShares: null | { m: PayId | null; amount: number }[],
+    locOverride?: string,
+  ) => void;
   /** Cartão (crédito/débito) → abre o Payment Brick (checkout transparente) em vez de redirect. */
   openCardPay: () => void;
   /** Apple/Google Pay, no clique: snapshot do pedido (crédito à vista) + valor
