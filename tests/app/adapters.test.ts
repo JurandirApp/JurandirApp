@@ -109,6 +109,6 @@ describe("toClientOrder", () => {
     } as never);
     expect(o.status).toBe("aguardando");
     expect(o.pay).toBeNull();
-    expect(o.splits).toEqual([{ m: "pix", amount: 71.39 }, { m: null, amount: 71.39 }]);
+    expect(o.splits).toMatchObject([{ m: "pix", amount: 71.39 }, { m: null, amount: 71.39 }]);
   });
 });

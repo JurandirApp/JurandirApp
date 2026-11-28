@@ -91,6 +91,9 @@ describe("pagarmeProvider.createPixCharge", () => {
   });
 
   it("sem recebedor do estabelecimento → erro", async () => {
+    // Independe do .env local: sem recebedor da plataforma também.
+    vi.stubEnv("PAGARME_PLATFORM_RECIPIENT_ID", "");
+    vi.stubEnv("PAGARME_PLATFORM_RECIPIENT_ID_TEST", "");
     seq([]);
     await expect(
       pagarmeProvider.createPixCharge({
